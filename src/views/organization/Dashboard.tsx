@@ -5,7 +5,8 @@ import { Modal } from '../../components/Modal';
 import { Users, Target, TrendingUp, ChevronDown, Activity, ExternalLink, Filter, HeartPulse, BrainCircuit, Sparkles, AlertTriangle, Calendar, Globe, Briefcase } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Link } from 'react-router-dom';
-import { mockGrowthData, mockDeptPerformance, mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
+import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
+import { mockOrgHistory, mockLargeDepartments } from '../../dummy/organization/largeDashboardData';
 
 export const Dashboard: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState('All Departments');
@@ -236,12 +237,12 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="flex-1 w-full opacity-90 group-hover:opacity-100 transition-opacity">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockDeptPerformance} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <BarChart data={mockLargeDepartments.slice(0, 6)} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} dy={5} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} />
                   <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
-                  <Bar dataKey="score" fill="url(#colorBar)" radius={[4, 4, 0, 0]} maxBarSize={30}>
+                  <Bar dataKey="performanceScore" fill="url(#colorBar)" radius={[4, 4, 0, 0]} maxBarSize={30}>
                   </Bar>
                   <defs>
                     <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
@@ -262,7 +263,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="flex-1 w-full opacity-90 group-hover:opacity-100 transition-opacity">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockGrowthData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <AreaChart data={mockOrgHistory.slice(-12)} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -273,7 +274,7 @@ export const Dashboard: React.FC = () => {
                   <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} dy={5} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} domain={['dataMin - 20', 'dataMax + 20']} />
                   <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
-                  <Area type="monotone" dataKey="headcount" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorGrowth)" />
+                  <Area type="monotone" dataKey="totalHeadcount" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorGrowth)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
