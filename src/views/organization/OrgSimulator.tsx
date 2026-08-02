@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase } from 'lucide-react';
+import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase, Lightbulb } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
+import { mockOrgHistory, mockSimulations } from '../../dummy/organization/largeDashboardData';
 
 export const OrgSimulator: React.FC = () => {
   const [headcountChange, setHeadcountChange] = useState(0);
@@ -8,19 +9,22 @@ export const OrgSimulator: React.FC = () => {
   const [remoteDays, setRemoteDays] = useState(2);
   const [trainingBudget, setTrainingBudget] = useState(0);
   const [restructuringLevel, setRestructuringLevel] = useState(0);
+  const [selectedScenario, setSelectedScenario] = useState<any | null>(null);
   
   const [simulationData, setSimulationData] = useState<any[] | null>(null);
   const [snapshotData, setSnapshotData] = useState<any[] | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   
+  // Base metrics from the most recent historical month
+  const latestMonth = mockOrgHistory[mockOrgHistory.length - 1];
+  const baseProductivity = latestMonth.overallProductivityScore;
+  const baseHealth = latestMonth.eNPS + 40; // Approx mapping to 0-100
+  const baseCapacity = 100;
+  const baseAttrition = parseFloat(latestMonth.voluntaryAttritionRate) * 4; 
+  const baseCsat = parseFloat(latestMonth.csat);
+  const baseRevenue = parseFloat(latestMonth.revenue) / 1000000; // In Millions
+
   const generateData = (params: any, isSnapshot: boolean = false) => {
-    const baseProductivity = 85;
-    const baseHealth = 92;
-    const baseCapacity = 100;
-    const baseAttrition = 15; 
-    const baseCsat = 88;
-    const baseRevenue = 120; // 120M baseline
-    
     return Array.from({length: 6}, (_, i) => {
       const monthMultiplier = (i + 1) * 0.2;
       
@@ -55,6 +59,35 @@ export const OrgSimulator: React.FC = () => {
     }, 1200);
   };
 
+  const handleApplyScenario = (scenario: any) => {
+    setSelectedScenario(scenario);
+    // Parse the scenario to map to sliders (dummy mapping for effect)
+    const name = scenario.scenarioName.toLowerCase();
+    
+    let hc = 0, sc = 0, rd = 2, tb = 0, rl = 0;
+    
+    if (name.includes('headcount')) hc = name.includes('reduce') ? -5 : 5;
+    if (name.includes('salary')) sc = 5;
+    if (name.includes('4-day')) rd = 4;
+    if (name.includes('office')) rd = 1;
+    if (name.includes('r&d') || name.includes('training')) tb = 20;
+    if (name.includes('outsource') || name.includes('hub')) rl = 8;
+    
+    setHeadcountChange(hc);
+    setSalaryChange(sc);
+    setRemoteDays(rd);
+    setTrainingBudget(tb);
+    setRestructuringLevel(rl);
+    
+    // Auto-run simulation
+    setIsSimulating(true);
+    setTimeout(() => {
+      const newData = generateData({ headcountChange: hc, salaryChange: sc, remoteDays: rd, trainingBudget: tb, restructuringLevel: rl });
+      setSimulationData(newData);
+      setIsSimulating(false);
+    }, 1200);
+  };
+
   const handleSnapshot = () => {
     if (!simulationData) return;
     const snap = generateData({ headcountChange, salaryChange, remoteDays, trainingBudget, restructuringLevel }, true);
@@ -69,11 +102,15 @@ export const OrgSimulator: React.FC = () => {
     setRestructuringLevel(0);
     setSimulationData(null);
     setSnapshotData(null);
+    setSelectedScenario(null);
   };
 
   const mergedData = simulationData ? simulationData.map((d, i) => {
     return { ...d, ...(snapshotData ? snapshotData[i] : {}) };
   }) : null;
+
+  // Take just 8 interesting scenarios for the library
+  const scenarioLibrary = mockSimulations.slice(0, 8);
 
   return (
     <div className="flex flex-col gap-8 pb-12 relative">
@@ -83,31 +120,64 @@ export const OrgSimulator: React.FC = () => {
         <div className="absolute rounded-full" style={{ top: '20rem', right: '-10rem', width: '25rem', height: '25rem', backgroundColor: 'rgba(167, 139, 250, 0.15)', filter: 'blur(80px)' }}></div>
       </div>
 
-      <div className="mt-4">
-        <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: '#0f172a' }}>Organizational Simulator</h1>
-        <p className="text-base font-bold bg-white px-4 py-2 rounded-xl shadow-sm border border-white" style={{ color: '#475569', display: 'inline-block', backgroundColor: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)' }}>
-          <Activity size={16} className="inline mr-2" style={{ color: '#2563eb', marginBottom: '2px' }} />
-          Organization Digital Twin • Enterprise-grade causal what-if forecasting.
-        </p>
+      <div className="mt-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: '#0f172a' }}>AI Digital Twin Simulator</h1>
+          <p className="text-base font-bold bg-white px-4 py-2 rounded-xl shadow-sm border border-white" style={{ color: '#475569', display: 'inline-block', backgroundColor: 'rgba(255,255,255,0.6)', backdropFilter: 'blur(12px)' }}>
+            <Activity size={16} className="inline mr-2" style={{ color: '#2563eb', marginBottom: '2px' }} />
+            Enterprise-grade causal what-if forecasting powered by your historical data.
+          </p>
+        </div>
       </div>
 
-      <div className="flex gap-8 items-start relative z-10">
+      <div className="flex gap-6 items-start relative z-10">
         
-        {/* Left Panel: Controls */}
-        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden sticky top-4" style={{ width: '340px', backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px', maxHeight: 'calc(100vh - 2rem)' }}>
+        {/* Left Panel: Scenario Library */}
+        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden sticky top-4" style={{ width: '280px', backgroundColor: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(24px)', borderRadius: '32px', maxHeight: 'calc(100vh - 2rem)' }}>
+          <div className="flex items-center gap-3 px-6 py-6 shrink-0" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
+              <Lightbulb size={20} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold leading-tight" style={{ color: '#0f172a' }}>AI Scenarios</h3>
+              <p className="text-xs font-bold mt-0.5" style={{ color: '#64748b' }}>Pre-calculated outcomes</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 p-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+            {scenarioLibrary.map((scen: any) => (
+              <div 
+                key={scen.id} 
+                onClick={() => handleApplyScenario(scen)}
+                className={`p-4 rounded-2xl cursor-pointer transition-all border ${selectedScenario?.id === scen.id ? 'border-blue-400 shadow-md scale-[1.02]' : 'border-slate-200 hover:border-blue-300 hover:shadow-sm'}`}
+                style={{ backgroundColor: selectedScenario?.id === scen.id ? '#eff6ff' : 'white' }}
+              >
+                <p className="text-xs font-extrabold mb-2" style={{ color: selectedScenario?.id === scen.id ? '#1e40af' : '#0f172a' }}>
+                  {scen.scenarioName.split(':')[1] || scen.scenarioName}
+                </p>
+                <div className="flex justify-between items-center text-[10px] font-bold">
+                  <span style={{ color: '#64748b' }}>Confidence: <span style={{ color: '#059669' }}>{scen.confidenceLevel}%</span></span>
+                  <span style={{ color: scen.predictedImpactPercentage > 0 ? '#059669' : '#e11d48' }}>
+                    Impact: {scen.predictedImpactPercentage > 0 ? '+' : ''}{scen.predictedImpactPercentage}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Middle Panel: Controls */}
+        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden sticky top-4" style={{ width: '320px', backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px', maxHeight: 'calc(100vh - 2rem)' }}>
           
-          {/* Header */}
           <div className="flex items-center gap-4 px-6 py-6 shrink-0" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)' }}>
               <Sliders size={22} strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-base font-extrabold leading-tight" style={{ color: '#0f172a' }}>Scenario Parameters</h3>
+              <h3 className="text-base font-extrabold leading-tight" style={{ color: '#0f172a' }}>Parameters</h3>
               <p className="text-xs font-bold mt-1 uppercase tracking-wider" style={{ color: '#6366f1' }}>Adjust model inputs</p>
             </div>
           </div>
 
-          {/* Sliders */}
           <div className="flex flex-col overflow-y-auto flex-1 p-2 min-h-0" style={{ scrollbarWidth: 'none' }}>
             
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
@@ -134,7 +204,6 @@ export const OrgSimulator: React.FC = () => {
                 <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: '#fffbeb', color: '#b45309', borderColor: '#fde68a' }}>{restructuringLevel}/10</span>
               </div>
               <input type="range" min="0" max="10" step="1" value={restructuringLevel} onChange={(e) => setRestructuringLevel(Number(e.target.value))} className="w-full cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none" style={{ accentColor: '#f59e0b' }} />
-              <p className="text-xs font-bold" style={{ color: '#64748b', marginTop: '-8px' }}>Short-term disruption vs long-term efficiency.</p>
             </div>
 
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
@@ -178,7 +247,6 @@ export const OrgSimulator: React.FC = () => {
 
           </div>
 
-          {/* Action Buttons */}
           <div className="px-6 py-6 flex flex-col gap-4 relative z-10 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}>
             {simulationData && !snapshotData && (
               <button className="w-full text-sm font-extrabold rounded-full flex justify-center items-center gap-2 border shadow-sm transition-all hover:-translate-y-0.5 cursor-pointer whitespace-nowrap shrink-0" style={{ height: '48px', backgroundColor: 'white', borderColor: '#bfdbfe', color: '#2563eb' }} onClick={handleSnapshot}>
@@ -208,7 +276,7 @@ export const OrgSimulator: React.FC = () => {
               </div>
               <h3 className="font-black text-3xl mb-4 relative z-10" style={{ color: '#0f172a' }}>Causal System Dynamics</h3>
               <p className="text-base font-bold max-w-lg leading-relaxed relative z-10" style={{ color: '#64748b' }}>
-                Configure your strategic scenario on the left and hit run. The simulation uses a calibrated Bayesian Network to project cascading organizational outcomes.
+                Select an AI Scenario on the left, or manually configure your strategy. The simulation uses a calibrated Bayesian Network built on your historical data.
               </p>
             </div>
           )}
@@ -224,16 +292,18 @@ export const OrgSimulator: React.FC = () => {
 
           {mergedData && !isSimulating && (
             <>
-              {/* Sensitivity Explanation Pane */}
               <div className="grid grid-cols-12 gap-6 shrink-0">
                 <div className={`p-6 shadow-xl flex items-start gap-6 transition-all ${snapshotData ? 'col-span-8' : 'col-span-12'}`} style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
                   <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg text-white" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}>
                     <Network size={28} />
                   </div>
                   <div>
-                    <h4 className="text-sm font-black uppercase tracking-wide mb-3" style={{ color: '#0f172a' }}>Causal AI Sensitivity Analysis</h4>
+                    <h4 className="text-sm font-black uppercase tracking-wide mb-3" style={{ color: '#0f172a' }}>
+                      {selectedScenario ? `Scenario Analysis: ${selectedScenario.scenarioName.split(':')[1] || selectedScenario.scenarioName}` : 'Causal AI Sensitivity Analysis'}
+                    </h4>
                     <p className="text-sm leading-relaxed font-bold" style={{ color: '#475569' }}>
-                      The projected outcome is most sensitive to <strong className="font-black px-2 py-1 rounded-lg" style={{ color: '#0f172a', backgroundColor: '#f1f5f9' }}>Headcount</strong> changes. The causal network identified a strong cascading risk path:
+                      The projected outcome is highly sensitive to <strong className="font-black px-2 py-1 rounded-lg" style={{ color: '#0f172a', backgroundColor: '#f1f5f9' }}>{selectedScenario ? selectedScenario.targetMetric : 'Headcount'}</strong> changes.
+                      {selectedScenario && <span className="ml-2 px-2 py-1 bg-green-50 text-green-700 rounded-md">Predicted ROI: {selectedScenario.predictedROI}%</span>}
                     </p>
                     <div className="mt-4 flex items-center gap-3 text-xs font-black p-4 rounded-2xl border shadow-sm w-fit" style={{ backgroundColor: 'rgba(255,255,255,0.8)', borderColor: '#e2e8f0', color: '#64748b' }}>
                       <span className="text-rose-600">Headcount ↓</span> <ChevronRight size={16}/> 
@@ -260,10 +330,8 @@ export const OrgSimulator: React.FC = () => {
                 )}
               </div>
 
-              {/* Chart Grid */}
               <div className="grid grid-cols-2 gap-8 pb-4">
                 
-                {/* Chart 1: Productivity & Health */}
                 <div className="flex flex-col h-[340px] p-8 shadow-xl transition-all" style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4" style={{ color: '#0f172a' }}>
@@ -290,7 +358,6 @@ export const OrgSimulator: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Chart 2: Revenue & CSAT */}
                 <div className="flex flex-col h-[340px] p-8 shadow-xl transition-all" style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4" style={{ color: '#0f172a' }}>
@@ -317,7 +384,6 @@ export const OrgSimulator: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Chart 3: Attrition Risk */}
                 <div className="flex flex-col h-[300px] p-8 shadow-xl transition-all" style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4" style={{ color: '#0f172a' }}>
@@ -347,7 +413,6 @@ export const OrgSimulator: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Chart 4: Delivery Capacity */}
                 <div className="flex flex-col h-[300px] p-8 shadow-xl transition-all" style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4" style={{ color: '#0f172a' }}>
