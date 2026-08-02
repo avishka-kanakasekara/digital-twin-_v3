@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Card } from '../../components/Card';
+
 
 import { Modal } from '../../components/Modal';
-import { Users, Target, TrendingUp, ChevronDown, Activity, ExternalLink, Filter, HeartPulse, BrainCircuit, Sparkles, AlertTriangle, Calendar, Globe, Briefcase } from 'lucide-react';
+import { Users, Target, TrendingUp, ChevronDown, Activity, ExternalLink, HeartPulse, BrainCircuit, Sparkles, AlertTriangle, Calendar, Globe, Briefcase } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Link } from 'react-router-dom';
 import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
