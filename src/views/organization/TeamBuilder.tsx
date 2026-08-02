@@ -1,9 +1,29 @@
 import React, { useState } from 'react';
 import { Users, Wand2, ShieldCheck, CheckCircle2, Search, SlidersHorizontal, GitMerge, Star, Check, Target, Activity, HeartHandshake, Sparkles, BrainCircuit } from 'lucide-react';
 
-import { mockOptionA, mockOptionB, predefinedSkills } from '../../dummy/organization/teamBuilderData';
+import { useSettings } from '../../context/SettingsContext';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  match: number;
+  skills: string[];
+}
+
+export interface TeamOption {
+  id: string;
+  name: string;
+  successRate: number;
+  compatibilityScore: number;
+  skillBalance: number;
+  performancePrediction: number;
+  rationale: string;
+  members: TeamMember[];
+}
 
 export const TeamBuilder: React.FC = () => {
+  const { skills, users, roles } = useSettings();
   const [headcount, setHeadcount] = useState(4);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(['AWS', 'Node.js', 'Figma']);
   const [projectType, setProjectType] = useState('New Product Development');
@@ -11,6 +31,7 @@ export const TeamBuilder: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [teamGenerated, setTeamGenerated] = useState(false);
   const [confirmedTeam, setConfirmedTeam] = useState<string | null>(null);
+  const [generatedOptions, setGeneratedOptions] = useState<TeamOption[]>([]);
   
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
@@ -20,7 +41,70 @@ export const TeamBuilder: React.FC = () => {
     setIsGenerating(true);
     setTeamGenerated(false);
     setConfirmedTeam(null);
+    
     setTimeout(() => {
+      // Find all active users and attach their role's skills
+      const activeUsers = users
+        .filter(u => u.status === 'Active')
+        .map(u => {
+          const roleDef = roles.find(r => r.title === u.role);
+          const userSkills = roleDef ? roleDef.req : [];
+          
+          // Calculate skill match percentage against selected skills
+          const matchedSkills = userSkills.filter(s => selectedSkills.includes(s));
+          const matchPercent = selectedSkills.length > 0 
+            ? Math.round((matchedSkills.length / selectedSkills.length) * 100) 
+            : 100;
+            
+          return {
+            id: u.id,
+            name: u.name,
+            role: u.role,
+            dept: u.dept,
+            skills: userSkills,
+            match: Math.min(matchPercent + Math.floor(Math.random() * 20), 100) // fuzzy match
+          };
+        });
+
+      // If no users, we can't generate teams
+      if (activeUsers.length === 0) {
+        setIsGenerating(false);
+        return; // Alternatively, show an error message
+      }
+
+      const actualHeadcount = Math.min(headcount, activeUsers.length);
+      
+      // Algorithm for Option A: High Collaboration (Cross-functional)
+      // Sort by department diversity (randomized for mockup)
+      const optionAUsers = [...activeUsers].sort(() => 0.5 - Math.random()).slice(0, actualHeadcount);
+      
+      const optionA: TeamOption = {
+        id: 'opt_a_' + Date.now(),
+        name: 'Option A: High Collaboration',
+        successRate: 94,
+        compatibilityScore: 96,
+        skillBalance: 88,
+        performancePrediction: 92,
+        rationale: 'Excellent cross-departmental synergy and strong past collaboration factors.',
+        members: optionAUsers.map(u => ({ id: u.id, name: u.name, role: u.role, match: u.match, skills: u.skills }))
+      };
+
+      // Algorithm for Option B: Highest Skill Match
+      // Sort by absolute highest match score
+      const optionBUsers = [...activeUsers].sort((a, b) => b.match - a.match).slice(0, actualHeadcount);
+      
+      const optionB: TeamOption = {
+        id: 'opt_b_' + Date.now(),
+        name: 'Option B: Highest Skill Match',
+        successRate: 88,
+        compatibilityScore: 75,
+        skillBalance: 99,
+        performancePrediction: 85,
+        rationale: 'Maximum technical skill coverage based on role requirements.',
+        members: optionBUsers.map(u => ({ id: u.id, name: u.name, role: u.role, match: u.match, skills: u.skills }))
+      };
+
+      setGeneratedOptions([optionA, optionB]);
       setIsGenerating(false);
       setTeamGenerated(true);
     }, 2000);
@@ -128,7 +212,7 @@ export const TeamBuilder: React.FC = () => {
                   <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{selectedSkills.length} selected</span>
                 </div>
                 <div className="flex flex-wrap gap-2 p-4 border border-slate-200/60 bg-slate-50/50 rounded-xl min-h-[100px] shadow-inner">
-                  {predefinedSkills.map(skill => {
+                  {skills.map(skill => {
                     const isSelected = selectedSkills.includes(skill);
                     return (
                       <button 
@@ -161,23 +245,23 @@ export const TeamBuilder: React.FC = () => {
             </div>
             
             <button 
-              className="w-full rounded-xl py-3 font-black text-sm hover:-translate-y-0.5 transition-all duration-300 mt-4 z-10 flex items-center justify-center gap-2 relative overflow-hidden group text-white shadow-lg border-none cursor-pointer shrink-0"
+              className="w-full rounded-xl py-3 font-black text-sm hover:-translate-y-0.5 transition-all duration-300 mt-4 z-10 flex items-center justify-center gap-3 relative overflow-hidden group text-white shadow-lg border-none cursor-pointer shrink-0"
               style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}
               onClick={handleGenerate} 
               disabled={isGenerating}
             >
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  Synthesizing...
-                </>
-              ) : (
-                <>
-                  <Wand2 size={18} className="group-hover:rotate-12 transition-transform" /> Generate Optimal Teams
-                </>
-              )}
-            </button>
+                {isGenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Synthesizing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wand2 size={18} className="group-hover:rotate-12 transition-transform" /> <span>Generate Optimal Teams</span>
+                  </>
+                )}
+              </button>
           </div>
         </div>
 
@@ -260,7 +344,7 @@ export const TeamBuilder: React.FC = () => {
 
               {/* Options */}
               <div className="grid grid-cols-1 gap-6">
-                {[mockOptionA, mockOptionB].map((option) => {
+                {generatedOptions.map((option) => {
                   const isConfirmed = confirmedTeam === option.id;
                   const isAnotherConfirmed = confirmedTeam !== null && confirmedTeam !== option.id;
                   
@@ -380,9 +464,9 @@ export const TeamBuilder: React.FC = () => {
                         <div className="p-4 bg-white z-10 border-t border-slate-100 flex justify-end">
                           <button 
                             onClick={() => handleConfirm(option.id)} 
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg hover:shadow-xl rounded-xl font-black text-sm flex items-center gap-2 px-6 py-3 hover:-translate-y-0.5 transition-all duration-300 group/btn cursor-pointer border-none"
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg hover:shadow-xl rounded-xl font-black text-sm flex items-center gap-3 px-6 py-3 hover:-translate-y-0.5 transition-all duration-300 group/btn cursor-pointer border-none"
                           >
-                            <CheckCircle2 size={20} className="group-hover/btn:scale-110 transition-transform" /> Confirm & Assemble
+                            <CheckCircle2 size={20} className="group-hover/btn:scale-110 transition-transform" /> <span>Confirm & Assemble</span>
                           </button>
                         </div>
                       )}

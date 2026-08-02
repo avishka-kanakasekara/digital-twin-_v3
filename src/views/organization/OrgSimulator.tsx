@@ -133,7 +133,7 @@ export const OrgSimulator: React.FC = () => {
       <div className="flex gap-6 items-start relative z-10">
         
         {/* Left Panel: Scenario Library */}
-        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden sticky top-4" style={{ width: '280px', backgroundColor: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(24px)', borderRadius: '32px', maxHeight: 'calc(100vh - 2rem)' }}>
+        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden" style={{ width: '280px', backgroundColor: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(24px)', borderRadius: '32px' }}>
           <div className="flex items-center gap-3 px-6 py-6 shrink-0" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
             <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
               <Lightbulb size={20} strokeWidth={2.5} />
@@ -143,7 +143,7 @@ export const OrgSimulator: React.FC = () => {
               <p className="text-xs font-bold mt-0.5" style={{ color: '#64748b' }}>Pre-calculated outcomes</p>
             </div>
           </div>
-          <div className="flex flex-col gap-3 p-4 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex flex-col gap-3 p-4">
             {scenarioLibrary.map((scen: any) => (
               <div 
                 key={scen.id} 
@@ -166,7 +166,7 @@ export const OrgSimulator: React.FC = () => {
         </div>
 
         {/* Middle Panel: Controls */}
-        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden sticky top-4" style={{ width: '320px', backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px', maxHeight: 'calc(100vh - 2rem)' }}>
+        <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden" style={{ width: '320px', backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
           
           <div className="flex items-center gap-4 px-6 py-6 shrink-0" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)' }}>
@@ -178,7 +178,7 @@ export const OrgSimulator: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col overflow-y-auto flex-1 p-2 min-h-0" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex flex-col flex-1 p-2">
             
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
               <div className="flex justify-between items-center">
@@ -190,7 +190,7 @@ export const OrgSimulator: React.FC = () => {
                 </div>
                 <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: headcountChange > 0 ? '#ecfdf5' : headcountChange < 0 ? '#fff1f2' : '#f8fafc', color: headcountChange > 0 ? '#059669' : headcountChange < 0 ? '#e11d48' : '#64748b', borderColor: headcountChange > 0 ? '#a7f3d0' : headcountChange < 0 ? '#fecdd3' : '#e2e8f0' }}>{headcountChange > 0 ? '+' : ''}{headcountChange}%</span>
               </div>
-              <input type="range" min="-20" max="20" step="1" value={headcountChange} onChange={(e) => setHeadcountChange(Number(e.target.value))} className="w-full cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none" style={{ accentColor: '#10b981' }} />
+              <input type="range" min="-20" max="20" step="1" value={headcountChange} onChange={(e) => setHeadcountChange(Number(e.target.value))} className="w-full cursor-pointer" style={{ accentColor: '#10b981' }} />
             </div>
 
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
@@ -203,7 +203,7 @@ export const OrgSimulator: React.FC = () => {
                 </div>
                 <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: '#fffbeb', color: '#b45309', borderColor: '#fde68a' }}>{restructuringLevel}/10</span>
               </div>
-              <input type="range" min="0" max="10" step="1" value={restructuringLevel} onChange={(e) => setRestructuringLevel(Number(e.target.value))} className="w-full cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none" style={{ accentColor: '#f59e0b' }} />
+              <input type="range" min="0" max="10" step="1" value={restructuringLevel} onChange={(e) => setRestructuringLevel(Number(e.target.value))} className="w-full cursor-pointer" style={{ accentColor: '#f59e0b' }} />
             </div>
 
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
@@ -216,7 +216,7 @@ export const OrgSimulator: React.FC = () => {
                 </div>
                 <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: salaryChange > 0 ? '#ecfdf5' : salaryChange < 0 ? '#fff1f2' : '#f8fafc', color: salaryChange > 0 ? '#059669' : salaryChange < 0 ? '#e11d48' : '#64748b', borderColor: salaryChange > 0 ? '#a7f3d0' : salaryChange < 0 ? '#fecdd3' : '#e2e8f0' }}>{salaryChange > 0 ? '+' : ''}{salaryChange}%</span>
               </div>
-              <input type="range" min="-10" max="20" step="1" value={salaryChange} onChange={(e) => setSalaryChange(Number(e.target.value))} className="w-full cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none" style={{ accentColor: '#0ea5e9' }} />
+              <input type="range" min="-10" max="20" step="1" value={salaryChange} onChange={(e) => setSalaryChange(Number(e.target.value))} className="w-full cursor-pointer" style={{ accentColor: '#0ea5e9' }} />
             </div>
 
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
@@ -229,7 +229,7 @@ export const OrgSimulator: React.FC = () => {
                 </div>
                 <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: '#f5f3ff', color: '#6d28d9', borderColor: '#ddd6fe' }}>{remoteDays} / 5</span>
               </div>
-              <input type="range" min="0" max="5" step="1" value={remoteDays} onChange={(e) => setRemoteDays(Number(e.target.value))} className="w-full cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none" style={{ accentColor: '#8b5cf6' }} />
+              <input type="range" min="0" max="5" step="1" value={remoteDays} onChange={(e) => setRemoteDays(Number(e.target.value))} className="w-full cursor-pointer" style={{ accentColor: '#8b5cf6' }} />
             </div>
 
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
@@ -242,12 +242,12 @@ export const OrgSimulator: React.FC = () => {
                 </div>
                 <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: trainingBudget > 0 ? '#fff1f2' : '#f8fafc', color: trainingBudget > 0 ? '#e11d48' : '#64748b', borderColor: trainingBudget > 0 ? '#fecdd3' : '#e2e8f0' }}>{trainingBudget > 0 ? '+' : ''}{trainingBudget}%</span>
               </div>
-              <input type="range" min="0" max="50" step="5" value={trainingBudget} onChange={(e) => setTrainingBudget(Number(e.target.value))} className="w-full cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none" style={{ accentColor: '#f43f5e' }} />
+              <input type="range" min="0" max="50" step="5" value={trainingBudget} onChange={(e) => setTrainingBudget(Number(e.target.value))} className="w-full cursor-pointer" style={{ accentColor: '#f43f5e' }} />
             </div>
 
           </div>
 
-          <div className="px-6 py-6 flex flex-col gap-4 relative z-10 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}>
+          <div className="px-6 pt-6 pb-10 flex flex-col gap-4 relative z-10 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}>
             {simulationData && !snapshotData && (
               <button className="w-full text-sm font-extrabold rounded-full flex justify-center items-center gap-2 border shadow-sm transition-all hover:-translate-y-0.5 cursor-pointer whitespace-nowrap shrink-0" style={{ height: '48px', backgroundColor: 'white', borderColor: '#bfdbfe', color: '#2563eb' }} onClick={handleSnapshot}>
                 <GitCompare size={18} /> Save for Comparison

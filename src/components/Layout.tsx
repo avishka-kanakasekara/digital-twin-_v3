@@ -1,6 +1,6 @@
 import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain, Settings } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
 
@@ -8,6 +8,7 @@ export const Layout: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
+  const navigate = useNavigate();
 
   const orgNavItems = [
     { name: 'Executive Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
@@ -170,6 +171,15 @@ export const Layout: React.FC = () => {
           <h3 className="text-lg font-bold text-primary">Admin User</h3>
           <p className="text-sm text-secondary mb-6">HR Leader • Super Admin</p>
           <div className="w-full flex flex-col gap-2">
+            <button 
+              onClick={() => {
+                setIsProfileOpen(false);
+                navigate('/admin/settings');
+              }}
+              className="w-full py-3 px-4 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 text-sm font-bold rounded-xl transition-colors text-left flex items-center gap-2 mb-2 border border-indigo-100"
+            >
+              <Settings size={16} /> Admin Dashboard
+            </button>
             <button className="w-full py-3 px-4 bg-[var(--bg-main)] hover:bg-primary-light hover:text-primary text-secondary text-sm font-bold rounded-xl transition-colors text-left">Manage Account Settings</button>
             <button className="w-full py-3 px-4 bg-[var(--bg-main)] hover:bg-primary-light hover:text-primary text-secondary text-sm font-bold rounded-xl transition-colors text-left">Notification Preferences</button>
             <button className="w-full py-3 px-4 bg-danger-light/50 hover:bg-danger-light text-danger text-sm font-bold rounded-xl transition-colors text-left mt-2">Log Out</button>
