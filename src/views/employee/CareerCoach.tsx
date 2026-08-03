@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Modal } from '../../components/Modal';
-import { TrendingUp, BookOpen, ChevronRight, Crosshair, Edit, Flag, CheckCircle, PlayCircle, ArrowRight, ExternalLink } from 'lucide-react';
+import { TrendingUp, BookOpen, Crosshair, Edit, Flag, CheckCircle, PlayCircle, ArrowRight, ExternalLink } from 'lucide-react';
 import { careerAPI, learningAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
 
