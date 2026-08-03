@@ -239,8 +239,9 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
+                whileHover={{ y: -4 }}
                 transition={{ delay: index * 0.04, duration: 0.25 }}
-                className="relative overflow-hidden"
+                className="relative overflow-hidden cursor-pointer"
                 style={{
                   padding: '18px 18px 16px',
                   borderRadius: '18px',

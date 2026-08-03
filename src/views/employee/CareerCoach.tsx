@@ -15,10 +15,26 @@ export const CareerCoach: React.FC = () => {
     focus_area: 'Tech / Cloud',
     readiness_score: 65,
   });
-  const [roadmap, setRoadmap] = useState<any[]>([]);
-  const [skillGaps, setSkillGaps] = useState<any[]>([]);
-  const [learningPaths, setLearningPaths] = useState<any[]>([]);
-  const [marketData, setMarketData] = useState<any[]>([]);
+  const [roadmap, setRoadmap] = useState<any[]>([
+    { id: 1, title: 'Senior Cloud', status: 'completed', step_order: 1 },
+    { id: 2, title: 'Lead Projects', status: 'in_progress', step_order: 2 },
+    { id: 3, title: 'System Design', status: 'upcoming', step_order: 3 },
+    { id: 4, title: 'Cloud Architect', status: 'upcoming', step_order: 4 },
+  ]);
+  const [skillGaps, setSkillGaps] = useState<any[]>([
+    { skill: 'AWS EKS Architecture', level: 40, status: 'Need Advanced' },
+    { skill: 'Enterprise System Design', level: 60, status: 'Need Expert' },
+    { skill: 'Infrastructure as Code (Terraform)', level: 100, status: 'Met (Advanced)' },
+  ]);
+  const [learningPaths, setLearningPaths] = useState<any[]>([
+    { id: 1, title: 'Advanced EKS Architecture', provider: 'Coursera', hours: 12, readiness_impact: 15 },
+    { id: 2, title: 'Enterprise System Design', provider: 'Internal Academy', hours: 8, readiness_impact: 20 },
+  ]);
+  const [marketData, setMarketData] = useState<any[]>([
+    { skill: 'Kubernetes', category: 'Platform Eng.', trend: '+14%', color: '#059669' },
+    { skill: 'GenAI Architecture', category: 'Data / Cloud Eng.', trend: '+45%', color: '#059669' },
+    { skill: 'React & Next.js', category: 'Frontend', trend: 'Stable', color: '#64748b' },
+  ]);
 
   useEffect(() => {
     if (!currentEmployee) return;
@@ -89,11 +105,26 @@ export const CareerCoach: React.FC = () => {
   }, [currentEmployee]);
 
   return (
-    <div className="flex flex-col gap-6 pb-8" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 30%, #f1f5f9 60%, #f8fafc 100%)', minHeight: '100vh', padding: '2rem' }}>
-      <div>
-        <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: '#0f172a' }}>AI Career Coach</h1>
-        <p className="text-sm font-medium" style={{ color: '#475569' }}>Employee Digital Twin • Personalized learning paths and readiness tracking mapped to market trends.</p>
+    <div className="min-h-screen font-sans" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 30%, #f1f5f9 60%, #f8fafc 100%)', color: '#0f172a' }}>
+      {/* Ambient orbs */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div style={{ position: 'absolute', top: '-20%', right: '-10%', width: '500px', height: '500px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)', filter: 'blur(40px)' }} />
+        <div style={{ position: 'absolute', bottom: '-20%', left: '-10%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)', filter: 'blur(40px)' }} />
       </div>
+
+      <div className="relative z-10 max-w-[1400px] mx-auto px-4 md:px-8 py-8 flex flex-col gap-6">
+        {/* Page Header */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 25px rgba(59,130,246,0.45)' }}>
+            <Crosshair size={22} color="white" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 900, letterSpacing: '-0.03em', background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', lineHeight: 1.1 }}>
+              AI Career Coach
+            </h1>
+            <p style={{ fontSize: '13px', color: '#475569', fontWeight: 600 }}>Personalized learning paths and readiness tracking mapped to market trends</p>
+          </div>
+        </div>
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2 flex flex-col gap-6">
@@ -190,7 +221,7 @@ export const CareerCoach: React.FC = () => {
             <h4 className="text-sm font-extrabold flex items-center gap-2 uppercase tracking-wide mt-2 relative z-10" style={{ color: '#0f172a' }}>AI Recommended Learning Path</h4>
             <div className="grid grid-cols-2 gap-5 relative z-10">
               {learningPaths.map((path, index) => (
-                <div key={path.id} className={`relative rounded-2xl p-6 flex flex-col gap-3 hover:shadow-lg transition-all duration-300 cursor-pointer backdrop-blur-sm group overflow-hidden ${index === 0 ? '' : ''}`} style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
+                <div key={path.id} className="hover-lift relative rounded-2xl p-6 flex flex-col gap-3 cursor-pointer backdrop-blur-sm group overflow-hidden" style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
                   {index === 0 && <div className="absolute top-0 right-0 text-white text-[10px] font-bold px-3 py-1 shadow-sm rounded-bl-xl" style={{ background: '#f59e0b' }}>Top Match</div>}
                   <div className="w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all" style={{ color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)' }}>
                     <BookOpen size={20}/>
@@ -219,7 +250,7 @@ export const CareerCoach: React.FC = () => {
           
           <div className="space-y-4 flex-1 relative" style={{ zIndex: 10 }}>
             {marketData.map((item, index) => (
-              <div key={index} className="flex items-center justify-between p-4 rounded-xl backdrop-blur-sm shadow-sm hover:border-success/30 transition-colors" style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
+              <div key={index} className="hover-lift flex items-center justify-between p-4 rounded-xl backdrop-blur-sm shadow-sm" style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
                 <div className="flex flex-col gap-1">
                   <span className="text-sm font-bold" style={{ color: '#0f172a' }}>{item.skill}</span>
                   <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>{item.category}</span>
@@ -280,6 +311,7 @@ export const CareerCoach: React.FC = () => {
           </div>
         </div>
       </Modal>
+      </div>
     </div>
   );
 };

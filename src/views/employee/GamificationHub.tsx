@@ -217,7 +217,7 @@ const Challenges: React.FC = () => {
       <SectionHeader icon={<Target size={14} style={{ color: '#a78bfa' }} />} title="Active Challenges" subtitle="Complete for bonus XP and exclusive badges" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {challenges.map((ch) => (
-          <div key={ch.id} style={{ padding: '16px', borderRadius: '16px', background: `${ch.color}10`, border: `1px solid ${ch.color}25`, position: 'relative', overflow: 'hidden' }}>
+          <div key={ch.id} className="hover-lift" style={{ padding: '16px', borderRadius: '16px', background: `${ch.color}10`, border: `1px solid ${ch.color}25`, position: 'relative', overflow: 'hidden', cursor: 'pointer' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${ch.color}, ${ch.color}88)` }} />
             <div className="flex items-start gap-3 mb-3">
               <span style={{ fontSize: '22px', flexShrink: 0 }}>{ch.bonusBadge}</span>
@@ -285,7 +285,7 @@ const AchievementGallery: React.FC = () => {
           const unlocked = ach.unlocked || !!ach.unlocked_at;
           const rc = RARITY_COLORS[ach.rarity] || RARITY_COLORS.Common;
           return (
-            <div key={ach.id} style={{ padding: '14px', borderRadius: '16px', textAlign: 'center', background: unlocked ? rc.bg : 'rgba(248, 250, 252, 0.8)', border: `1px solid ${unlocked ? rc.border : 'rgba(226, 232, 240, 0.8)'}`, boxShadow: unlocked ? rc.glow : 'none', opacity: unlocked ? 1 : 0.4, filter: unlocked ? 'none' : 'grayscale(1)', transition: 'all 0.2s' }}>
+            <div key={ach.id} className="hover-lift" style={{ padding: '14px', borderRadius: '16px', textAlign: 'center', background: unlocked ? rc.bg : 'rgba(248, 250, 252, 0.8)', border: `1px solid ${unlocked ? rc.border : 'rgba(226, 232, 240, 0.8)'}`, boxShadow: unlocked ? rc.glow : 'none', opacity: unlocked ? 1 : 0.4, filter: unlocked ? 'none' : 'grayscale(1)', cursor: 'pointer' }}>
               <div style={{ fontSize: '2rem', marginBottom: '6px' }}>{ach.emoji || '🏆'}</div>
               <p style={{ fontSize: '11px', fontWeight: 800, color: unlocked ? '#0f172a' : '#64748b', lineHeight: 1.3, marginBottom: '4px' }}>{ach.name}</p>
               <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, background: rc.bg, color: rc.color, border: `1px solid ${rc.border}` }}>{ach.rarity || 'Common'}</span>
@@ -467,7 +467,7 @@ const RewardStore: React.FC = () => {
           const isClaimed = claimed.has(reward.id);
           const canAfford = playerXP >= reward.cost;
           return (
-            <div key={reward.id} style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.9)', border: `1px solid ${isClaimed ? 'rgba(16,185,129,0.3)' : 'rgba(226, 232, 240, 0.8)'}`, opacity: !reward.available ? 0.5 : 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div key={reward.id} className="hover-lift" style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.9)', border: `1px solid ${isClaimed ? 'rgba(16,185,129,0.3)' : 'rgba(226, 232, 240, 0.8)'}`, opacity: !reward.available ? 0.5 : 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <span style={{ fontSize: '2rem' }}>{reward.emoji}</span>
               <div>
                 <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{reward.name}</p>

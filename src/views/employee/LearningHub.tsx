@@ -172,7 +172,7 @@ const LearningPaths: React.FC = () => {
       <SectionHeader icon={<TrendingUp size={14} style={{ color: '#a78bfa' }} />} title="My Learning Paths" subtitle="AI-curated paths based on your target role and skill gaps" />
       <div className="space-y-4">
         {learningPaths.map((path) => (
-          <div key={path.id} style={{ padding: '18px', borderRadius: '16px', background: `${path.color}10`, border: `1px solid ${path.color}25`, position: 'relative', overflow: 'hidden' }}>
+          <div key={path.id} className="hover-lift" style={{ padding: '18px', borderRadius: '16px', background: `${path.color}10`, border: `1px solid ${path.color}25`, position: 'relative', overflow: 'hidden', cursor: 'pointer' }}>
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${path.color}, ${path.color}88)` }} />
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div style={{ flex: 1 }}>
@@ -297,7 +297,7 @@ const Certifications: React.FC = () => {
         {certifications.map((cert) => {
           const cs = CERT_STATUS_STYLES[cert.status] || CERT_STATUS_STYLES.planned;
           return (
-            <div key={cert.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', borderRadius: '14px', background: `${cs.color}08`, border: `1px solid ${cs.border}`, transition: 'all 0.2s' }}>
+            <div key={cert.id} className="hover-lift" style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', borderRadius: '14px', background: `${cs.color}08`, border: `1px solid ${cs.border}` }}>
               <div style={{ width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', background: `${cs.color}15`, border: `1px solid ${cs.border}` }}>
                 {cert.emoji}
               </div>
@@ -351,7 +351,7 @@ const LearningFeed: React.FC = () => {
       <SectionHeader icon={<Sparkles size={14} style={{ color: '#a78bfa' }} />} title="AI Learning Feed" subtitle="Curated content matched to your skill gaps" />
       <div className="space-y-3">
         {learningFeed.map((item) => (
-          <div key={item.id} style={{ display: 'flex', gap: '12px', padding: '12px 14px', borderRadius: '14px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', cursor: 'pointer', transition: 'all 0.2s' }} className="hover:bg-white/[0.95] group/feed">
+          <div key={item.id} style={{ display: 'flex', gap: '12px', padding: '12px 14px', borderRadius: '14px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', cursor: 'pointer' }} className="hover-lift group/feed">
             <div style={{ width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', background: `${item.color}15`, border: `1px solid ${item.color}28` }}>
               {TYPE_ICONS[item.type] || '📄'}
             </div>
@@ -446,7 +446,7 @@ const CourseLibrary: React.FC = () => {
         {filtered.map((course) => {
           const ss = STATUS_STYLE[course.status];
           return (
-            <div key={course.id} style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', flexDirection: 'column', gap: '10px', transition: 'all 0.2s' }} className="hover:bg-white/[0.95]">
+            <div key={course.id} style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', display: 'flex', flexDirection: 'column', gap: '10px' }} className="hover-lift">
               <div className="flex items-start gap-3">
                 <div style={{ width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', background: `${course.color}15`, border: `1px solid ${course.color}28` }}>
                   {course.emoji}
