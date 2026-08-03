@@ -193,7 +193,17 @@ const Challenges: React.FC = () => {
     const loadFromAPI = async () => {
       try {
         const data = await gamificationAPI.getChallenges(currentEmployee.id);
-        setChallenges(data.challenges || []);
+        // Transform API data to match mock structure
+        const challengesData = Array.isArray(data) ? data : (data?.challenges || []);
+        const transformedChallenges = challengesData.map((ch: any) => ({
+          ...ch,
+          xpReward: ch.xp_reward || ch.xpReward || 0,
+          bonusBadge: ch.bonus_badge || ch.bonusBadge || '🏆',
+          deadline: ch.deadline || ch.due_date || 'TBD',
+          daysLeft: ch.days_left || ch.daysLeft || 0,
+          participants: ch.participants || 0,
+        }));
+        setChallenges(transformedChallenges);
         console.log('✅ Loaded challenges from API');
       } catch (error) {
         console.log('⚠️ Challenges API not available, using mock data');
@@ -229,7 +239,7 @@ const Challenges: React.FC = () => {
             </div>
             <div className="flex items-center justify-between">
               <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>👥 {ch.participants} enrolled</span>
-              <span style={{ padding: '4px 12px', borderRadius: '99px', fontSize: '11px', fontWeight: 800, background: `${ch.color}20`, color: ch.color, border: `1px solid ${ch.color}38` }}>+{ch.xp_reward?.toLocaleString() || ch.xpReward?.toLocaleString() || 0} XP</span>
+              <span style={{ padding: '4px 12px', borderRadius: '99px', fontSize: '11px', fontWeight: 800, background: `${ch.color}20`, color: ch.color, border: `1px solid ${ch.color}38` }}>+{ch.xpReward?.toLocaleString() || 0} XP</span>
             </div>
           </div>
         ))}
@@ -249,7 +259,16 @@ const AchievementGallery: React.FC = () => {
     const loadFromAPI = async () => {
       try {
         const data = await gamificationAPI.getAchievements(currentEmployee.id);
-        setAchievements(data || []);
+        // Transform API data to match mock structure
+        const transformedAchievements = (data || []).map((ach: any) => ({
+          ...ach,
+          unlocked: ach.unlocked || !!ach.unlocked_at,
+          xpValue: ach.xp_value || ach.xpValue || 0,
+          unlockedDate: ach.unlocked_date || ach.unlockedDate || (ach.unlocked_at ? new Date(ach.unlocked_at).toISOString() : null),
+          rarity: ach.rarity || 'Common',
+          emoji: ach.emoji || '🏆',
+        }));
+        setAchievements(transformedAchievements);
         console.log('✅ Loaded achievements from API');
       } catch (error) {
         console.log('⚠️ Achievements API not available, using mock data');
@@ -260,9 +279,9 @@ const AchievementGallery: React.FC = () => {
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
-      <SectionHeader icon={<Award size={14} style={{ color: '#fbbf24' }} />} title="Achievement Gallery" subtitle={`${achievements.filter(a => a.unlocked || a.unlocked_at).length} of ${achievements.length} unlocked`} />
+      <SectionHeader icon={<Award size={14} style={{ color: '#fbbf24' }} />} title="Achievement Gallery" subtitle={`${achievements.filter(a => a.unlocked).length} of ${achievements.length} unlocked`} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
-        {achievements.map((ach) => {
+        {achievements.map((ach: any) => {
           const unlocked = ach.unlocked || !!ach.unlocked_at;
           const rc = RARITY_COLORS[ach.rarity] || RARITY_COLORS.Common;
           return (
@@ -271,7 +290,7 @@ const AchievementGallery: React.FC = () => {
               <p style={{ fontSize: '11px', fontWeight: 800, color: unlocked ? '#0f172a' : '#64748b', lineHeight: 1.3, marginBottom: '4px' }}>{ach.name}</p>
               <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, background: rc.bg, color: rc.color, border: `1px solid ${rc.border}` }}>{ach.rarity || 'Common'}</span>
               <p style={{ fontSize: '9px', color: '#475569', marginTop: '5px', fontWeight: 600 }}>
-                {unlocked ? ach.unlocked_date || ach.unlockedDate || 'Unlocked' : `+${ach.xp_value || ach.xpValue || 0} XP`}
+                {unlocked ? ach.unlockedDate || ach.unlocked_date || 'Unlocked' : `+${ach.xpValue || ach.xp_value || 0} XP`}
               </p>
             </div>
           );
