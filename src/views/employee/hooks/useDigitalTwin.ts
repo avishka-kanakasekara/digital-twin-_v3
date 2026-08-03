@@ -95,6 +95,11 @@ export const useDigitalTwin = () => {
               description: ach.description,
               unlocked: !!ach.unlocked_at,
             })),
+            missions: [
+              { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
+              { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
+              { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
+            ],
             aiScore: Math.round(empData.profile_completeness || 92),
             impactRank: gamProfile.department_rank ? `Top ${Math.round((gamProfile.department_rank / 28) * 100)}%` : 'Top 5%',
           });

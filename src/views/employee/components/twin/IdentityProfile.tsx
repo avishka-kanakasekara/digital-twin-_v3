@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Briefcase, Activity, Clock, Edit, CheckCircle2, Sparkles, Shield, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../../components/ui/Dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
+import { useDigitalTwin } from '../../hooks/useDigitalTwin';
 
 interface IdentityProfileProps {
   profile: any;
@@ -10,6 +11,7 @@ interface IdentityProfileProps {
 }
 
 export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth }) => {
+  const { gamification } = useDigitalTwin();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(profile);
 
@@ -20,8 +22,8 @@ export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpd
 
   const stats = [
     { label: 'Twin Health', value: `${twinHealth}%`, icon: <Shield size={14} />, color: '#10b981' },
-    { label: 'AI Score', value: '92/100', icon: <Sparkles size={14} />, color: '#3b82f6' },
-    { label: 'Impact Rank', value: 'Top 5%', icon: <Zap size={14} />, color: '#f59e0b' },
+    { label: 'AI Score', value: gamification.aiScore ? `${gamification.aiScore}/100` : '92/100', icon: <Sparkles size={14} />, color: '#3b82f6' },
+    { label: 'Impact Rank', value: gamification.impactRank || 'Top 5%', icon: <Zap size={14} />, color: '#f59e0b' },
   ];
 
   return (
