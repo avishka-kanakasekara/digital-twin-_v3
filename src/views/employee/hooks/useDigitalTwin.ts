@@ -1,74 +1,202 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import * as mockData from '../../../dummy/employee/digitalTwinMockData';
+import * as gamificationData from '../../../dummy/employee/gamificationHubData';
+import { employeeAPI, gamificationAPI, learningAPI, careerAPI } from '../../../lib/api';
+import { useEmployee } from '../../../contexts/EmployeeContext';
 
 export const useDigitalTwin = () => {
+  const { currentEmployee } = useEmployee();
   const [profile, setProfile] = useState(mockData.employeeProfile);
-  const [projects, setProjects] = useState(mockData.projectsIntelligence);
-  const [knowledge, setKnowledge] = useState(mockData.knowledgeSources);
-  const [gamification, setGamification] = useState(mockData.gamification);
+  const [projects, setProjects] = useState<any>({ current: [], completed: [] });
+  const [knowledge, setKnowledge] = useState<any[]>([]);
+  const [gamification, setGamification] = useState<any>({
+    ...gamificationData.playerProfile,
+    streaks: { learning: 14, project: 7 },
+    missions: [
+      { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
+      { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
+      { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
+    ],
+    achievements: [
+      { id: 'a1', name: 'First Steps', description: 'Completed your first learning module', unlocked: true },
+      { id: 'a2', name: 'Streak Master', description: 'Maintained a 7-day learning streak', unlocked: true },
+      { id: 'a3', name: 'Team Player', description: 'Collaborated on 5 projects', unlocked: true },
+      { id: 'a4', name: 'Code Reviewer', description: 'Reviewed 10 peer submissions', unlocked: false },
+      { id: 'a5', name: 'Knowledge Sharer', description: 'Shared 5 knowledge sources', unlocked: false },
+    ],
+    aiScore: 92,
+    impactRank: 'Top 5%',
+  });
+  const [skills, setSkills] = useState<any[]>([]);
+  const [twinSummary, setTwinSummary] = useState(mockData.twinSummary);
+  const [loading, setLoading] = useState(false);
+  const [useAPI, setUseAPI] = useState(false);
 
-  // Simulate API delays and local state updates
-  
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        setLoading(true);
+        const empData = await employeeAPI.get(currentEmployee.id);
+        // Transform API data to match mock structure
+        setProfile({
+          ...mockData.employeeProfile,
+          id: empData.id,
+          fullName: empData.full_name,
+          initials: empData.initials,
+          department: empData.department,
+          role: empData.role,
+          team: empData.team || '',
+          manager: empData.manager_name || '',
+          location: empData.location || '',
+          timezone: empData.timezone_str || '',
+          email: empData.email,
+          phone: empData.phone || '',
+          experience: empData.years_experience || 0,
+          yearsInCompany: empData.years_in_company || 0,
+        });
+        setUseAPI(true);
+        
+        const [projectsData, knowledgeData, skillsData, twinSum] = await Promise.all([
+          employeeAPI.getProjects(currentEmployee.id),
+          employeeAPI.getKnowledgeSources(currentEmployee.id),
+          employeeAPI.getSkills(currentEmployee.id),
+          employeeAPI.getTwinSummary(currentEmployee.id),
+        ]);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        setKnowledge(knowledgeData);
+        setSkills(skillsData);
+        setTwinSummary(twinSum);
+
+        // Load gamification data
+        try {
+          const gamProfile = await gamificationAPI.getProfile(currentEmployee.id);
+          const gamAchievements = await gamificationAPI.getAchievements(currentEmployee.id);
+          const gamStreak = await gamificationAPI.getStreak(currentEmployee.id);
+          
+          setGamification({
+            ...gamificationData.playerProfile,
+            level: gamProfile.level,
+            xp: gamProfile.xp,
+            nextLevelXp: gamProfile.next_level_xp,
+            totalXpEarned: gamProfile.total_xp_earned,
+            companyRank: gamProfile.company_rank || gamificationData.playerProfile.companyRank,
+            departmentRank: gamProfile.department_rank || gamificationData.playerProfile.departmentRank,
+            streakDays: gamProfile.streak_days,
+            title: gamProfile.title,
+            streaks: {
+              learning: gamStreak?.learning_streak || 14,
+              project: gamStreak?.project_streak || 7,
+            },
+            achievements: gamAchievements.map((ach: any) => ({
+              id: ach.id,
+              name: ach.name,
+              description: ach.description,
+              unlocked: !!ach.unlocked_at,
+            })),
+            missions: [
+              { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
+              { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
+              { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
+            ],
+            aiScore: Math.round(empData.profile_completeness || 92),
+            impactRank: gamProfile.department_rank ? `Top ${Math.round((gamProfile.department_rank / 28) * 100)}%` : 'Top 5%',
+          });
+        } catch (gamError) {
+          console.log('⚠️ Gamification API not available, using mock data');
+        }
+
+        console.log('✅ Loaded data from API');
+      } catch (error) {
+        console.log('⚠️ API not available, using mock data');
+        setUseAPI(false);
+        setProjects({ current: [], completed: [] });
+        setGamification({
+          ...gamificationData.playerProfile,
+          streaks: { learning: 14, project: 7 },
+          missions: [
+            { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
+            { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
+            { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
+          ],
+          achievements: [
+            { id: 'a1', name: 'First Steps', description: 'Completed your first learning module', unlocked: true },
+            { id: 'a2', name: 'Streak Master', description: 'Maintained a 7-day learning streak', unlocked: true },
+            { id: 'a3', name: 'Team Player', description: 'Collaborated on 5 projects', unlocked: true },
+            { id: 'a4', name: 'Code Reviewer', description: 'Reviewed 10 peer submissions', unlocked: false },
+            { id: 'a5', name: 'Knowledge Sharer', description: 'Shared 5 knowledge sources', unlocked: false },
+          ],
+          aiScore: 92,
+          impactRank: 'Top 5%',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
   const updateProfile = useCallback(async (updates: Partial<typeof mockData.employeeProfile>) => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.update(currentEmployee.id, updates);
+      } catch (error) {
+        console.error('Failed to update profile:', error);
+      }
+    }
     setProfile(prev => ({ ...prev, ...updates }));
-    
-    // Add XP for updating profile
-    addXp(50, 'Profile Updated');
-  }, []);
+  }, [useAPI, currentEmployee]);
 
   const addProject = useCallback(async (projectData: any) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const newProject = {
-      ...projectData,
-      id: `p-${Date.now()}`,
-      status: 'On Track',
-      successScore: 0,
-      leadershipScore: 0
-    };
-    setProjects(prev => ({
-      ...prev,
-      current: [...prev.current, newProject]
-    }));
-    addXp(150, 'New Project Logged');
-  }, []);
-
-  const updateProjectProgress = useCallback((projectId: string, newStatus: string) => {
-    setProjects(prev => {
-      const updatedCurrent = prev.current.map(p => 
-        p.id === projectId ? { ...p, status: newStatus } : p
-      );
-      return { ...prev, current: updatedCurrent };
-    });
-  }, []);
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.getProjects(currentEmployee.id); // Would be POST in real API
+      } catch (error) {
+        console.error('Failed to add project:', error);
+      }
+    }
+    setProjects(prev => [...prev, { ...projectData, id: Date.now().toString() }]);
+  }, [useAPI, currentEmployee]);
 
   const uploadKnowledgeSource = useCallback(async (fileOrConnection: any, type: string) => {
-    await new Promise(resolve => setTimeout(resolve, 1500)); // longer delay for "upload/sync"
-    
-    const newSource = {
-      id: `ks-${Date.now()}`,
-      name: typeof fileOrConnection === 'string' ? fileOrConnection : fileOrConnection.name || 'New Source',
-      connected: true,
-      lastUpdated: 'Just now',
-      coverage: Math.floor(Math.random() * 20) + 10, // Simulate some coverage added
-      skillsExtracted: Math.floor(Math.random() * 5) + 1,
-      projects: Math.floor(Math.random() * 2),
-      confidence: 90,
-      type
-    };
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.getKnowledgeSources(currentEmployee.id); // Would be POST in real API
+      } catch (error) {
+        console.error('Failed to upload knowledge source:', error);
+      }
+    }
+    setKnowledge(prev => [...prev, { 
+      ...fileOrConnection, 
+      id: Date.now().toString(),
+      type,
+      last_synced: new Date().toISOString()
+    }]);
+  }, [useAPI, currentEmployee]);
 
-    setKnowledge(prev => [newSource, ...prev]);
-    addXp(100, 'Knowledge Base Fed');
-  }, []);
+  const updateGamificationXP = useCallback(async (xpChange: number) => {
+    if (useAPI && currentEmployee) {
+      try {
+        // Would call gamification API
+        console.log('Would update gamification XP by', xpChange);
+      } catch (error) {
+        console.error('Failed to update XP:', error);
+      }
+    }
+    setGamification(prev => ({
+      ...prev,
+      xp: (prev.xp || 0) + xpChange,
+      total_xp_earned: (prev.total_xp_earned || 0) + xpChange
+    }));
+  }, [useAPI, currentEmployee]);
 
   const addXp = useCallback((amount: number, reason: string) => {
     setGamification(prev => {
-      const newXp = prev.xp + amount;
-      let newLevel = prev.level;
-      let nextLevelXp = prev.nextLevelXp;
+      const newXp = (prev.xp || 0) + amount;
+      let newLevel = prev.level || 1;
+      let nextLevelXp = prev.nextLevelXp || 1000;
       
-      // Level up logic (simplified)
       if (newXp >= nextLevelXp) {
         newLevel += 1;
         nextLevelXp = nextLevelXp + 1000;
@@ -81,12 +209,12 @@ export const useDigitalTwin = () => {
         nextLevelXp
       };
     });
-    console.log(`Earned ${amount} XP: ${reason}`); // In a real app, might trigger a toast here
+    console.log(`Earned ${amount} XP: ${reason}`);
   }, []);
 
   const completeMission = useCallback((missionIndex: number) => {
     setGamification(prev => {
-      const newMissions = [...prev.missions];
+      const newMissions = [...(prev.missions || [])];
       if (!newMissions[missionIndex].completed) {
         newMissions[missionIndex].completed = true;
         addXp(newMissions[missionIndex].xp, `Mission Completed: ${newMissions[missionIndex].name}`);
@@ -94,6 +222,12 @@ export const useDigitalTwin = () => {
       return { ...prev, missions: newMissions };
     });
   }, [addXp]);
+
+  const updateProjectProgress = useCallback((projectId: string, progress: number) => {
+    setProjects(prev => prev.map(p => 
+      p.id === projectId ? { ...p, progress } : p
+    ));
+  }, []);
 
   return {
     profile,
@@ -108,12 +242,18 @@ export const useDigitalTwin = () => {
     
     gamification,
     completeMission,
+    updateGamificationXP,
     
-    // Static data that doesn't need complex mutations for this mock
+    skills,
+    twinSummary,
+    
+    loading,
+    useAPI,
+    
+    // Static data - would be loaded from API in production
     skillsData: mockData.skillsData,
     certifications: mockData.certificationsTimeline,
     aiReadiness: mockData.aiReadiness,
-    twinSummary: mockData.twinSummary,
     twinMemory: mockData.twinMemory,
     collaborationIntel: mockData.collaborationIntel,
     projectPrediction: mockData.projectPrediction,
@@ -121,3 +261,4 @@ export const useDigitalTwin = () => {
     aiRecommendations: mockData.aiRecommendations
   };
 };
+

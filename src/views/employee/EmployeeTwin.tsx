@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Bot, LogOut, Sparkles } from 'lucide-react';
+import { Bot, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDigitalTwin } from './hooks/useDigitalTwin';
+import { EmployeeSelector } from '../../components/EmployeeSelector';
 
 // Components
 import { IdentityProfile } from './components/twin/IdentityProfile';
@@ -76,46 +77,23 @@ const EmployeeTwin: React.FC = () => {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 0 15px rgba(59,130,246,0.3)',
             }}>
-              <Sparkles size={16} color="white" />
+              <Bot size={18} style={{ color: 'white' }} />
             </div>
             <div>
-              <h1 style={{
-                fontSize: '1rem', fontWeight: 900, letterSpacing: '-0.02em',
-                background: 'linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)',
-                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>AI Digital Identity</h1>
-              <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 600, marginTop: '-1px' }}>
-                Powered by Digital Twin Engine
-              </p>
+              <h1 className="font-bold text-lg" style={{ color: '#0f172a' }}>Digital Twin</h1>
+              <p className="text-xs" style={{ color: '#64748b' }}>Employee Intelligence Platform</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsChatOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all"
-              style={{
-                background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                color: 'white',
-                boxShadow: '0 0 20px rgba(59,130,246,0.25)',
-                border: '1px solid rgba(59,130,246,0.3)',
-              }}
-            >
-              <Bot size={15} />
-              Ask Twin
-            </button>
+          
+          <div className="flex items-center gap-4">
+            <EmployeeSelector />
             <button
               onClick={() => navigate('/')}
-              className="flex items-center justify-center rounded-xl transition-all"
-              style={{
-                width: '36px', height: '36px',
-                background: 'rgba(255,255,255,0.8)',
-                border: '1px solid rgba(226, 232, 240, 0.8)',
-                color: '#64748b',
-              }}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 transition-colors"
+              style={{ color: '#64748b' }}
             >
               <LogOut size={16} />
+              <span>Logout</span>
             </button>
           </div>
         </div>

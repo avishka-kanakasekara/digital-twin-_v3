@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import {
-  BookOpen, Brain, GraduationCap, Sparkles, Clock, Flame, CheckCircle2,
-  TrendingUp, Play, Lock, ChevronRight, Search, BarChart3, Calendar
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, TrendingUp, Clock, CheckCircle, PlayCircle, BarChart3, Calendar, Search, Flame, Brain, GraduationCap, Sparkles, ChevronRight, Lock } from 'lucide-react';
 import * as data from '../../dummy/employee/learningHubData';
+import { learningAPI } from '../../lib/api';
+import { useEmployee } from '../../contexts/EmployeeContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // ─── Design tokens ───────────────────────────────────────────
@@ -46,12 +45,39 @@ const GlassCard: React.FC<{ children: React.ReactNode; style?: React.CSSProperti
 
 // ─── Learner Stats Hero ───────────────────────────────────────
 const LearnerHero: React.FC = () => {
-  const pct = Math.round((data.learnerProfile.coursesCompleted / (data.learnerProfile.coursesCompleted + data.learnerProfile.coursesInProgress + 3)) * 100);
+  const { currentEmployee } = useEmployee();
+  const [learnerProfile, setLearnerProfile] = useState(data.learnerProfile);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const profileData = await learningAPI.getProfile(currentEmployee.id);
+        // Transform API data to match mock structure
+        setLearnerProfile({
+          ...data.learnerProfile,
+          hoursThisMonth: profileData.hours_this_month || data.learnerProfile.hoursThisMonth,
+          hoursThisYear: profileData.hours_this_year || data.learnerProfile.hoursThisYear,
+          coursesCompleted: profileData.courses_completed || data.learnerProfile.coursesCompleted,
+          coursesInProgress: profileData.courses_in_progress || data.learnerProfile.coursesInProgress,
+          currentStreak: profileData.streak_days || data.learnerProfile.currentStreak,
+          learningScore: profileData.skill_score || data.learnerProfile.learningScore,
+        });
+        console.log('✅ Loaded learner profile from API');
+      } catch (error) {
+        console.log('⚠️ API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, []);
+
+  const pct = Math.round((learnerProfile.coursesCompleted / (learnerProfile.coursesCompleted + learnerProfile.coursesInProgress + 3)) * 100);
   const heroStats = [
-    { label: 'Hours This Month', value: `${data.learnerProfile.hoursThisMonth}h`, icon: <Clock size={13} />, color: '#22d3ee' },
-    { label: 'Hours This Year',  value: `${data.learnerProfile.hoursThisYear}h`, icon: <BarChart3 size={13} />, color: '#a78bfa' },
-    { label: 'Courses Done',     value: data.learnerProfile.coursesCompleted,      icon: <CheckCircle2 size={13} />, color: '#10b981' },
-    { label: 'Streak',           value: `${data.learnerProfile.currentStreak}d 🔥`, icon: <Flame size={13} />, color: '#f97316' },
+    { label: 'Hours This Month', value: `${learnerProfile.hoursThisMonth}h`, icon: <Clock size={13} />, color: '#22d3ee' },
+    { label: 'Hours This Year',  value: `${learnerProfile.hoursThisYear}h`, icon: <BarChart3 size={13} />, color: '#a78bfa' },
+    { label: 'Courses Done',     value: learnerProfile.coursesCompleted,      icon: <CheckCircle size={13} />, color: '#10b981' },
+    { label: 'Streak',           value: `${learnerProfile.currentStreak}d 🔥`, icon: <Flame size={13} />, color: '#f97316' },
   ];
 
   return (
@@ -65,7 +91,7 @@ const LearnerHero: React.FC = () => {
           <svg width="80" height="80" viewBox="0 0 80 80">
             <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(226, 232, 240, 0.8)" strokeWidth="8" />
             <circle cx="40" cy="40" r="34" fill="none" stroke="url(#scoreGrad)" strokeWidth="8"
-              strokeDasharray={`${2 * Math.PI * 34 * data.learnerProfile.learningScore / 100} ${2 * Math.PI * 34}`}
+              strokeDasharray={`${2 * Math.PI * 34 * learnerProfile.learningScore / 100} ${2 * Math.PI * 34}`}
               strokeLinecap="round" transform="rotate(-90 40 40)" />
             <defs>
               <linearGradient id="scoreGrad" x1="0" y1="0" x2="1" y2="0">
@@ -75,24 +101,24 @@ const LearnerHero: React.FC = () => {
             </defs>
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{data.learnerProfile.learningScore}</span>
+            <span style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{learnerProfile.learningScore}</span>
             <span style={{ fontSize: '8px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Score</span>
           </div>
         </div>
 
         <div style={{ flex: 1 }}>
-          <p style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginBottom: '4px' }}>{data.learnerProfile.name}</p>
+          <p style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginBottom: '4px' }}>{learnerProfile.name}</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Target Role:</span>
             <span style={{ padding: '2px 10px', borderRadius: '99px', fontSize: '11px', fontWeight: 800, background: 'rgba(124,58,237,0.2)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.35)' }}>
-              {data.learnerProfile.targetRole}
+              {learnerProfile.targetRole}
             </span>
           </div>
           <div style={{ height: '6px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #7c3aed 0%, #22d3ee 100%)', borderRadius: '99px', boxShadow: '0 0 10px rgba(124,58,237,0.5)', transition: 'width 1s' }} />
           </div>
           <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, marginTop: '5px' }}>
-            {data.learnerProfile.coursesCompleted} of {data.learnerProfile.coursesCompleted + data.learnerProfile.coursesInProgress + 3} learning goals completed
+            {learnerProfile.coursesCompleted} of {learnerProfile.coursesCompleted + learnerProfile.coursesInProgress + 3} learning goals completed
           </p>
         </div>
       </div>
@@ -112,157 +138,283 @@ const LearnerHero: React.FC = () => {
 };
 
 // ─── Learning Paths ───────────────────────────────────────────
-const LearningPaths: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<TrendingUp size={14} style={{ color: '#a78bfa' }} />} title="My Learning Paths" subtitle="AI-curated paths based on your target role and skill gaps" />
-    <div className="space-y-4">
-      {data.learningPaths.map((path) => (
-        <div key={path.id} style={{ padding: '18px', borderRadius: '16px', background: `${path.color}10`, border: `1px solid ${path.color}25`, position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${path.color}, ${path.color}88)` }} />
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div style={{ flex: 1 }}>
-              <div className="flex items-center gap-2 mb-1">
-                <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{path.title}</h4>
-                {path.recommended && (
-                  <span style={{ padding: '2px 8px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(124,58,237,0.2)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.35)' }}>
-                    ✦ AI Recommended
-                  </span>
-                )}
+const LearningPaths: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [learningPaths, setLearningPaths] = useState(data.learningPaths);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const pathsData = await learningAPI.getPaths(currentEmployee.id);
+        // Transform API data to match mock structure
+        const transformedPaths = (pathsData || []).map((path: any) => ({
+          ...path,
+          recommended: path.is_ai_recommended || false,
+          dueDate: path.due_date || 'TBD',
+          estimatedHours: path.estimated_hours || 0,
+          completedCourses: path.completed_courses || 0,
+          totalCourses: path.total_courses || 0,
+          color: path.color || '#7c3aed',
+        }));
+        setLearningPaths(transformedPaths);
+        console.log('✅ Loaded learning paths from API');
+      } catch (error) {
+        console.log('⚠️ Learning paths API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<TrendingUp size={14} style={{ color: '#a78bfa' }} />} title="My Learning Paths" subtitle="AI-curated paths based on your target role and skill gaps" />
+      <div className="space-y-4">
+        {learningPaths.map((path) => (
+          <div key={path.id} style={{ padding: '18px', borderRadius: '16px', background: `${path.color}10`, border: `1px solid ${path.color}25`, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${path.color}, ${path.color}88)` }} />
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div style={{ flex: 1 }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <h4 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a' }}>{path.title}</h4>
+                  {path.recommended && (
+                    <span style={{ padding: '2px 8px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'rgba(124,58,237,0.2)', color: '#a78bfa', border: '1px solid rgba(124,58,237,0.35)' }}>
+                      ✦ AI Recommended
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, marginBottom: '10px' }}>{path.description}</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {path.tags && Array.isArray(path.tags) && path.tags.slice(0, 3).map(tag => (
+                    <span key={tag} style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, background: `${path.color}15`, color: path.color, border: `1px solid ${path.color}28` }}>{tag}</span>
+                  ))}
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>📅 Due {path.dueDate}</span>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>⏱ ~{path.estimatedHours}h total</span>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>📦 {path.platform}</span>
+                </div>
               </div>
-              <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, marginBottom: '10px' }}>{path.description}</p>
-              <div className="flex items-center gap-3 flex-wrap">
-                {path.tags.map(tag => (
-                  <span key={tag} style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, background: `${path.color}15`, color: path.color, border: `1px solid ${path.color}28` }}>{tag}</span>
-                ))}
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>📅 Due {path.dueDate}</span>
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>⏱ ~{path.estimatedHours}h total</span>
-                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>📦 {path.platform}</span>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{path.progress}%</p>
+                <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{path.completedCourses}/{path.totalCourses} courses</p>
               </div>
             </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ fontSize: '28px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{path.progress}%</p>
-              <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{path.completedCourses}/{path.totalCourses} courses</p>
+            <div style={{ marginTop: '14px' }}>
+              <div style={{ height: '8px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${path.progress}%`, background: `linear-gradient(90deg, ${path.color}, ${path.color}cc)`, borderRadius: '99px', boxShadow: `0 0 10px ${path.color}60`, transition: 'width 1s ease' }} />
+              </div>
             </div>
           </div>
-          <div style={{ marginTop: '14px' }}>
-            <div style={{ height: '8px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${path.progress}%`, background: `linear-gradient(90deg, ${path.color}, ${path.color}cc)`, borderRadius: '99px', boxShadow: `0 0 10px ${path.color}60`, transition: 'width 1s ease' }} />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </GlassCard>
-);
+        ))}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Skill Gap Analysis ───────────────────────────────────────
-const SkillGapAnalysis: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<Brain size={14} style={{ color: '#22d3ee' }} />} title="Skill Gap Analysis" subtitle={`vs. ${data.learnerProfile.targetRole}`} />
-    <div className="space-y-4">
-      {data.skillGaps.map((gap, i) => {
-        const ps = PRIORITY_STYLES[gap.priority] || PRIORITY_STYLES.Medium;
-        return (
-          <div key={i}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{gap.skill}</span>
-                <span style={{ padding: '2px 7px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', background: ps.bg, color: ps.color, border: `1px solid ${ps.border}` }}>{gap.priority}</span>
+const SkillGapAnalysis: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [skillGaps, setSkillGaps] = useState(data.skillGaps);
+  const [targetRole, setTargetRole] = useState(data.learnerProfile.targetRole);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await learningAPI.getSkillGaps(currentEmployee.id);
+        setSkillGaps(data?.gaps || []);
+        setTargetRole(data?.target_role || data.learnerProfile.targetRole);
+        console.log('✅ Loaded skill gaps from API');
+      } catch (error) {
+        console.log('⚠️ Skill gaps API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<Brain size={14} style={{ color: '#22d3ee' }} />} title="Skill Gap Analysis" subtitle={`vs. ${targetRole}`} />
+      <div className="space-y-4">
+        {skillGaps.map((gap, i) => {
+          const ps = PRIORITY_STYLES[gap.priority] || PRIORITY_STYLES.Medium;
+          return (
+            <div key={i}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{gap.skill}</span>
+                  <span style={{ padding: '2px 7px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', background: ps.bg, color: ps.color, border: `1px solid ${ps.border}` }}>{gap.priority}</span>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>{gap.currentLevel}% → {gap.targetLevel}%</span>
               </div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b' }}>{gap.currentLevel}% → {gap.targetLevel}%</span>
+              {/* Dual bar */}
+              <div style={{ position: 'relative', height: '8px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
+                {/* Target bar (light) */}
+                <div style={{ position: 'absolute', inset: 0, width: `${gap.targetLevel}%`, background: 'rgba(226, 232, 240, 0.8)', borderRadius: '99px' }} />
+                {/* Current bar */}
+                <div style={{ height: '100%', width: `${gap.currentLevel}%`, background: `linear-gradient(90deg, ${gap.color}, ${gap.color}cc)`, borderRadius: '99px', boxShadow: `0 0 8px ${gap.color}50`, transition: 'width 1s' }} />
+              </div>
+              <p style={{ fontSize: '9px', color: '#475569', fontWeight: 600, marginTop: '4px', textAlign: 'right' }}>Gap: {gap.gap} points · {gap.category}</p>
             </div>
-            {/* Dual bar */}
-            <div style={{ position: 'relative', height: '8px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
-              {/* Target bar (light) */}
-              <div style={{ position: 'absolute', inset: 0, width: `${gap.targetLevel}%`, background: 'rgba(226, 232, 240, 0.8)', borderRadius: '99px' }} />
-              {/* Current bar */}
-              <div style={{ height: '100%', width: `${gap.currentLevel}%`, background: `linear-gradient(90deg, ${gap.color}, ${gap.color}cc)`, borderRadius: '99px', boxShadow: `0 0 8px ${gap.color}50`, transition: 'width 1s' }} />
-            </div>
-            <p style={{ fontSize: '9px', color: '#475569', fontWeight: 600, marginTop: '4px', textAlign: 'right' }}>Gap: {gap.gap} points · {gap.category}</p>
-          </div>
-        );
-      })}
-    </div>
-  </GlassCard>
-);
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Certifications ───────────────────────────────────────────
-const Certifications: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<GraduationCap size={14} style={{ color: '#fbbf24' }} />} title="Certification Tracker" subtitle="Professional credentials and exam schedule" />
-    <div className="space-y-3">
-      {data.certifications.map((cert) => {
-        const cs = CERT_STATUS_STYLES[cert.status];
-        return (
-          <div key={cert.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', borderRadius: '14px', background: `${cs.color}08`, border: `1px solid ${cs.border}`, transition: 'all 0.2s' }}>
-            <div style={{ width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', background: `${cs.color}15`, border: `1px solid ${cs.border}` }}>
-              {cert.emoji}
-            </div>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
-              <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cert.name}</p>
-              <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>{cert.issuer}</p>
-              {cert.status === 'in_progress' && cert.progress !== undefined && (
-                <div style={{ marginTop: '6px' }}>
-                  <div style={{ height: '4px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${cert.progress}%`, background: `linear-gradient(90deg, ${cs.color}, ${cs.color}cc)`, borderRadius: '99px' }} />
+const Certifications: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [certifications, setCertifications] = useState(data.certifications);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await learningAPI.getCertifications(currentEmployee.id);
+        // Transform API data to match mock structure
+        const transformedCerts = (data || []).map((cert: any) => ({
+          ...cert,
+          status: cert.status === 'completed' ? 'completed' : cert.status === 'in_progress' ? 'in_progress' : 'planned',
+          examDate: cert.exam_date || cert.due_date,
+        }));
+        setCertifications(transformedCerts);
+        console.log('✅ Loaded certifications from API');
+      } catch (error) {
+        console.log('⚠️ Certifications API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<GraduationCap size={14} style={{ color: '#fbbf24' }} />} title="Certification Tracker" subtitle="Professional credentials and exam schedule" />
+      <div className="space-y-3">
+        {certifications.map((cert) => {
+          const cs = CERT_STATUS_STYLES[cert.status] || CERT_STATUS_STYLES.planned;
+          return (
+            <div key={cert.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 16px', borderRadius: '14px', background: `${cs.color}08`, border: `1px solid ${cs.border}`, transition: 'all 0.2s' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', background: `${cs.color}15`, border: `1px solid ${cs.border}` }}>
+                {cert.emoji}
+              </div>
+              <div style={{ flex: 1, overflow: 'hidden' }}>
+                <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cert.name}</p>
+                <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginTop: '2px' }}>{cert.issuer}</p>
+                {cert.status === 'in_progress' && cert.progress !== undefined && (
+                  <div style={{ marginTop: '6px' }}>
+                    <div style={{ height: '4px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${cert.progress}%`, background: `linear-gradient(90deg, ${cs.color}, ${cs.color}cc)`, borderRadius: '99px' }} />
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <span style={{ padding: '3px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800, background: cs.bg, color: cs.color, border: `1px solid ${cs.border}`, display: 'block', marginBottom: '4px' }}>{cs.label}</span>
+                <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>
+                  {cert.status === 'completed' ? `Score: ${cert.score}%` : cert.examDate ? `Exam: ${cert.examDate}` : ''}
+                </p>
+              </div>
             </div>
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <span style={{ padding: '3px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800, background: cs.bg, color: cs.color, border: `1px solid ${cs.border}`, display: 'block', marginBottom: '4px' }}>{cs.label}</span>
-              <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>
-                {cert.status === 'completed' ? `Score: ${cert.score}%` : cert.examDate ? `Exam: ${cert.examDate}` : ''}
-              </p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </GlassCard>
-);
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── AI Learning Feed ─────────────────────────────────────────
-const LearningFeed: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<Sparkles size={14} style={{ color: '#a78bfa' }} />} title="AI Learning Feed" subtitle="Curated content matched to your skill gaps" />
-    <div className="space-y-3">
-      {data.learningFeed.map((item) => (
-        <div key={item.id} style={{ display: 'flex', gap: '12px', padding: '12px 14px', borderRadius: '14px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', cursor: 'pointer', transition: 'all 0.2s' }} className="hover:bg-white/[0.95] group/feed">
-          <div style={{ width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', background: `${item.color}15`, border: `1px solid ${item.color}28` }}>
-            {TYPE_ICONS[item.type]}
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <p style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{item.title}</p>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{item.source}</span>
-              <span style={{ fontSize: '10px', color: '#475569' }}>·</span>
-              <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>⏱ {item.readTime}</span>
-              <span style={{ fontSize: '10px', color: '#475569' }}>·</span>
-              <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{item.published}</span>
+const LearningFeed: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [learningFeed, setLearningFeed] = useState(data.learningFeed);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const feedData = await learningAPI.getFeed(currentEmployee.id);
+        setLearningFeed(feedData || []);
+        console.log('✅ Loaded learning feed from API');
+      } catch (error) {
+        console.log('⚠️ Learning feed API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<Sparkles size={14} style={{ color: '#a78bfa' }} />} title="AI Learning Feed" subtitle="Curated content matched to your skill gaps" />
+      <div className="space-y-3">
+        {learningFeed.map((item) => (
+          <div key={item.id} style={{ display: 'flex', gap: '12px', padding: '12px 14px', borderRadius: '14px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)', cursor: 'pointer', transition: 'all 0.2s' }} className="hover:bg-white/[0.95] group/feed">
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', background: `${item.color}15`, border: `1px solid ${item.color}28` }}>
+              {TYPE_ICONS[item.type] || '📄'}
             </div>
-            <div className="flex items-center gap-1 mt-1 flex-wrap">
-              {item.tags.slice(0, 2).map(tag => (
-                <span key={tag} style={{ padding: '1px 6px', borderRadius: '5px', fontSize: '9px', fontWeight: 700, background: `${item.color}15`, color: item.color, border: `1px solid ${item.color}28` }}>{tag}</span>
-              ))}
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>{item.title}</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{item.source}</span>
+                <span style={{ fontSize: '10px', color: '#475569' }}>·</span>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>⏱ {item.readTime}</span>
+                <span style={{ fontSize: '10px', color: '#475569' }}>·</span>
+                <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>{item.published}</span>
+              </div>
+              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                {(item.tags || []).slice(0, 2).map((tag: string) => (
+                  <span key={tag} style={{ padding: '1px 6px', borderRadius: '5px', fontSize: '9px', fontWeight: 700, background: `${item.color}15`, color: item.color, border: `1px solid ${item.color}28` }}>{tag}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+              <span style={{ padding: '2px 8px', borderRadius: '99px', fontSize: '10px', fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>{item.relevance}% Match</span>
+              <ChevronRight size={14} style={{ color: '#475569' }} />
             </div>
           </div>
-          <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-            <span style={{ padding: '2px 8px', borderRadius: '99px', fontSize: '10px', fontWeight: 800, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' }}>{item.relevance}% Match</span>
-            <ChevronRight size={14} style={{ color: '#475569' }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  </GlassCard>
-);
+        ))}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Course Library ───────────────────────────────────────────
 const CourseLibrary: React.FC = () => {
+  const { currentEmployee } = useEmployee();
   const [search, setSearch] = useState('');
-  const filtered = data.courseLibrary.filter(c =>
+  const [courseLibrary, setCourseLibrary] = useState(data.courseLibrary);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const coursesData = await learningAPI.getCourses();
+        // Transform API data to match mock structure
+        const transformedCourses = (coursesData || []).map((course: any) => ({
+          ...course,
+          status: course.status || 'available',
+          progress: course.progress || 0,
+          enrolled: course.enrolled_count || course.enrolled || 0,
+          tags: course.tags || [],
+          emoji: course.emoji || '📚',
+          color: course.color || '#7c3aed',
+        }));
+        setCourseLibrary(transformedCourses);
+        console.log('✅ Loaded course library from API');
+      } catch (error) {
+        console.log('⚠️ Course library API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  const filtered = courseLibrary.filter(c =>
     c.title.toLowerCase().includes(search.toLowerCase()) ||
-    c.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
+    (c.tags && Array.isArray(c.tags) && c.tags.some((t: string) => t.toLowerCase().includes(search.toLowerCase())))
   );
 
   const STATUS_STYLE: Record<string, { color: string; label: string }> = {
@@ -315,7 +467,7 @@ const CourseLibrary: React.FC = () => {
                 </div>
               )}
               <button style={{ padding: '7px', borderRadius: '10px', fontSize: '11px', fontWeight: 800, background: course.status === 'completed' ? 'rgba(16,185,129,0.15)' : course.status === 'in_progress' ? 'rgba(245,158,11,0.15)' : 'linear-gradient(135deg, #7c3aed, #06b6d4)', color: course.status === 'completed' ? '#34d399' : course.status === 'in_progress' ? '#fbbf24' : 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                {course.status !== 'completed' && <Play size={12} />} {ss.label}
+                {course.status !== 'completed' && <PlayCircle size={12} />} {ss.label}
               </button>
             </div>
           );
@@ -340,8 +492,8 @@ const WeeklySchedule: React.FC = () => (
             <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>⏱ {session.duration}</p>
           </div>
           <div>
-            {session.status === 'completed'   && <CheckCircle2 size={16} style={{ color: '#10b981' }} />}
-            {session.status === 'in_progress' && <Play size={16} style={{ color: '#f59e0b' }} />}
+            {session.status === 'completed'   && <CheckCircle size={16} style={{ color: '#10b981' }} />}
+            {session.status === 'in_progress' && <PlayCircle size={16} style={{ color: '#f59e0b' }} />}
             {session.status === 'upcoming'    && <Lock size={14} style={{ color: '#475569' }} />}
           </div>
         </div>
