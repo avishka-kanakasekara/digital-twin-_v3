@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Learning models — paths, courses, certifications, schedule.
 Uses String(36) UUIDs for SQLite compatibility.

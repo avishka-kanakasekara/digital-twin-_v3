@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Learning schemas — paths, courses, certifications, feed, schedule.
 """

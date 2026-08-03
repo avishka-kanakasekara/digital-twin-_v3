@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Auth schemas — login, register, token.
 """

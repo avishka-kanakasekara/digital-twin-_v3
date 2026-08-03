@@ -42,8 +42,13 @@ interface SettingsContextType {
   addSkill: (skill: string) => void;
   removeSkill: (skill: string) => void;
 
+  projectTypes: string[];
+  addProjectType: (type: string) => void;
+  removeProjectType: (type: string) => void;
+
   roles: RoleDef[];
   addRole: (role: Omit<RoleDef, 'id'>) => void;
+  updateRole: (role: RoleDef) => void;
   deleteRole: (id: string) => void;
 
   integrations: ApiIntegration[];
@@ -55,6 +60,8 @@ interface SettingsContextType {
 
   departments: Department[];
   addDepartment: (dept: Omit<Department, 'id'>) => void;
+  updateDepartment: (dept: Department) => void;
+  deleteDepartment: (id: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -64,6 +71,13 @@ const initialRoles: RoleDef[] = [
   { id: '2', title: "Product Manager", dept: "Product", req: ["Agile", "User Research", "Roadmapping"], icon: Layers, color: "#8b5cf6" },
   { id: '3', title: "Data Scientist", dept: "Data & AI", req: ["Python", "Machine Learning", "SQL"], icon: Server, color: "#10b981" },
   { id: '4', title: "UX Designer", dept: "Design", req: ["Figma", "Wireframing", "Prototyping"], icon: Briefcase, color: "#f59e0b" }
+];
+
+const initialProjectTypes: string[] = [
+  "New Product Development",
+  "System Migration",
+  "Maintenance & Support",
+  "Tiger Team / Crisis Resp"
 ];
 
 const initialIntegrations: ApiIntegration[] = [
@@ -86,6 +100,7 @@ const initialDepartments: Department[] = [
 
 export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [skills, setSkills] = useState<string[]>(predefinedSkills);
+  const [projectTypes, setProjectTypes] = useState<string[]>(initialProjectTypes);
   const [roles, setRoles] = useState<RoleDef[]>(initialRoles);
   const [integrations, setIntegrations] = useState<ApiIntegration[]>(initialIntegrations);
   const [users, setUsers] = useState<User[]>(initialUsers);
@@ -102,8 +117,23 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     setSkills(prev => prev.filter(s => s !== skill));
   };
 
+  const addProjectType = (type: string) => {
+    const trimmed = type.trim();
+    if (trimmed && !projectTypes.includes(trimmed)) {
+      setProjectTypes(prev => [...prev, trimmed]);
+    }
+  };
+
+  const removeProjectType = (type: string) => {
+    setProjectTypes(prev => prev.filter(t => t !== type));
+  };
+
   const addRole = (role: Omit<RoleDef, 'id'>) => {
     setRoles(prev => [...prev, { ...role, id: Date.now().toString() }]);
+  };
+
+  const updateRole = (updatedRole: RoleDef) => {
+    setRoles(prev => prev.map(r => r.id === updatedRole.id ? updatedRole : r));
   };
 
   const deleteRole = (id: string) => {
@@ -137,13 +167,22 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     setDepartments(prev => [...prev, { ...dept, id: Date.now().toString() }]);
   };
 
+  const updateDepartment = (updatedDept: Department) => {
+    setDepartments(prev => prev.map(d => d.id === updatedDept.id ? updatedDept : d));
+  };
+
+  const deleteDepartment = (id: string) => {
+    setDepartments(prev => prev.filter(d => d.id !== id));
+  };
+
   return (
     <SettingsContext.Provider value={{ 
       skills, addSkill, removeSkill,
-      roles, addRole, deleteRole,
+      projectTypes, addProjectType, removeProjectType,
+      roles, addRole, updateRole, deleteRole,
       integrations, toggleIntegration,
       users, addUser, toggleUserStatus,
-      departments, addDepartment
+      departments, addDepartment, updateDepartment, deleteDepartment
     }}>
       {children}
     </SettingsContext.Provider>

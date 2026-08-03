@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Application configuration — loads from .env file or environment variables.
 Supports both PostgreSQL (production) and SQLite (local dev without Docker).

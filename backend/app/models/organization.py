@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Organization models for the Digital Twin platform.
 """

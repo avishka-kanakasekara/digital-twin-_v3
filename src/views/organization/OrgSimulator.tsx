@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase, Lightbulb } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
-import { mockOrgHistory, mockSimulations } from '../../dummy/organization/largeDashboardData';
+import { useOrganizationMetrics, useOrganizationScenarios } from '../../hooks/useOrganization';
 
 export const OrgSimulator: React.FC = () => {
   const [headcountChange, setHeadcountChange] = useState(0);
@@ -15,14 +15,20 @@ export const OrgSimulator: React.FC = () => {
   const [snapshotData, setSnapshotData] = useState<any[] | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   
+  const { metrics, loading: loadingMetrics } = useOrganizationMetrics();
+  const { scenarios, loading: loadingScenarios } = useOrganizationScenarios();
+
+  // Use fetched scenarios or fallback
+  const simData = scenarios || [];
+
   // Base metrics from the most recent historical month
-  const latestMonth = mockOrgHistory[mockOrgHistory.length - 1];
-  const baseProductivity = latestMonth.overallProductivityScore;
-  const baseHealth = latestMonth.eNPS + 40; // Approx mapping to 0-100
+  const latestMonth = metrics && metrics.length > 0 ? metrics[metrics.length - 1] : null;
+  const baseProductivity = latestMonth?.overallProductivityScore || 90;
+  const baseHealth = (latestMonth?.enps || 50) + 40; // Approx mapping to 0-100
   const baseCapacity = 100;
-  const baseAttrition = parseFloat(latestMonth.voluntaryAttritionRate) * 4; 
-  const baseCsat = parseFloat(latestMonth.csat);
-  const baseRevenue = parseFloat(latestMonth.revenue) / 1000000; // In Millions
+  const baseAttrition = parseFloat(latestMonth?.voluntaryAttritionRate || '2') * 4; 
+  const baseCsat = parseFloat(latestMonth?.csat || '85');
+  const baseRevenue = parseFloat(latestMonth?.revenue || '15000000') / 1000000; // In Millions
 
   const generateData = (params: any, isSnapshot: boolean = false) => {
     return Array.from({length: 6}, (_, i) => {
@@ -110,7 +116,7 @@ export const OrgSimulator: React.FC = () => {
   }) : null;
 
   // Take just 8 interesting scenarios for the library
-  const scenarioLibrary = mockSimulations.slice(0, 8);
+  const scenarioLibrary = simData.slice(0, 8);
 
   return (
     <div className="flex flex-col gap-8 pb-12 relative">

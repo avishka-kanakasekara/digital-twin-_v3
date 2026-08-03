@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Gamification schemas — profiles, leaderboard, challenges, achievements, XP.
 """

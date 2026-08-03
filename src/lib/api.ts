@@ -422,10 +422,64 @@ export const careerAPI = {
     }),
 };
 
+// ==================== ORGANIZATION ====================
+
+export interface OrganizationMetric {
+  id: string;
+  month: string;
+  date: string;
+  total_headcount: number;
+  voluntary_attrition_rate: number;
+  involuntary_attrition_rate: number;
+  new_hires: number;
+  open_positions: number;
+  enps: number;
+  training_hours_per_employee: number;
+  absenteeism_rate: number;
+  revenue: number;
+  operating_cost: number;
+  ebitda: number;
+  net_profit: number;
+  marketing_spend: number;
+  rd_spend: number;
+  overall_productivity_score: number;
+  csat: number;
+  nps: number;
+  market_share_percentage: number;
+  project_completion_rate: number;
+  carbon_footprint_tons: number;
+  energy_consumption_kwh: number;
+  compliance_score: number;
+  security_incidents: number;
+  anomaly_flag: string;
+  created_at: string;
+}
+
+export interface OrganizationScenario {
+  id: string;
+  scenario_name: string;
+  target_metric: string;
+  confidence_level: number;
+  predicted_impact_percentage: number;
+  predicted_roi: number;
+  time_to_impact_months: number;
+  ai_recommendation: string;
+  created_at: string;
+}
+
+export const organizationAPI = {
+  getHistory: (params?: { limit?: number }) =>
+    fetchAPI<OrganizationMetric[]>(`/api/organization/history?${new URLSearchParams(params as any || {}).toString()}`),
+    
+  getScenarios: (params?: { limit?: number }) =>
+    fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios?${new URLSearchParams(params as any || {}).toString()}`),
+};
+
 export default {
   auth: authAPI,
   employee: employeeAPI,
   gamification: gamificationAPI,
   learning: learningAPI,
   career: careerAPI,
+  organization: organizationAPI,
 };

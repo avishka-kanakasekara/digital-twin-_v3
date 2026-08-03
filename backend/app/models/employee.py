@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Employee model — the central entity of the Digital Twin platform.
 Uses String-based UUIDs for SQLite compatibility.

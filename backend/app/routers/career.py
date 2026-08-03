@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Career Coach router — goals, roadmaps, readiness, market trends.
 """

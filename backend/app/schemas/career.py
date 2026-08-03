@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Career schemas — goals, roadmaps, skill gaps, market trends.
 """

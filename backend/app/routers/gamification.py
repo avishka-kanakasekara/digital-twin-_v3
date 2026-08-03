@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Gamification router — XP, leaderboard, challenges, achievements, rewards.
 """

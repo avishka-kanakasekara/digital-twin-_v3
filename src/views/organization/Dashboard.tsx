@@ -6,11 +6,20 @@ import { Users, Target, TrendingUp, ChevronDown, Activity, ExternalLink, HeartPu
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Link } from 'react-router-dom';
 import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
-import { mockOrgHistory, mockLargeDepartments } from '../../dummy/organization/largeDashboardData';
+import { mockLargeDepartments } from '../../dummy/organization/largeDashboardData';
+import { useOrganizationMetrics } from '../../hooks/useOrganization';
 
 export const Dashboard: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState('All Departments');
   const [drillDownInfo, setDrillDownInfo] = useState<{ isOpen: boolean; title: string; type: string } | null>(null);
+
+  const { metrics, loading } = useOrganizationMetrics();
+  
+  // Use fetched metrics or fallback to empty array during loading
+  const orgHistoryData = metrics || [];
+  
+  // Latest metric for summary cards
+  const latestMetric = orgHistoryData.length > 0 ? orgHistoryData[orgHistoryData.length - 1] : null;
 
 
 
@@ -129,7 +138,9 @@ export const Dashboard: React.FC = () => {
           <div className="relative z-10">
             <p className="text-xs font-bold text-slate-400 mb-0.5">Total Employees</p>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">1,248</h3>
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight">
+                {loading ? '...' : (latestMetric?.totalHeadcount?.toLocaleString() || '1,248')}
+              </h3>
             </div>
           </div>
         </div>
@@ -150,7 +161,9 @@ export const Dashboard: React.FC = () => {
           <div className="relative z-10">
             <p className="text-xs font-bold text-slate-400 mb-0.5">Productivity Score</p>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">88</h3>
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight">
+                {loading ? '...' : (latestMetric?.overallProductivityScore || 88)}
+              </h3>
               <span className="text-sm font-bold text-slate-400">%</span>
             </div>
           </div>
@@ -174,7 +187,9 @@ export const Dashboard: React.FC = () => {
           <div className="relative z-10">
             <p className="text-xs font-bold text-rose-500 mb-0.5 flex items-center gap-1.5">Anomaly Flagged</p>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-rose-600 tracking-tight">3.2</h3>
+              <h3 className="text-3xl font-black text-rose-600 tracking-tight">
+                {loading ? '...' : (latestMetric?.securityIncidents || 3.2)}
+              </h3>
               <span className="text-sm font-bold text-rose-400">/5</span>
             </div>
           </div>
@@ -262,9 +277,12 @@ export const Dashboard: React.FC = () => {
               </h3>
             </div>
             <div className="flex-1 w-full opacity-90 group-hover:opacity-100 transition-opacity">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockOrgHistory.slice(-12)} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                  <defs>
+              {loading ? (
+                <div className="flex items-center justify-center h-full text-slate-400 text-xs font-bold">Loading data...</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={orgHistoryData.slice(-12)} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                    <defs>
                     <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
@@ -275,8 +293,9 @@ export const Dashboard: React.FC = () => {
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} domain={['dataMin - 20', 'dataMax + 20']} />
                   <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
                   <Area type="monotone" dataKey="totalHeadcount" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorGrowth)" />
-                </AreaChart>
-              </ResponsiveContainer>
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 

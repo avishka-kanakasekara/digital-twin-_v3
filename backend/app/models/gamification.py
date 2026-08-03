@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Gamification models — XP system, achievements, challenges, leaderboard.
 Uses String(36) UUIDs for SQLite compatibility.

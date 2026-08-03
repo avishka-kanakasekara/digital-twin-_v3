@@ -1,22 +1,24 @@
 import React, { useState } from 'react';
 import { useSettings } from '../../context/SettingsContext';
-import { Settings, Shield, Plus, X, Server, Key, Users, Briefcase, Link2, Unplug, Clock, Layers } from 'lucide-react';
+import { Settings, Shield, Plus, X, Server, Key, Users, Briefcase, Link2, Unplug, Clock, Layers, Target, Pencil } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
   const {
     skills, addSkill, removeSkill,
-    roles, addRole, deleteRole,
+    projectTypes, addProjectType, removeProjectType,
+    roles, addRole, updateRole, deleteRole,
     integrations, toggleIntegration,
     users, addUser, toggleUserStatus,
-    departments, addDepartment
+    departments, addDepartment, updateDepartment, deleteDepartment
   } = useSettings();
 
   const [newSkill, setNewSkill] = useState('');
-  const [activeTab, setActiveTab] = useState<'competencies' | 'roles' | 'api' | 'users' | 'departments'>('competencies');
+  const [newProjectType, setNewProjectType] = useState('');
+  const [activeTab, setActiveTab] = useState<'competencies' | 'projectTypes' | 'roles' | 'api' | 'users' | 'departments'>('competencies');
 
   // Role Creation State
   const [showRoleModal, setShowRoleModal] = useState(false);
-  const [newRole, setNewRole] = useState({ title: '', dept: '', req: [] as string[] });
+  const [newRole, setNewRole] = useState({ id: '', title: '', dept: '', req: [] as string[] });
 
   // User Creation State
   const [showUserModal, setShowUserModal] = useState(false);
@@ -24,7 +26,7 @@ export const AdminSettings: React.FC = () => {
 
   // Department Creation State
   const [showDeptModal, setShowDeptModal] = useState(false);
-  const [newDept, setNewDept] = useState({ name: '', head: '' });
+  const [newDept, setNewDept] = useState({ id: '', name: '', head: '' });
 
   const handleAddSkill = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +36,37 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
+  const handleAddProjectType = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newProjectType.trim()) {
+      addProjectType(newProjectType);
+      setNewProjectType('');
+    }
+  };
+
   const handleAddRole = (e: React.FormEvent) => {
     e.preventDefault();
     if (newRole.title && newRole.dept) {
-      addRole({
-        title: newRole.title,
-        dept: newRole.dept,
-        req: newRole.req,
-        icon: Briefcase,
-        color: '#3b82f6'
-      });
+      if (newRole.id) {
+        updateRole({
+          id: newRole.id,
+          title: newRole.title,
+          dept: newRole.dept,
+          req: newRole.req,
+          icon: roles.find(r => r.id === newRole.id)?.icon || Briefcase,
+          color: roles.find(r => r.id === newRole.id)?.color || '#3b82f6'
+        });
+      } else {
+        addRole({
+          title: newRole.title,
+          dept: newRole.dept,
+          req: newRole.req,
+          icon: Briefcase,
+          color: '#3b82f6'
+        });
+      }
       setShowRoleModal(false);
-      setNewRole({ title: '', dept: '', req: [] });
+      setNewRole({ id: '', title: '', dept: '', req: [] });
     }
   };
 
@@ -61,9 +82,18 @@ export const AdminSettings: React.FC = () => {
   const handleAddDept = (e: React.FormEvent) => {
     e.preventDefault();
     if (newDept.name && newDept.head) {
-      addDepartment({ ...newDept, memberCount: 0 });
+      if (newDept.id) {
+        updateDepartment({
+          id: newDept.id,
+          name: newDept.name,
+          head: newDept.head,
+          memberCount: departments.find(d => d.id === newDept.id)?.memberCount || 0
+        });
+      } else {
+        addDepartment({ name: newDept.name, head: newDept.head, memberCount: 0 });
+      }
       setShowDeptModal(false);
-      setNewDept({ name: '', head: '' });
+      setNewDept({ id: '', name: '', head: '' });
     }
   };
 
@@ -75,7 +105,7 @@ export const AdminSettings: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-6 relative w-full h-full pb-4">
+    <div className="flex flex-col gap-6 relative w-full h-full pb-4 overflow-x-hidden">
       {/* Background Orbs for Glassmorphism Context */}
       <div className="absolute top-[-10%] right-[-5%] w-[40%] h-[40%] rounded-full opacity-40 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #8b5cf6 0%, transparent 70%)' }}></div>
       <div className="absolute bottom-[-10%] left-[-5%] w-[30%] h-[50%] rounded-full opacity-30 blur-3xl pointer-events-none" style={{ background: 'radial-gradient(circle, #3b82f6 0%, transparent 70%)' }}></div>
@@ -129,6 +159,21 @@ export const AdminSettings: React.FC = () => {
               <Server size={18} strokeWidth={activeTab === 'competencies' ? 2.5 : 2} />
             </div>
             <span className="truncate">Core Competencies</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('projectTypes')}
+            className="w-full justify-start text-left flex items-center gap-3.5 px-5 py-3 rounded-2xl transition-all font-bold cursor-pointer relative overflow-hidden"
+            style={activeTab === 'projectTypes'
+              ? { backgroundColor: '#ffffff', color: '#0f172a', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid rgba(226, 232, 240, 0.8)' }
+              : { backgroundColor: 'transparent', color: '#64748b', border: '1px solid transparent' }
+            }
+          >
+            {activeTab === 'projectTypes' && <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1.5 rounded-r-md" style={{ background: 'linear-gradient(to bottom, #8b5cf6, #d946ef)' }}></div>}
+            <div className="w-9 h-9 shrink-0 rounded-xl flex items-center justify-center shadow-sm transition-colors" style={activeTab === 'projectTypes' ? { background: 'linear-gradient(135deg, #ede9fe 0%, #fae8ff 100%)', color: '#d946ef' } : { backgroundColor: '#f1f5f9', color: '#94a3b8' }}>
+              <Target size={18} strokeWidth={activeTab === 'projectTypes' ? 2.5 : 2} />
+            </div>
+            <span className="truncate">Project Types</span>
           </button>
 
           <button
@@ -213,7 +258,7 @@ export const AdminSettings: React.FC = () => {
                 </div>
 
                 {/* Add New Skill Form */}
-                <form onSubmit={handleAddSkill} className="flex gap-4 bg-white p-2.5 rounded-full shadow-sm border transition-shadow hover:shadow-md" style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}>
+                <form onSubmit={handleAddSkill} className="flex gap-4 bg-white p-2.5 rounded-full shadow-sm border transition-shadow hover:shadow-md shrink-0" style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}>
                   <div className="flex-1 relative flex items-center pl-5">
                     <Plus size={20} style={{ color: '#94a3b8' }} className="mr-3" />
                     <input
@@ -239,8 +284,8 @@ export const AdminSettings: React.FC = () => {
                 </form>
 
                 {/* Skills List */}
-                <div className="flex flex-col gap-4 flex-1">
-                  <div className="flex justify-between items-center px-1">
+                <div className="flex flex-col gap-4 flex-1 min-h-0">
+                  <div className="flex justify-between items-center px-1 shrink-0">
                     <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>
                       Active Skills Catalog
                     </span>
@@ -249,7 +294,7 @@ export const AdminSettings: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap gap-3 p-6 rounded-2xl min-h-[300px] items-start align-content-start overflow-y-auto" style={{ backgroundColor: 'rgba(248, 250, 252, 0.5)', border: '1px solid rgba(226, 232, 240, 0.6)' }}>
+                  <div className="flex flex-wrap gap-3 p-6 rounded-2xl flex-1 items-start align-content-start overflow-y-auto" style={{ backgroundColor: 'rgba(248, 250, 252, 0.5)', border: '1px solid rgba(226, 232, 240, 0.6)' }}>
                     {skills.map(skill => (
                       <div
                         key={skill}
@@ -282,6 +327,88 @@ export const AdminSettings: React.FC = () => {
               </div>
             )}
 
+            {activeTab === 'projectTypes' && (
+              <div className="animate-fade-in flex flex-col h-full gap-8">
+                <div className="pb-4 lg:pb-6 border-b shrink-0" style={{ borderColor: 'rgba(226, 232, 240, 0.6)' }}>
+                  <h2 className="text-xl lg:text-2xl font-extrabold tracking-tight mb-2 truncate" style={{ color: '#0f172a' }}>Project Types</h2>
+                  <p className="text-xs lg:text-sm font-medium leading-relaxed max-w-3xl" style={{ color: '#64748b' }}>
+                    Define the categories of projects your organization undertakes. These types are used as parameters in the AI Team Assembler.
+                  </p>
+                </div>
+
+                {/* Add New Project Type Form */}
+                <form onSubmit={handleAddProjectType} className="flex gap-4 bg-white p-2.5 rounded-full shadow-sm border transition-shadow hover:shadow-md shrink-0" style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}>
+                  <div className="flex-1 relative flex items-center pl-5">
+                    <Plus size={20} style={{ color: '#94a3b8' }} className="mr-3" />
+                    <input
+                      type="text"
+                      value={newProjectType}
+                      onChange={(e) => setNewProjectType(e.target.value)}
+                      placeholder="Type a new project type (e.g. R&D Exploration)..."
+                      className="w-full py-2.5 text-[15px] font-bold outline-none"
+                      style={{ color: '#1e293b', backgroundColor: 'transparent' }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!newProjectType.trim()}
+                    className="px-8 py-3 rounded-full font-bold text-sm text-white border-none cursor-pointer flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 hover:-translate-y-0.5 hover:shadow-lg"
+                    style={{
+                      background: 'linear-gradient(135deg, #d946ef 0%, #c026d3 100%)',
+                      boxShadow: '0 4px 15px -3px rgba(217, 70, 239, 0.4)'
+                    }}
+                  >
+                    Add Type
+                  </button>
+                </form>
+
+                {/* Project Types List */}
+                <div className="flex flex-col gap-4 flex-1 min-h-0">
+                  <div className="flex justify-between items-center px-1 shrink-0">
+                    <span className="text-xs font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>
+                      Active Project Types
+                    </span>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: '#f1f5f9', color: '#475569' }}>
+                      {projectTypes.length} Total
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-3 p-6 rounded-2xl flex-1 overflow-y-auto" style={{ backgroundColor: 'rgba(248, 250, 252, 0.5)', border: '1px solid rgba(226, 232, 240, 0.6)' }}>
+                    {projectTypes.map(type => (
+                      <div
+                        key={type}
+                        className="group flex justify-between items-center px-5 py-4 rounded-xl transition-all duration-300"
+                        style={{ backgroundColor: '#ffffff', border: '1px solid rgba(226, 232, 240, 0.8)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Target size={16} className="text-fuchsia-500" />
+                          <span className="text-sm font-bold" style={{ color: '#334155' }}>{type}</span>
+                        </div>
+                        <button
+                          onClick={() => removeProjectType(type)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer border-none bg-transparent"
+                          style={{ color: '#cbd5e1' }}
+                          title={`Remove ${type}`}
+                          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#cbd5e1'; }}
+                        >
+                          <X size={16} strokeWidth={3} />
+                        </button>
+                      </div>
+                    ))}
+
+                    {projectTypes.length === 0 && (
+                      <div className="w-full h-full flex flex-col items-center justify-center py-20" style={{ color: '#94a3b8' }}>
+                        <Target size={48} className="mb-4 opacity-40" />
+                        <p className="text-base font-bold text-slate-500">No project types configured.</p>
+                        <p className="text-sm mt-2 text-slate-400">Add a type using the input above to get started.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'roles' && (
               <div className="animate-fade-in flex flex-col h-full">
                 <div className="mb-8 pb-6 border-b flex justify-between items-center shrink-0" style={{ borderColor: 'rgba(226, 232, 240, 0.6)' }}>
@@ -292,7 +419,7 @@ export const AdminSettings: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowRoleModal(true)}
+                    onClick={() => { setNewRole({ id: '', title: '', dept: '', req: [] }); setShowRoleModal(true); }}
                     className="px-6 py-3 rounded-full font-bold text-sm text-white border-none cursor-pointer flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
                     <Plus size={18} strokeWidth={3} /> <span>Create Role</span>
                   </button>
@@ -313,13 +440,25 @@ export const AdminSettings: React.FC = () => {
                               <span className="text-[11px] font-black uppercase tracking-wider mt-1 block" style={{ color: '#94a3b8' }}>{role.dept}</span>
                             </div>
                           </div>
-                          <button
-                            onClick={() => deleteRole(role.id)}
-                            className="transition-colors bg-transparent border-none cursor-pointer p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50" style={{ color: '#ef4444' }}
-                            title="Delete Role"
-                          >
-                            <X size={16} strokeWidth={3} />
-                          </button>
+                          <div className="flex gap-1 transition-opacity">
+                            <button
+                              onClick={() => {
+                                setNewRole({ id: role.id, title: role.title, dept: role.dept, req: role.req });
+                                setShowRoleModal(true);
+                              }}
+                              className="transition-colors bg-transparent border-none cursor-pointer p-2 rounded-lg hover:bg-slate-100" style={{ color: '#64748b' }}
+                              title="Edit Role"
+                            >
+                              <Pencil size={16} strokeWidth={3} />
+                            </button>
+                            <button
+                              onClick={() => deleteRole(role.id)}
+                              className="transition-colors bg-transparent border-none cursor-pointer p-2 rounded-lg hover:bg-red-50" style={{ color: '#ef4444' }}
+                              title="Delete Role"
+                            >
+                              <X size={16} strokeWidth={3} />
+                            </button>
+                          </div>
                         </div>
                         <div className="pt-4 border-t" style={{ borderColor: 'rgba(226, 232, 240, 0.5)' }}>
                           <p className="text-[10px] font-black uppercase mb-3" style={{ color: '#94a3b8' }}>Required Competencies</p>
@@ -459,7 +598,7 @@ export const AdminSettings: React.FC = () => {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowDeptModal(true)}
+                    onClick={() => { setNewDept({ id: '', name: '', head: '' }); setShowDeptModal(true); }}
                     className="px-6 py-3 rounded-full font-bold text-sm text-white border-none cursor-pointer flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' }}>
                     <Plus size={18} strokeWidth={3} /> <span>Add Department</span>
                   </button>
@@ -477,6 +616,25 @@ export const AdminSettings: React.FC = () => {
                             <h3 className="text-base font-extrabold text-slate-800">{dept.name}</h3>
                             <span className="text-[11px] font-black uppercase tracking-wider mt-1 block text-slate-400">{dept.memberCount} Members</span>
                           </div>
+                        </div>
+                        <div className="flex gap-1 transition-opacity">
+                          <button
+                            onClick={() => {
+                              setNewDept({ id: dept.id, name: dept.name, head: dept.head });
+                              setShowDeptModal(true);
+                            }}
+                            className="transition-colors bg-transparent border-none cursor-pointer p-2 rounded-lg hover:bg-slate-100" style={{ color: '#64748b' }}
+                            title="Edit Department"
+                          >
+                            <Pencil size={16} strokeWidth={3} />
+                          </button>
+                          <button
+                            onClick={() => deleteDepartment(dept.id)}
+                            className="transition-colors bg-transparent border-none cursor-pointer p-2 rounded-lg hover:bg-red-50" style={{ color: '#ef4444' }}
+                            title="Delete Department"
+                          >
+                            <X size={16} strokeWidth={3} />
+                          </button>
                         </div>
                       </div>
                       <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
@@ -499,13 +657,13 @@ export const AdminSettings: React.FC = () => {
               <div className="absolute inset-0 z-50 flex items-center justify-center rounded-3xl animate-in fade-in duration-300 backdrop-blur-sm" style={{ backgroundColor: 'rgba(15, 23, 42, 0.3)' }}>
                 <div className="backdrop-blur-xl rounded-[2rem] p-6 sm:p-8 w-[calc(100%-2rem)] max-w-[500px] border animate-in zoom-in-95 duration-300 ease-out relative overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)' }}>
                   <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: 'rgba(52, 211, 153, 0.15)', transform: 'translate(30%, -30%)' }}></div>
-                  
+
                   <div className="flex justify-between items-center mb-8 relative z-10">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 shrink-0 rounded-full flex items-center justify-center shadow-sm border" style={{ background: 'linear-gradient(135deg, #d1fae5 0%, #ccfbf1 100%)', color: '#059669', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
                         <Briefcase size={24} />
                       </div>
-                      <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Create New Role</h2>
+                      <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>{newRole.id ? 'Edit Role' : 'Create New Role'}</h2>
                     </div>
                     <button onClick={() => setShowRoleModal(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:rotate-90 transition-all duration-300 shadow-sm cursor-pointer border" style={{ backgroundColor: '#ffffff', color: '#64748b', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
                       <X size={20} strokeWidth={2.5} />
@@ -513,8 +671,8 @@ export const AdminSettings: React.FC = () => {
                   </div>
 
                   <form onSubmit={handleAddRole} className="flex flex-col gap-5 relative z-10">
-                    <div 
-                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group" 
+                    <div
+                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group"
                       style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                       onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.1)'; }}
                       onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -528,9 +686,9 @@ export const AdminSettings: React.FC = () => {
                         placeholder="e.g. Lead Designer"
                       />
                     </div>
-                    
-                    <div 
-                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group" 
+
+                    <div
+                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group"
                       style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                       onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(16, 185, 129, 0.1)'; }}
                       onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -544,7 +702,7 @@ export const AdminSettings: React.FC = () => {
                         placeholder="e.g. Design"
                       />
                     </div>
-                    
+
                     <div className="mt-1">
                       <label className="block text-[10px] font-extrabold uppercase tracking-widest mb-2 ml-3" style={{ color: '#64748b' }}>Required Competencies</label>
                       <div className="flex flex-wrap gap-2 p-5 rounded-3xl max-h-[160px] overflow-y-auto" style={{ backgroundColor: '#f1f5f9', scrollbarWidth: 'none' }}>
@@ -591,7 +749,7 @@ export const AdminSettings: React.FC = () => {
               <div className="absolute inset-0 z-50 flex items-center justify-center rounded-3xl animate-in fade-in duration-300 backdrop-blur-sm" style={{ backgroundColor: 'rgba(15, 23, 42, 0.3)' }}>
                 <div className="backdrop-blur-xl rounded-[2rem] p-6 sm:p-8 w-[calc(100%-2rem)] max-w-[500px] border animate-in zoom-in-95 duration-300 ease-out relative overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)' }}>
                   <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: 'rgba(236, 72, 153, 0.12)', transform: 'translate(30%, -30%)' }}></div>
-                  
+
                   <div className="flex justify-between items-center mb-8 relative z-10">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 shrink-0 rounded-full flex items-center justify-center shadow-sm border" style={{ background: 'linear-gradient(135deg, #fce7f3 0%, #ffe4e6 100%)', color: '#db2777', borderColor: 'rgba(236, 72, 153, 0.2)' }}>
@@ -605,8 +763,8 @@ export const AdminSettings: React.FC = () => {
                   </div>
 
                   <form onSubmit={handleAddUser} className="flex flex-col gap-5 relative z-10">
-                    <div 
-                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group" 
+                    <div
+                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group"
                       style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                       onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#ec4899'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(236, 72, 153, 0.1)'; }}
                       onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -620,9 +778,9 @@ export const AdminSettings: React.FC = () => {
                         placeholder="e.g. Alex Johnson"
                       />
                     </div>
-                    
-                    <div 
-                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group" 
+
+                    <div
+                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group"
                       style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                       onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#ec4899'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(236, 72, 153, 0.1)'; }}
                       onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -638,8 +796,8 @@ export const AdminSettings: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                      <div 
-                        className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-pointer group" 
+                      <div
+                        className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-pointer group"
                         style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                         onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#ec4899'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(236, 72, 153, 0.1)'; }}
                         onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -654,13 +812,13 @@ export const AdminSettings: React.FC = () => {
                             {roles.map(r => <option key={r.id} value={r.title}>{r.title}</option>)}
                           </select>
                           <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center w-5 h-5 rounded-full" style={{ backgroundColor: 'rgba(236, 72, 153, 0.1)', color: '#ec4899' }}>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                           </div>
                         </div>
                       </div>
-                      
-                      <div 
-                        className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-pointer group" 
+
+                      <div
+                        className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-pointer group"
                         style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                         onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#ec4899'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(236, 72, 153, 0.1)'; }}
                         onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -675,12 +833,12 @@ export const AdminSettings: React.FC = () => {
                             {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                           </select>
                           <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center w-5 h-5 rounded-full" style={{ backgroundColor: 'rgba(236, 72, 153, 0.1)', color: '#ec4899' }}>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                           </div>
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="mt-4 flex gap-3 justify-end">
                       <button type="button" onClick={() => setShowUserModal(false)} className="px-8 py-3 rounded-full font-bold text-sm cursor-pointer transition-all duration-300 shadow-sm border hover:shadow-md" style={{ backgroundColor: '#ffffff', color: '#475569', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
                         Cancel
@@ -699,13 +857,13 @@ export const AdminSettings: React.FC = () => {
               <div className="absolute inset-0 z-50 flex items-center justify-center rounded-3xl animate-in fade-in duration-300 backdrop-blur-sm" style={{ backgroundColor: 'rgba(15, 23, 42, 0.3)' }}>
                 <div className="backdrop-blur-xl rounded-[2rem] p-6 sm:p-8 w-[calc(100%-2rem)] max-w-[450px] border animate-in zoom-in-95 duration-300 ease-out relative overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)' }}>
                   <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: 'rgba(6, 182, 212, 0.12)', transform: 'translate(30%, -30%)' }}></div>
-                  
+
                   <div className="flex justify-between items-center mb-8 relative z-10">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 shrink-0 rounded-full flex items-center justify-center shadow-sm border" style={{ background: 'linear-gradient(135deg, #cffafe 0%, #dbeafe 100%)', color: '#0891b2', borderColor: 'rgba(6, 182, 212, 0.2)' }}>
                         <Layers size={24} />
                       </div>
-                      <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Add Department</h2>
+                      <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>{newDept.id ? 'Edit Department' : 'Add Department'}</h2>
                     </div>
                     <button onClick={() => setShowDeptModal(false)} className="w-10 h-10 rounded-full flex items-center justify-center hover:rotate-90 transition-all duration-300 shadow-sm cursor-pointer border" style={{ backgroundColor: '#ffffff', color: '#64748b', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
                       <X size={20} strokeWidth={2.5} />
@@ -713,8 +871,8 @@ export const AdminSettings: React.FC = () => {
                   </div>
 
                   <form onSubmit={handleAddDept} className="flex flex-col gap-5 relative z-10">
-                    <div 
-                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group" 
+                    <div
+                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group"
                       style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                       onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#0891b2'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(6, 182, 212, 0.1)'; }}
                       onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -728,9 +886,9 @@ export const AdminSettings: React.FC = () => {
                         placeholder="e.g. Product Engineering"
                       />
                     </div>
-                    
-                    <div 
-                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group" 
+
+                    <div
+                      className="relative border rounded-3xl px-6 py-3.5 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group"
                       style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
                       onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#0891b2'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(6, 182, 212, 0.1)'; }}
                       onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
@@ -744,7 +902,7 @@ export const AdminSettings: React.FC = () => {
                         placeholder="Name of leader"
                       />
                     </div>
-                    
+
                     <div className="mt-4 flex gap-3 justify-end">
                       <button type="button" onClick={() => setShowDeptModal(false)} className="px-8 py-3 rounded-full font-bold text-sm cursor-pointer transition-all duration-300 shadow-sm border hover:shadow-md" style={{ backgroundColor: '#ffffff', color: '#475569', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
                         Cancel

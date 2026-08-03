@@ -1,3 +1,4 @@
+from __future__ import annotations
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,

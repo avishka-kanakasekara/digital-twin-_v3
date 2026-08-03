@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Skill model — tracks employee skills with AI-estimated proficiency.
 """

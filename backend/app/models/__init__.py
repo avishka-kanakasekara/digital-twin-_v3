@@ -1,3 +1,4 @@
+from __future__ import annotations
 from app.models.employee import Employee
 from app.models.skill import Skill
 from app.models.gamification import (

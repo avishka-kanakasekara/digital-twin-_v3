@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 SQLAlchemy engine, session factory, and Base declarative class.
 Using synchronous SQLite for compatibility (no async/greenlet issues).

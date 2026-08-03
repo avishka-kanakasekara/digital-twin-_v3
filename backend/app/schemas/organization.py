@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Pydantic schemas for Organization metrics and scenarios.
 """
