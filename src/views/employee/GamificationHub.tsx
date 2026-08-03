@@ -183,95 +183,178 @@ const Leaderboard: React.FC = () => {
 };
 
 // ─── Challenges ───────────────────────────────────────────────
-const Challenges: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<Target size={14} style={{ color: '#a78bfa' }} />} title="Active Challenges" subtitle="Complete for bonus XP and exclusive badges" />
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {data.challenges.map((ch) => (
-        <div key={ch.id} style={{ padding: '16px', borderRadius: '16px', background: `${ch.color}10`, border: `1px solid ${ch.color}25`, position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${ch.color}, ${ch.color}88)` }} />
-          <div className="flex items-start gap-3 mb-3">
-            <span style={{ fontSize: '22px', flexShrink: 0 }}>{ch.bonusBadge}</span>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span style={{ padding: '2px 7px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', background: `${DIFF_COLORS[ch.difficulty]}18`, color: DIFF_COLORS[ch.difficulty], border: `1px solid ${DIFF_COLORS[ch.difficulty]}35` }}>{ch.difficulty}</span>
-                <span style={{ padding: '2px 7px', borderRadius: '99px', fontSize: '9px', fontWeight: 700, background: 'rgba(255,255,255,0.06)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}>{ch.type}</span>
+const Challenges: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [challenges, setChallenges] = useState(data.challenges);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getChallenges(currentEmployee.id);
+        setChallenges(data.challenges || []);
+        console.log('✅ Loaded challenges from API');
+      } catch (error) {
+        console.log('⚠️ Challenges API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<Target size={14} style={{ color: '#a78bfa' }} />} title="Active Challenges" subtitle="Complete for bonus XP and exclusive badges" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {challenges.map((ch) => (
+          <div key={ch.id} style={{ padding: '16px', borderRadius: '16px', background: `${ch.color}10`, border: `1px solid ${ch.color}25`, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${ch.color}, ${ch.color}88)` }} />
+            <div className="flex items-start gap-3 mb-3">
+              <span style={{ fontSize: '22px', flexShrink: 0 }}>{ch.bonusBadge}</span>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span style={{ padding: '2px 7px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', background: `${DIFF_COLORS[ch.difficulty]}18`, color: DIFF_COLORS[ch.difficulty], border: `1px solid ${DIFF_COLORS[ch.difficulty]}35` }}>{ch.difficulty}</span>
+                  <span style={{ padding: '2px 7px', borderRadius: '99px', fontSize: '9px', fontWeight: 700, background: 'rgba(255,255,255,0.06)', color: '#64748b', border: '1px solid rgba(255,255,255,0.08)' }}>{ch.type}</span>
+                </div>
+                <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>{ch.title}</h4>
+                <p style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>{ch.description}</p>
               </div>
-              <h4 style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a', lineHeight: 1.3 }}>{ch.title}</h4>
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '3px', lineHeight: 1.4 }}>{ch.description}</p>
+            </div>
+            <div className="flex items-center justify-between mb-2">
+              <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700 }}>{ch.progress}% complete</span>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: ch.daysLeft <= 3 ? '#ef4444' : '#64748b' }}>⏱ {ch.daysLeft}d left</span>
+            </div>
+            <div style={{ height: '6px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden', marginBottom: '10px' }}>
+              <div style={{ height: '100%', width: `${ch.progress}%`, background: `linear-gradient(90deg, ${ch.color}, ${ch.color}cc)`, borderRadius: '99px', boxShadow: `0 0 8px ${ch.color}60` }} />
+            </div>
+            <div className="flex items-center justify-between">
+              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>👥 {ch.participants} enrolled</span>
+              <span style={{ padding: '4px 12px', borderRadius: '99px', fontSize: '11px', fontWeight: 800, background: `${ch.color}20`, color: ch.color, border: `1px solid ${ch.color}38` }}>+{ch.xp_reward?.toLocaleString() || ch.xpReward?.toLocaleString() || 0} XP</span>
             </div>
           </div>
-          <div className="flex items-center justify-between mb-2">
-            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700 }}>{ch.progress}% complete</span>
-            <span style={{ fontSize: '10px', fontWeight: 800, color: ch.daysLeft <= 3 ? '#ef4444' : '#64748b' }}>⏱ {ch.daysLeft}d left</span>
-          </div>
-          <div style={{ height: '6px', background: 'rgba(248, 250, 252, 0.8)', borderRadius: '99px', overflow: 'hidden', marginBottom: '10px' }}>
-            <div style={{ height: '100%', width: `${ch.progress}%`, background: `linear-gradient(90deg, ${ch.color}, ${ch.color}cc)`, borderRadius: '99px', boxShadow: `0 0 8px ${ch.color}60` }} />
-          </div>
-          <div className="flex items-center justify-between">
-            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>👥 {ch.participants} enrolled</span>
-            <span style={{ padding: '4px 12px', borderRadius: '99px', fontSize: '11px', fontWeight: 800, background: `${ch.color}20`, color: ch.color, border: `1px solid ${ch.color}38` }}>+{ch.xpReward.toLocaleString()} XP</span>
-          </div>
-        </div>
-      ))}
-    </div>
-  </GlassCard>
-);
+        ))}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Achievement Gallery ──────────────────────────────────────
-const AchievementGallery: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<Award size={14} style={{ color: '#fbbf24' }} />} title="Achievement Gallery" subtitle={`${data.achievements.filter(a => a.unlocked).length} of ${data.achievements.length} unlocked`} />
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
-      {data.achievements.map((ach) => {
-        const rc = RARITY_COLORS[ach.rarity];
-        return (
-          <div key={ach.id} style={{ padding: '14px', borderRadius: '16px', textAlign: 'center', background: ach.unlocked ? rc.bg : 'rgba(248, 250, 252, 0.8)', border: `1px solid ${ach.unlocked ? rc.border : 'rgba(226, 232, 240, 0.8)'}`, boxShadow: ach.unlocked ? rc.glow : 'none', opacity: ach.unlocked ? 1 : 0.4, filter: ach.unlocked ? 'none' : 'grayscale(1)', transition: 'all 0.2s' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '6px' }}>{ach.emoji}</div>
-            <p style={{ fontSize: '11px', fontWeight: 800, color: ach.unlocked ? '#0f172a' : '#64748b', lineHeight: 1.3, marginBottom: '4px' }}>{ach.name}</p>
-            <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, background: rc.bg, color: rc.color, border: `1px solid ${rc.border}` }}>{ach.rarity}</span>
-            <p style={{ fontSize: '9px', color: '#475569', marginTop: '5px', fontWeight: 600 }}>
-              {ach.unlocked ? ach.unlockedDate : `+${ach.xpValue} XP`}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  </GlassCard>
-);
+const AchievementGallery: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [achievements, setAchievements] = useState(data.achievements);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getAchievements(currentEmployee.id);
+        setAchievements(data || []);
+        console.log('✅ Loaded achievements from API');
+      } catch (error) {
+        console.log('⚠️ Achievements API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<Award size={14} style={{ color: '#fbbf24' }} />} title="Achievement Gallery" subtitle={`${achievements.filter(a => a.unlocked || a.unlocked_at).length} of ${achievements.length} unlocked`} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '12px' }}>
+        {achievements.map((ach) => {
+          const unlocked = ach.unlocked || !!ach.unlocked_at;
+          const rc = RARITY_COLORS[ach.rarity] || RARITY_COLORS.Common;
+          return (
+            <div key={ach.id} style={{ padding: '14px', borderRadius: '16px', textAlign: 'center', background: unlocked ? rc.bg : 'rgba(248, 250, 252, 0.8)', border: `1px solid ${unlocked ? rc.border : 'rgba(226, 232, 240, 0.8)'}`, boxShadow: unlocked ? rc.glow : 'none', opacity: unlocked ? 1 : 0.4, filter: unlocked ? 'none' : 'grayscale(1)', transition: 'all 0.2s' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '6px' }}>{ach.emoji || '🏆'}</div>
+              <p style={{ fontSize: '11px', fontWeight: 800, color: unlocked ? '#0f172a' : '#64748b', lineHeight: 1.3, marginBottom: '4px' }}>{ach.name}</p>
+              <span style={{ padding: '1px 6px', borderRadius: '99px', fontSize: '9px', fontWeight: 800, background: rc.bg, color: rc.color, border: `1px solid ${rc.border}` }}>{ach.rarity || 'Common'}</span>
+              <p style={{ fontSize: '9px', color: '#475569', marginTop: '5px', fontWeight: 600 }}>
+                {unlocked ? ach.unlocked_date || ach.unlockedDate || 'Unlocked' : `+${ach.xp_value || ach.xpValue || 0} XP`}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── XP Chart ─────────────────────────────────────────────────
-const XPChart: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<BarChart3 size={14} style={{ color: '#22d3ee' }} />} title="XP Growth Timeline" subtitle="Experience earned over 6 months" />
-    <div style={{ height: '200px' }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data.xpHistory} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-          <defs>
-            <linearGradient id="xpGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.5} />
-              <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.8)" />
-          <XAxis dataKey="month" tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-          <Tooltip contentStyle={{ background: 'rgba(255,255,255,0.96)', border: '1px solid rgba(226, 232, 240, 0.8)', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }} itemStyle={{ color: '#f59e0b' }} labelStyle={{ color: '#0f172a' }} cursor={{ stroke: 'rgba(226, 232, 240, 0.8)' }} />
-          <Area type="monotone" dataKey="xp" name="XP Earned" stroke="#f59e0b" strokeWidth={2.5} fill="url(#xpGrad)" />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  </GlassCard>
-);
+const XPChart: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [xpHistory, setXpHistory] = useState(data.xpHistory);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getXPHistory(currentEmployee.id);
+        setXpHistory(data || []);
+        console.log('✅ Loaded XP history from API');
+      } catch (error) {
+        console.log('⚠️ XP history API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<BarChart3 size={14} style={{ color: '#22d3ee' }} />} title="XP Growth Timeline" subtitle="Experience earned over 6 months" />
+      <div style={{ height: '200px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={xpHistory} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+            <defs>
+              <linearGradient id="xpGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.8)" />
+            <XAxis dataKey="month" tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+            <Tooltip contentStyle={{ background: 'rgba(255,255,255,0.96)', border: '1px solid rgba(226, 232, 240, 0.8)', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }} itemStyle={{ color: '#f59e0b' }} labelStyle={{ color: '#0f172a' }} cursor={{ stroke: 'rgba(226, 232, 240, 0.8)' }} />
+            <Area type="monotone" dataKey="xp" name="XP Earned" stroke="#f59e0b" strokeWidth={2.5} fill="url(#xpGrad)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Streak Calendar ──────────────────────────────────────────
 const StreakCalendar: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [streakData, setStreakData] = useState({ streakDays: data.playerProfile.streakDays, longestStreak: data.playerProfile.longestStreak, streakCalendar: data.streakCalendar });
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getStreak(currentEmployee.id);
+        setStreakData({
+          streakDays: data?.learning_streak || data?.streak_days || 14,
+          longestStreak: data?.longest_streak || 21,
+          streakCalendar: data?.calendar || data.streakCalendar,
+        });
+        console.log('✅ Loaded streak data from API');
+      } catch (error) {
+        console.log('⚠️ Streak API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
   const HEAT_COLORS = ['rgba(248, 250, 252, 0.8)', 'rgba(16,185,129,0.25)', 'rgba(16,185,129,0.55)', 'rgba(16,185,129,0.9)'];
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
-      <SectionHeader icon={<Calendar size={14} style={{ color: '#10b981' }} />} title="Activity Streak" subtitle={`Current: ${data.playerProfile.streakDays}d · Longest: ${data.playerProfile.longestStreak}d`} />
+      <SectionHeader icon={<Calendar size={14} style={{ color: '#10b981' }} />} title="Activity Streak" subtitle={`Current: ${streakData.streakDays}d · Longest: ${streakData.longestStreak}d`} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-        {data.streakCalendar.map((d, i) => (
+        {streakData.streakCalendar.map((d, i) => (
           <div key={i} title={d.date} style={{ width: '14px', height: '14px', borderRadius: '3px', background: HEAT_COLORS[d.intensity], border: '1px solid rgba(226, 232, 240, 0.8)' }} />
         ))}
       </div>
@@ -285,27 +368,68 @@ const StreakCalendar: React.FC = () => {
 };
 
 // ─── Recent Activity Feed ─────────────────────────────────────
-const RecentActivity: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<Zap size={14} style={{ color: '#a78bfa' }} />} title="Recent Activity" />
-    <div className="space-y-2">
-      {data.recentActivity.map((act, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
-          <span style={{ fontSize: '18px', flexShrink: 0 }}>{act.emoji}</span>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <p style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{act.action}</p>
-            <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>{act.time}</p>
+const RecentActivity: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [activity, setActivity] = useState(data.recentActivity);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getActivity(currentEmployee.id);
+        setActivity(data || []);
+        console.log('✅ Loaded activity from API');
+      } catch (error) {
+        console.log('⚠️ Activity API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<Zap size={14} style={{ color: '#a78bfa' }} />} title="Recent Activity" />
+      <div className="space-y-2">
+        {activity.map((act, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
+            <span style={{ fontSize: '18px', flexShrink: 0 }}>{act.emoji || '⚡'}</span>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <p style={{ fontSize: '12px', fontWeight: 600, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{act.action}</p>
+              <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>{act.time}</p>
+            </div>
+            <span style={{ fontSize: '12px', fontWeight: 800, color: '#fbbf24', flexShrink: 0 }}>+{act.xp} XP</span>
           </div>
-          <span style={{ fontSize: '12px', fontWeight: 800, color: '#fbbf24', flexShrink: 0 }}>+{act.xp} XP</span>
-        </div>
-      ))}
-    </div>
-  </GlassCard>
-);
+        ))}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Reward Store ─────────────────────────────────────────────
 const RewardStore: React.FC = () => {
+  const { currentEmployee } = useEmployee();
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
+  const [rewards, setRewards] = useState(data.rewardStore);
+  const [playerXP, setPlayerXP] = useState(data.playerProfile.xp);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getRewards();
+        setRewards(data || []);
+        const profile = await gamificationAPI.getProfile(currentEmployee.id);
+        setPlayerXP(profile.xp);
+        console.log('✅ Loaded rewards from API');
+      } catch (error) {
+        console.log('⚠️ Rewards API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
@@ -316,13 +440,13 @@ const RewardStore: React.FC = () => {
           <p style={{ fontSize: '12px', color: '#475569', marginTop: '3px' }}>Redeem your XP for real perks</p>
         </div>
         <div style={{ padding: '6px 14px', borderRadius: '99px', background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)', fontSize: '13px', fontWeight: 900, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '5px' }}>
-          <Zap size={13} /> {data.playerProfile.xp.toLocaleString()} XP
+          <Zap size={13} /> {playerXP.toLocaleString()} XP
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
-        {data.rewardStore.map((reward) => {
+        {rewards.map((reward) => {
           const isClaimed = claimed.has(reward.id);
-          const canAfford = data.playerProfile.xp >= reward.cost;
+          const canAfford = playerXP >= reward.cost;
           return (
             <div key={reward.id} style={{ padding: '16px', borderRadius: '16px', background: 'rgba(255,255,255,0.9)', border: `1px solid ${isClaimed ? 'rgba(16,185,129,0.3)' : 'rgba(226, 232, 240, 0.8)'}`, opacity: !reward.available ? 0.5 : 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <span style={{ fontSize: '2rem' }}>{reward.emoji}</span>
@@ -333,7 +457,7 @@ const RewardStore: React.FC = () => {
               <div className="flex items-center justify-between mt-auto pt-2" style={{ borderTop: '1px solid rgba(226, 232, 240, 0.8)' }}>
                 <span style={{ fontSize: '12px', fontWeight: 900, color: canAfford ? '#f59e0b' : '#ef4444' }}>{reward.cost.toLocaleString()} XP</span>
                 <button
-                  onClick={() => { if (reward.available && canAfford && !isClaimed) setClaimed(prev => new Set([...prev, reward.id])); }}
+                  onClick={() => { if (reward.available && canAfford && !isClaimed && currentEmployee) gamificationAPI.claimReward(currentEmployee.id, reward.id).then(() => setClaimed(prev => new Set([...prev, reward.id]))); }}
                   style={{ padding: '4px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 800, cursor: reward.available && canAfford && !isClaimed ? 'pointer' : 'not-allowed', background: isClaimed ? 'rgba(16,185,129,0.2)' : canAfford ? 'linear-gradient(135deg, #ec4899, #a855f7)' : 'rgba(248, 250, 252, 0.8)', color: isClaimed ? '#10b981' : canAfford ? 'white' : '#64748b', border: 'none', boxShadow: canAfford && !isClaimed ? '0 0 12px rgba(236,72,153,0.3)' : 'none' }}
                 >
                   {isClaimed ? '✓ Claimed' : !reward.available ? 'Unavailable' : !canAfford ? 'Need XP' : 'Redeem'}
