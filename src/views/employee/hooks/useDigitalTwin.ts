@@ -1,12 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
-import * as mockData from '../../../dummy/employee/digitalTwinMockData';
-import * as gamificationData from '../../../dummy/employee/gamificationHubData';
-import { employeeAPI, gamificationAPI, learningAPI, careerAPI } from '../../../lib/api';
+import { useState, useEffect, useCallback } from 'react';
+import { employeeAPI, gamificationAPI } from '../../../lib/api';
 import { useEmployee } from '../../../contexts/EmployeeContext';
+import * as digitalTwinMockData from '../../../dummy/employee/digitalTwinMockData';
+import * as gamificationData from '../../../dummy/employee/gamificationHubData';
 
 export const useDigitalTwin = () => {
   const { currentEmployee } = useEmployee();
-  const [profile, setProfile] = useState(mockData.employeeProfile);
+  const [profile, setProfile] = useState(digitalTwinMockData.employeeProfile);
   const [projects, setProjects] = useState<any>({ current: [], completed: [] });
   const [knowledge, setKnowledge] = useState<any[]>([]);
   const [gamification, setGamification] = useState<any>({
@@ -28,7 +28,7 @@ export const useDigitalTwin = () => {
     impactRank: 'Top 5%',
   });
   const [skills, setSkills] = useState<any[]>([]);
-  const [twinSummary, setTwinSummary] = useState(mockData.twinSummary);
+  const [twinSummary, setTwinSummary] = useState(digitalTwinMockData.twinSummary);
   const [loading, setLoading] = useState(false);
   const [useAPI, setUseAPI] = useState(false);
 
@@ -41,7 +41,7 @@ export const useDigitalTwin = () => {
         const empData = await employeeAPI.get(currentEmployee.id);
         // Transform API data to match mock structure
         setProfile({
-          ...mockData.employeeProfile,
+          ...digitalTwinMockData.employeeProfile,
           id: empData.id,
           fullName: empData.full_name,
           initials: empData.initials,
@@ -67,7 +67,7 @@ export const useDigitalTwin = () => {
         setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
         setKnowledge(knowledgeData);
         setSkills(skillsData);
-        setTwinSummary(twinSum);
+        setTwinSummary(twinSum as any);
 
         // Load gamification data
         try {
@@ -137,7 +137,7 @@ export const useDigitalTwin = () => {
     loadFromAPI();
   }, [currentEmployee]);
 
-  const updateProfile = useCallback(async (updates: Partial<typeof mockData.employeeProfile>) => {
+  const updateProfile = useCallback(async (updates: Partial<typeof digitalTwinMockData.employeeProfile>) => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.update(currentEmployee.id, updates);
@@ -145,7 +145,7 @@ export const useDigitalTwin = () => {
         console.error('Failed to update profile:', error);
       }
     }
-    setProfile(prev => ({ ...prev, ...updates }));
+    setProfile((prev: any) => ({ ...prev, ...updates }));
   }, [useAPI, currentEmployee]);
 
   const addProject = useCallback(async (projectData: any) => {
@@ -156,7 +156,7 @@ export const useDigitalTwin = () => {
         console.error('Failed to add project:', error);
       }
     }
-    setProjects(prev => [...prev, { ...projectData, id: Date.now().toString() }]);
+    setProjects((prev: any) => [...prev, { ...projectData, id: Date.now().toString() }]);
   }, [useAPI, currentEmployee]);
 
   const uploadKnowledgeSource = useCallback(async (fileOrConnection: any, type: string) => {
@@ -167,7 +167,7 @@ export const useDigitalTwin = () => {
         console.error('Failed to upload knowledge source:', error);
       }
     }
-    setKnowledge(prev => [...prev, { 
+    setKnowledge((prev: any) => [...prev, { 
       ...fileOrConnection, 
       id: Date.now().toString(),
       type,
@@ -184,7 +184,7 @@ export const useDigitalTwin = () => {
         console.error('Failed to update XP:', error);
       }
     }
-    setGamification(prev => ({
+    setGamification((prev: any) => ({
       ...prev,
       xp: (prev.xp || 0) + xpChange,
       total_xp_earned: (prev.total_xp_earned || 0) + xpChange
@@ -192,7 +192,7 @@ export const useDigitalTwin = () => {
   }, [useAPI, currentEmployee]);
 
   const addXp = useCallback((amount: number, reason: string) => {
-    setGamification(prev => {
+    setGamification((prev: any) => {
       const newXp = (prev.xp || 0) + amount;
       let newLevel = prev.level || 1;
       let nextLevelXp = prev.nextLevelXp || 1000;
@@ -213,7 +213,7 @@ export const useDigitalTwin = () => {
   }, []);
 
   const completeMission = useCallback((missionIndex: number) => {
-    setGamification(prev => {
+    setGamification((prev: any) => {
       const newMissions = [...(prev.missions || [])];
       if (!newMissions[missionIndex].completed) {
         newMissions[missionIndex].completed = true;
@@ -223,9 +223,9 @@ export const useDigitalTwin = () => {
     });
   }, [addXp]);
 
-  const updateProjectProgress = useCallback((projectId: string, progress: number) => {
-    setProjects(prev => prev.map(p => 
-      p.id === projectId ? { ...p, progress } : p
+  const updateProjectProgress = useCallback((projectId: string, status: string) => {
+    setProjects((prev: any) => prev.map((p: any) => 
+      p.id === projectId ? { ...p, status } : p
     ));
   }, []);
 
@@ -251,14 +251,14 @@ export const useDigitalTwin = () => {
     useAPI,
     
     // Static data - would be loaded from API in production
-    skillsData: mockData.skillsData,
-    certifications: mockData.certificationsTimeline,
-    aiReadiness: mockData.aiReadiness,
-    twinMemory: mockData.twinMemory,
-    collaborationIntel: mockData.collaborationIntel,
-    projectPrediction: mockData.projectPrediction,
-    personalAnalytics: mockData.personalAnalytics,
-    aiRecommendations: mockData.aiRecommendations
+    skillsData: digitalTwinMockData.skillsData,
+    certifications: digitalTwinMockData.certificationsTimeline,
+    aiReadiness: digitalTwinMockData.aiReadiness,
+    twinMemory: digitalTwinMockData.twinMemory,
+    collaborationIntel: digitalTwinMockData.collaborationIntel,
+    projectPrediction: digitalTwinMockData.projectPrediction,
+    personalAnalytics: digitalTwinMockData.personalAnalytics,
+    aiRecommendations: digitalTwinMockData.aiRecommendations
   };
 };
 
