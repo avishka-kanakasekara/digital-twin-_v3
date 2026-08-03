@@ -142,8 +142,8 @@ export const AtRiskRadar: React.FC = () => {
               {filteredEmployees.map((emp) => (
                 <div key={emp.name} className="relative flex items-center gap-4 lg:gap-8 p-4 bg-white rounded-xl border border-subtle hover:border-gray-300 hover:shadow-md transition-all duration-200 group">
                   
-                  {/* Glowing left edge indicator */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}></div>
+                  {/* Glowing floating edge indicator */}
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 rounded-r-md shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}></div>
 
                   {/* 1. Avatar & Info (Fixed width ensures metrics align perfectly across all rows) */}
                   <div className="flex items-center gap-3.5 w-[200px] lg:w-[240px] shrink-0 pl-2">
