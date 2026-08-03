@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
-import {
-  BookOpen, Brain, GraduationCap, Sparkles, Clock, Flame, CheckCircle2,
-  TrendingUp, Play, Lock, ChevronRight, Search, BarChart3, Calendar
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, TrendingUp, Clock, CheckCircle, PlayCircle, BarChart3, Calendar, Search, Flame, Brain, GraduationCap, Sparkles, ChevronRight, Lock } from 'lucide-react';
 import * as data from '../../dummy/employee/learningHubData';
+import { learningAPI } from '../../lib/api';
+import { useEmployee } from '../../contexts/EmployeeContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // ─── Design tokens ───────────────────────────────────────────
@@ -46,12 +45,39 @@ const GlassCard: React.FC<{ children: React.ReactNode; style?: React.CSSProperti
 
 // ─── Learner Stats Hero ───────────────────────────────────────
 const LearnerHero: React.FC = () => {
-  const pct = Math.round((data.learnerProfile.coursesCompleted / (data.learnerProfile.coursesCompleted + data.learnerProfile.coursesInProgress + 3)) * 100);
+  const { currentEmployee } = useEmployee();
+  const [learnerProfile, setLearnerProfile] = useState(data.learnerProfile);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const profileData = await learningAPI.getProfile(currentEmployee.id);
+        // Transform API data to match mock structure
+        setLearnerProfile({
+          ...data.learnerProfile,
+          hoursThisMonth: profileData.hours_this_month || data.learnerProfile.hoursThisMonth,
+          hoursThisYear: profileData.hours_this_year || data.learnerProfile.hoursThisYear,
+          coursesCompleted: profileData.courses_completed || data.learnerProfile.coursesCompleted,
+          coursesInProgress: profileData.courses_in_progress || data.learnerProfile.coursesInProgress,
+          currentStreak: profileData.streak_days || data.learnerProfile.currentStreak,
+          learningScore: profileData.skill_score || data.learnerProfile.learningScore,
+        });
+        console.log('✅ Loaded learner profile from API');
+      } catch (error) {
+        console.log('⚠️ API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, []);
+
+  const pct = Math.round((learnerProfile.coursesCompleted / (learnerProfile.coursesCompleted + learnerProfile.coursesInProgress + 3)) * 100);
   const heroStats = [
-    { label: 'Hours This Month', value: `${data.learnerProfile.hoursThisMonth}h`, icon: <Clock size={13} />, color: '#22d3ee' },
-    { label: 'Hours This Year',  value: `${data.learnerProfile.hoursThisYear}h`, icon: <BarChart3 size={13} />, color: '#a78bfa' },
-    { label: 'Courses Done',     value: data.learnerProfile.coursesCompleted,      icon: <CheckCircle2 size={13} />, color: '#10b981' },
-    { label: 'Streak',           value: `${data.learnerProfile.currentStreak}d 🔥`, icon: <Flame size={13} />, color: '#f97316' },
+    { label: 'Hours This Month', value: `${learnerProfile.hoursThisMonth}h`, icon: <Clock size={13} />, color: '#22d3ee' },
+    { label: 'Hours This Year',  value: `${learnerProfile.hoursThisYear}h`, icon: <BarChart3 size={13} />, color: '#a78bfa' },
+    { label: 'Courses Done',     value: learnerProfile.coursesCompleted,      icon: <CheckCircle size={13} />, color: '#10b981' },
+    { label: 'Streak',           value: `${learnerProfile.currentStreak}d 🔥`, icon: <Flame size={13} />, color: '#f97316' },
   ];
 
   return (
@@ -340,8 +366,8 @@ const WeeklySchedule: React.FC = () => (
             <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>⏱ {session.duration}</p>
           </div>
           <div>
-            {session.status === 'completed'   && <CheckCircle2 size={16} style={{ color: '#10b981' }} />}
-            {session.status === 'in_progress' && <Play size={16} style={{ color: '#f59e0b' }} />}
+            {session.status === 'completed'   && <CheckCircle size={16} style={{ color: '#10b981' }} />}
+            {session.status === 'in_progress' && <PlayCircle size={16} style={{ color: '#f59e0b' }} />}
             {session.status === 'upcoming'    && <Lock size={14} style={{ color: '#475569' }} />}
           </div>
         </div>

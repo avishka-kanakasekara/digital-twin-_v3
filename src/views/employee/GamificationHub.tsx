@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, BarChart3 } from 'lucide-react';
 import * as data from '../../dummy/employee/gamificationHubData';
+import { gamificationAPI } from '../../lib/api';
+import { useEmployee } from '../../contexts/EmployeeContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // ─── Design tokens ───────────────────────────────────────────
@@ -37,12 +39,42 @@ const GlassCard: React.FC<{ children: React.ReactNode; style?: React.CSSProperti
 
 // ─── XP Hero Banner ───────────────────────────────────────────
 const XPProgressBar: React.FC = () => {
-  const pct = (data.playerProfile.xp / data.playerProfile.nextLevelXp) * 100;
+  const { currentEmployee } = useEmployee();
+  const [profile, setProfile] = useState(data.playerProfile);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const gamData = await gamificationAPI.getProfile(currentEmployee.id);
+        // Transform API data to match mock structure
+        setProfile({
+          ...data.playerProfile,
+          level: gamData.level,
+          xp: gamData.xp,
+          nextLevelXp: gamData.next_level_xp,
+          totalXpEarned: gamData.total_xp_earned,
+          companyRank: gamData.company_rank || data.playerProfile.companyRank,
+          departmentRank: gamData.department_rank || data.playerProfile.departmentRank,
+          streakDays: gamData.streak_days,
+          title: gamData.title,
+          name: currentEmployee.full_name,
+        });
+        console.log('✅ Loaded gamification data from API');
+      } catch (error) {
+        console.log('⚠️ API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  const pct = (profile.xp / profile.nextLevelXp) * 100;
   const quickStats = [
-    { label: 'Company Rank', value: `#${data.playerProfile.companyRank}`, icon: <Crown size={13} />, color: '#fbbf24' },
-    { label: 'Dept. Rank',   value: `#${data.playerProfile.departmentRank}`, icon: <Trophy size={13} />, color: '#a78bfa' },
-    { label: 'Total XP',     value: data.playerProfile.totalXpEarned.toLocaleString(), icon: <Zap size={13} />, color: '#22d3ee' },
-    { label: 'Streak',       value: `${data.playerProfile.streakDays}d 🔥`, icon: <Flame size={13} />, color: '#f97316' },
+    { label: 'Company Rank', value: `#${profile.companyRank}`, icon: <Crown size={13} />, color: '#fbbf24' },
+    { label: 'Dept. Rank',   value: `#${profile.departmentRank}`, icon: <Trophy size={13} />, color: '#a78bfa' },
+    { label: 'Total XP',     value: profile.totalXpEarned.toLocaleString(), icon: <Zap size={13} />, color: '#22d3ee' },
+    { label: 'Streak',       value: `${profile.streakDays}d 🔥`, icon: <Flame size={13} />, color: '#f97316' },
   ];
 
   return (
@@ -53,22 +85,22 @@ const XPProgressBar: React.FC = () => {
         {/* Level Badge */}
         <div style={{ width: '72px', height: '72px', borderRadius: '22px', flexShrink: 0, background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 25px rgba(245,158,11,0.5)' }}>
           <span style={{ fontSize: '9px', fontWeight: 700, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>LVL</span>
-          <span style={{ fontSize: '28px', fontWeight: 900, color: 'white', lineHeight: 1 }}>{data.playerProfile.level}</span>
+          <span style={{ fontSize: '28px', fontWeight: 900, color: 'white', lineHeight: 1 }}>{profile.level}</span>
         </div>
 
         <div style={{ flex: 1 }}>
           <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
             <div>
-              <p style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginBottom: '6px' }}>{data.playerProfile.name}</p>
+              <p style={{ fontSize: '20px', fontWeight: 900, color: '#0f172a', lineHeight: 1, marginBottom: '6px' }}>{profile.name}</p>
               <span style={{ padding: '2px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800, background: 'rgba(245,158,11,0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.35)' }}>
-                {data.playerProfile.title}
+                {profile.title}
               </span>
             </div>
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>
-                {data.playerProfile.xp.toLocaleString()} <span style={{ fontSize: '13px', color: '#64748b' }}>XP</span>
+                {profile.xp.toLocaleString()} <span style={{ fontSize: '13px', color: '#64748b' }}>XP</span>
               </p>
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>Next: {data.playerProfile.nextLevelXp.toLocaleString()}</p>
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '3px' }}>Next: {profile.nextLevelXp.toLocaleString()}</p>
             </div>
           </div>
 
@@ -76,7 +108,7 @@ const XPProgressBar: React.FC = () => {
             <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg, #f59e0b 0%, #f97316 100%)', borderRadius: '99px', boxShadow: '0 0 12px rgba(245,158,11,0.6)', transition: 'width 1s ease' }} />
           </div>
           <p style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, marginTop: '5px', textAlign: 'right' }}>
-            {(data.playerProfile.nextLevelXp - data.playerProfile.xp).toLocaleString()} XP to Level {data.playerProfile.level + 1}
+            {(profile.nextLevelXp - profile.xp).toLocaleString()} XP to Level {profile.level + 1}
           </p>
         </div>
       </div>
@@ -96,39 +128,59 @@ const XPProgressBar: React.FC = () => {
 };
 
 // ─── Leaderboard ──────────────────────────────────────────────
-const Leaderboard: React.FC = () => (
-  <GlassCard style={{ padding: '1.5rem' }}>
-    <SectionHeader icon={<Crown size={14} style={{ color: '#fbbf24' }} />} title="Company Leaderboard" subtitle={`Top performers out of ${data.playerProfile.totalPlayers} players`} />
-    <div className="space-y-2">
-      {data.leaderboard.map((player) => (
-        <div key={player.rank} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', background: player.isMe ? 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(249,115,22,0.08))' : 'rgba(255,255,255,0.9)', border: player.isMe ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(226, 232, 240, 0.8)', transition: 'all 0.2s' }}>
-          <span style={{ fontSize: '13px', fontWeight: 900, color: player.rank <= 3 ? '#fbbf24' : '#475569', width: '22px', textAlign: 'center', flexShrink: 0 }}>
-            {player.rank <= 3 ? player.badge : `#${player.rank}`}
-          </span>
-          <div style={{ width: '34px', height: '34px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'white', background: player.isMe ? 'linear-gradient(135deg, #f59e0b, #f97316)' : 'rgba(248, 250, 252, 0.8)' }}>
-            {player.initials}
+const Leaderboard: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [leaderboard, setLeaderboard] = useState(data.leaderboard);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      try {
+        const data = await gamificationAPI.getLeaderboard();
+        setLeaderboard(data);
+        console.log('✅ Loaded leaderboard from API');
+      } catch (error) {
+        console.log('⚠️ Leaderboard API not available, using mock data');
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  return (
+    <GlassCard style={{ padding: '1.5rem' }}>
+      <SectionHeader icon={<Crown size={14} style={{ color: '#fbbf24' }} />} title="Company Leaderboard" subtitle={`Top performers out of ${leaderboard.length} players`} />
+      <div className="space-y-2">
+        {leaderboard.map((player) => (
+          <div key={player.rank} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '12px', background: player.isMe ? 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(249,115,22,0.08))' : 'rgba(255,255,255,0.9)', border: player.isMe ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(226, 232, 240, 0.8)', transition: 'all 0.2s' }}>
+            <span style={{ fontSize: '13px', fontWeight: 900, color: player.rank <= 3 ? '#fbbf24' : '#475569', width: '22px', textAlign: 'center', flexShrink: 0 }}>
+              {player.rank <= 3 ? player.badge : `#${player.rank}`}
+            </span>
+            <div style={{ width: '34px', height: '34px', borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 800, color: 'white', background: player.isMe ? 'linear-gradient(135deg, #f59e0b, #f97316)' : 'rgba(248, 250, 252, 0.8)' }}>
+              {player.initials}
+            </div>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: player.isMe ? '#f59e0b' : '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                {player.name}
+                {player.isMe && <span style={{ fontSize: '9px', fontWeight: 800, padding: '1px 6px', borderRadius: '99px', background: 'rgba(245,158,11,0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>YOU</span>}
+              </p>
+              <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>Lv {player.level} · {player.department}</p>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{player.xp.toLocaleString()}</p>
+              <p style={{ fontSize: '9px', color: '#475569' }}>XP</p>
+            </div>
+            <div style={{ width: '20px', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+              {player.trend === 'up'     && <TrendingUp   size={13} style={{ color: '#10b981' }} />}
+              {player.trend === 'down'   && <TrendingDown  size={13} style={{ color: '#ef4444' }} />}
+              {player.trend === 'stable' && <Minus         size={13} style={{ color: '#64748b' }} />}
+            </div>
           </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <p style={{ fontSize: '13px', fontWeight: 700, color: player.isMe ? '#f59e0b' : '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              {player.name}
-              {player.isMe && <span style={{ fontSize: '9px', fontWeight: 800, padding: '1px 6px', borderRadius: '99px', background: 'rgba(245,158,11,0.2)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}>YOU</span>}
-            </p>
-            <p style={{ fontSize: '10px', color: '#475569', fontWeight: 600 }}>Lv {player.level} · {player.department}</p>
-          </div>
-          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <p style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>{player.xp.toLocaleString()}</p>
-            <p style={{ fontSize: '9px', color: '#475569' }}>XP</p>
-          </div>
-          <div style={{ width: '20px', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
-            {player.trend === 'up'     && <TrendingUp   size={13} style={{ color: '#10b981' }} />}
-            {player.trend === 'down'   && <TrendingDown  size={13} style={{ color: '#ef4444' }} />}
-            {player.trend === 'stable' && <Minus         size={13} style={{ color: '#64748b' }} />}
-          </div>
-        </div>
-      ))}
-    </div>
-  </GlassCard>
-);
+        ))}
+      </div>
+    </GlassCard>
+  );
+};
 
 // ─── Challenges ───────────────────────────────────────────────
 const Challenges: React.FC = () => (
