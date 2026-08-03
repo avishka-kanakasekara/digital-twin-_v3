@@ -34,3 +34,9 @@ from app.schemas.career import (
     MarketTrendResponse,
 )
 from app.schemas.auth import TokenResponse, LoginRequest, RegisterRequest
+from app.schemas.organization import (
+    OrganizationMetricRead,
+    OrganizationMetricCreate,
+    OrganizationScenarioRead,
+    OrganizationScenarioCreate,
+)

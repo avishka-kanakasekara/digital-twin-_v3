@@ -2,6 +2,7 @@
 Employee schemas — request/response models.
 """
 
+from typing import Optional
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -11,49 +12,49 @@ class EmployeeCreate(BaseModel):
     employee_code: str
     full_name: str
     email: str
-    password: str | None = None
-    initials: str | None = None
-    department: str | None = None
-    role: str | None = None
-    team: str | None = None
-    manager_name: str | None = None
-    location: str | None = None
-    timezone_str: str | None = None
-    phone: str | None = None
-    education: list | None = None
-    languages: list | None = None
-    biography: str | None = None
-    headline: str | None = None
-    avatar_url: str | None = None
-    years_experience: int | None = None
-    years_in_company: int | None = None
-    employment_type: str | None = "Full-Time"
-    employment_status: str | None = "Active"
+    password: Optional[str] = None
+    initials: Optional[str] = None
+    department: Optional[str] = None
+    role: Optional[str] = None
+    team: Optional[str] = None
+    manager_name: Optional[str] = None
+    location: Optional[str] = None
+    timezone_str: Optional[str] = None
+    phone: Optional[str] = None
+    education: Optional[list] = None
+    languages: Optional[list] = None
+    biography: Optional[str] = None
+    headline: Optional[str] = None
+    avatar_url: Optional[str] = None
+    years_experience: Optional[int] = None
+    years_in_company: Optional[int] = None
+    employment_type: Optional[str] = "Full-Time"
+    employment_status: Optional[str] = "Active"
 
 
 class EmployeeUpdate(BaseModel):
-    full_name: str | None = None
-    initials: str | None = None
-    department: str | None = None
-    role: str | None = None
-    team: str | None = None
-    manager_name: str | None = None
-    location: str | None = None
-    timezone_str: str | None = None
-    phone: str | None = None
-    education: list | None = None
-    languages: list | None = None
-    biography: str | None = None
-    headline: str | None = None
-    avatar_url: str | None = None
-    years_experience: int | None = None
-    years_in_company: int | None = None
-    employment_type: str | None = None
-    employment_status: str | None = None
+    full_name: Optional[str] = None
+    initials: Optional[str] = None
+    department: Optional[str] = None
+    role: Optional[str] = None
+    team: Optional[str] = None
+    manager_name: Optional[str] = None
+    location: Optional[str] = None
+    timezone_str: Optional[str] = None
+    phone: Optional[str] = None
+    education: Optional[list] = None
+    languages: Optional[list] = None
+    biography: Optional[str] = None
+    headline: Optional[str] = None
+    avatar_url: Optional[str] = None
+    years_experience: Optional[int] = None
+    years_in_company: Optional[int] = None
+    employment_type: Optional[str] = None
+    employment_status: Optional[str] = None
 
 
 class EmployeeStatsResponse(BaseModel):
-    promotion_readiness: str | None = None
+    promotion_readiness: Optional[str] = None
     projects_completed: int = 0
     projects_active: int = 0
     certifications: int = 0
@@ -65,29 +66,29 @@ class EmployeeResponse(BaseModel):
     id: str
     employee_code: str
     full_name: str
-    initials: str | None = None
+    initials: Optional[str] = None
     email: str
-    department: str | None = None
-    role: str | None = None
-    team: str | None = None
-    manager_name: str | None = None
-    location: str | None = None
-    timezone_str: str | None = None
-    phone: str | None = None
-    education: list | None = None
-    languages: list | None = None
-    biography: str | None = None
-    headline: str | None = None
-    avatar_url: str | None = None
-    years_experience: int | None = None
-    years_in_company: int | None = None
-    employment_type: str | None = None
+    department: Optional[str] = None
+    role: Optional[str] = None
+    team: Optional[str] = None
+    manager_name: Optional[str] = None
+    location: Optional[str] = None
+    timezone_str: Optional[str] = None
+    phone: Optional[str] = None
+    education: Optional[list] = None
+    languages: Optional[list] = None
+    biography: Optional[str] = None
+    headline: Optional[str] = None
+    avatar_url: Optional[str] = None
+    years_experience: Optional[int] = None
+    years_in_company: Optional[int] = None
+    employment_type: Optional[str] = None
     employment_status: str = "Active"
     twin_health: int = 0
     ai_confidence: int = 0
     profile_completeness: int = 0
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

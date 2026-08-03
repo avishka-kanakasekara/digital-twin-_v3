@@ -3,6 +3,7 @@ Gamification models — XP system, achievements, challenges, leaderboard.
 Uses String(36) UUIDs for SQLite compatibility.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, Boolean, DateTime, ForeignKey, JSON, UniqueConstraint
@@ -21,11 +22,11 @@ class GamificationProfile(Base):
     xp: Mapped[int] = mapped_column(Integer, default=0)
     next_level_xp: Mapped[int] = mapped_column(Integer, default=1000)
     total_xp_earned: Mapped[int] = mapped_column(Integer, default=0)
-    company_rank: Mapped[int | None] = mapped_column(Integer)
-    department_rank: Mapped[int | None] = mapped_column(Integer)
+    company_rank: Mapped[Optional[int]] = mapped_column(Integer)
+    department_rank: Mapped[Optional[int]] = mapped_column(Integer)
     streak_days: Mapped[int] = mapped_column(Integer, default=0)
     longest_streak: Mapped[int] = mapped_column(Integer, default=0)
-    last_activity: Mapped[datetime | None] = mapped_column(DateTime)
+    last_activity: Mapped[Optional[datetime]] = mapped_column(DateTime)
     title: Mapped[str] = mapped_column(String(50), default="Newcomer")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc),
@@ -43,9 +44,9 @@ class XPTransaction(Base):
         String(36), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
-    reason: Mapped[str | None] = mapped_column(String(255))
-    category: Mapped[str | None] = mapped_column(String(50))
-    emoji: Mapped[str | None] = mapped_column(String(10))
+    reason: Mapped[Optional[str]] = mapped_column(String(255))
+    category: Mapped[Optional[str]] = mapped_column(String(50))
+    emoji: Mapped[Optional[str]] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -58,12 +59,12 @@ class Achievement(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(150), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
-    emoji: Mapped[str | None] = mapped_column(String(10))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    emoji: Mapped[Optional[str]] = mapped_column(String(10))
     xp_value: Mapped[int] = mapped_column(Integer, default=0)
-    rarity: Mapped[str | None] = mapped_column(String(20))
-    criteria_type: Mapped[str | None] = mapped_column(String(50))
-    criteria_value: Mapped[dict | None] = mapped_column(JSON)
+    rarity: Mapped[Optional[str]] = mapped_column(String(20))
+    criteria_type: Mapped[Optional[str]] = mapped_column(String(50))
+    criteria_value: Mapped[Optional[dict]] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -97,15 +98,15 @@ class Challenge(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
     xp_reward: Mapped[int] = mapped_column(Integer, default=0)
-    bonus_badge: Mapped[str | None] = mapped_column(String(10))
-    difficulty: Mapped[str | None] = mapped_column(String(10))
-    type: Mapped[str | None] = mapped_column(String(20))
-    category: Mapped[str | None] = mapped_column(String(50))
-    color: Mapped[str | None] = mapped_column(String(10))
-    start_date: Mapped[datetime | None] = mapped_column(DateTime)
-    end_date: Mapped[datetime | None] = mapped_column(DateTime)
+    bonus_badge: Mapped[Optional[str]] = mapped_column(String(10))
+    difficulty: Mapped[Optional[str]] = mapped_column(String(10))
+    type: Mapped[Optional[str]] = mapped_column(String(20))
+    category: Mapped[Optional[str]] = mapped_column(String(50))
+    color: Mapped[Optional[str]] = mapped_column(String(10))
+    start_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    end_date: Mapped[Optional[datetime]] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
@@ -132,7 +133,7 @@ class ChallengeProgress(Base):
     enrolled_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     employee = relationship("Employee", back_populates="challenge_progress")
     challenge = relationship("Challenge", back_populates="progress_entries")

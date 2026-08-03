@@ -3,6 +3,7 @@ Learning models — paths, courses, certifications, schedule.
 Uses String(36) UUIDs for SQLite compatibility.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone, date
 from sqlalchemy import String, Integer, Text, Boolean, DateTime, Date, ForeignKey, JSON, Numeric, UniqueConstraint
@@ -18,17 +19,17 @@ class LearningPath(Base):
         String(36), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
     progress: Mapped[int] = mapped_column(Integer, default=0)
     total_courses: Mapped[int] = mapped_column(Integer, default=0)
     completed_courses: Mapped[int] = mapped_column(Integer, default=0)
-    estimated_hours: Mapped[float | None] = mapped_column(Numeric(6, 1))
-    due_date: Mapped[str | None] = mapped_column(String(30))
-    tags: Mapped[dict | None] = mapped_column(JSON, default=list)
-    color: Mapped[str | None] = mapped_column(String(10))
+    estimated_hours: Mapped[Optional[float]] = mapped_column(Numeric(6, 1))
+    due_date: Mapped[Optional[str]] = mapped_column(String(30))
+    tags: Mapped[Optional[dict]] = mapped_column(JSON, default=list)
+    color: Mapped[Optional[str]] = mapped_column(String(10))
     is_ai_recommended: Mapped[bool] = mapped_column(Boolean, default=False)
-    platform: Mapped[str | None] = mapped_column(String(100))
-    instructor: Mapped[str | None] = mapped_column(String(150))
+    platform: Mapped[Optional[str]] = mapped_column(String(100))
+    instructor: Mapped[Optional[str]] = mapped_column(String(150))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -41,15 +42,15 @@ class Course(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    provider: Mapped[str | None] = mapped_column(String(150))
-    hours: Mapped[float | None] = mapped_column(Numeric(6, 1))
-    level: Mapped[str | None] = mapped_column(String(20))
-    rating: Mapped[float | None] = mapped_column(Numeric(3, 2))
+    provider: Mapped[Optional[str]] = mapped_column(String(150))
+    hours: Mapped[Optional[float]] = mapped_column(Numeric(6, 1))
+    level: Mapped[Optional[str]] = mapped_column(String(20))
+    rating: Mapped[Optional[float]] = mapped_column(Numeric(3, 2))
     enrolled_count: Mapped[int] = mapped_column(Integer, default=0)
-    tags: Mapped[dict | None] = mapped_column(JSON, default=list)
-    emoji: Mapped[str | None] = mapped_column(String(10))
-    color: Mapped[str | None] = mapped_column(String(10))
-    description: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[Optional[dict]] = mapped_column(JSON, default=list)
+    emoji: Mapped[Optional[str]] = mapped_column(String(10))
+    color: Mapped[Optional[str]] = mapped_column(String(10))
+    description: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -72,8 +73,8 @@ class EmployeeCourse(Base):
     )
     status: Mapped[str] = mapped_column(String(20), default="available")
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     employee = relationship("Employee", back_populates="employee_courses")
     course = relationship("Course", back_populates="employee_courses")
@@ -87,16 +88,16 @@ class Certification(Base):
         String(36), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    issuer: Mapped[str | None] = mapped_column(String(150))
+    issuer: Mapped[Optional[str]] = mapped_column(String(150))
     status: Mapped[str] = mapped_column(String(20), default="planned")
-    score: Mapped[int | None] = mapped_column(Integer)
+    score: Mapped[Optional[int]] = mapped_column(Integer)
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    credential_id: Mapped[str | None] = mapped_column(String(100))
-    completed_date: Mapped[date | None] = mapped_column(Date)
-    expiry_date: Mapped[date | None] = mapped_column(Date)
-    exam_date: Mapped[str | None] = mapped_column(String(30))
-    emoji: Mapped[str | None] = mapped_column(String(10))
-    color: Mapped[str | None] = mapped_column(String(10))
+    credential_id: Mapped[Optional[str]] = mapped_column(String(100))
+    completed_date: Mapped[Optional[date]] = mapped_column(Date)
+    expiry_date: Mapped[Optional[date]] = mapped_column(Date)
+    exam_date: Mapped[Optional[str]] = mapped_column(String(30))
+    emoji: Mapped[Optional[str]] = mapped_column(String(10))
+    color: Mapped[Optional[str]] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -115,7 +116,7 @@ class WeeklyScheduleEntry(Base):
     topic: Mapped[str] = mapped_column(String(255), nullable=False)
     duration: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="upcoming")
-    color: Mapped[str | None] = mapped_column(String(10))
-    week_of: Mapped[date | None] = mapped_column(Date)
+    color: Mapped[Optional[str]] = mapped_column(String(10))
+    week_of: Mapped[Optional[date]] = mapped_column(Date)
 
     employee = relationship("Employee", back_populates="weekly_schedule")

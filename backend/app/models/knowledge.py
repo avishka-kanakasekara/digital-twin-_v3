@@ -2,6 +2,7 @@
 Knowledge source model.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey
@@ -19,7 +20,7 @@ class KnowledgeSource(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(30), default="File")
     connected: Mapped[bool] = mapped_column(Boolean, default=True)
-    file_path: Mapped[str | None] = mapped_column(String(500))
+    file_path: Mapped[Optional[str]] = mapped_column(String(500))
     coverage: Mapped[int] = mapped_column(Integer, default=0)
     skills_extracted: Mapped[int] = mapped_column(Integer, default=0)
     projects_found: Mapped[int] = mapped_column(Integer, default=0)

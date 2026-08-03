@@ -2,6 +2,7 @@
 Skill model — tracks employee skills with AI-estimated proficiency.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, Boolean, DateTime, ForeignKey, Numeric, UniqueConstraint
@@ -22,19 +23,19 @@ class Skill(Base):
         String(36), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
-    category: Mapped[str | None] = mapped_column(String(50))
-    sub_category: Mapped[str | None] = mapped_column(String(100))
-    icon: Mapped[str | None] = mapped_column(String(50))
+    category: Mapped[Optional[str]] = mapped_column(String(50))
+    sub_category: Mapped[Optional[str]] = mapped_column(String(100))
+    icon: Mapped[Optional[str]] = mapped_column(String(50))
 
     proficiency: Mapped[int] = mapped_column(Integer, default=0)
     target_level: Mapped[int] = mapped_column(Integer, default=0)
-    years_experience: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    years_experience: Mapped[Optional[float]] = mapped_column(Numeric(4, 1))
     trend: Mapped[str] = mapped_column(String(10), default="stable")
 
-    ai_confidence: Mapped[int | None] = mapped_column(Integer)
+    ai_confidence: Mapped[Optional[int]] = mapped_column(Integer)
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    source: Mapped[str | None] = mapped_column(String(50))
-    ai_recommendation: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[Optional[str]] = mapped_column(String(50))
+    ai_recommendation: Mapped[Optional[str]] = mapped_column(Text)
 
     last_updated: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)

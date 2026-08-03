@@ -2,6 +2,7 @@
 Project model.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, JSON, Numeric
@@ -17,15 +18,15 @@ class Project(Base):
         String(36), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[str | None] = mapped_column(String(100))
-    description: Mapped[str | None] = mapped_column(Text)
-    technologies: Mapped[dict | None] = mapped_column(JSON, default=list)
-    duration: Mapped[str | None] = mapped_column(String(50))
-    domain: Mapped[str | None] = mapped_column(String(100))
-    complexity: Mapped[str | None] = mapped_column(String(20))
+    role: Mapped[Optional[str]] = mapped_column(String(100))
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    technologies: Mapped[Optional[dict]] = mapped_column(JSON, default=list)
+    duration: Mapped[Optional[str]] = mapped_column(String(50))
+    domain: Mapped[Optional[str]] = mapped_column(String(100))
+    complexity: Mapped[Optional[str]] = mapped_column(String(20))
     success_score: Mapped[int] = mapped_column(Integer, default=0)
     leadership_score: Mapped[int] = mapped_column(Integer, default=0)
-    customer_rating: Mapped[float | None] = mapped_column(Numeric(3, 2))
+    customer_rating: Mapped[Optional[float]] = mapped_column(Numeric(3, 2))
     status: Mapped[str] = mapped_column(String(20), default="On Track")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)

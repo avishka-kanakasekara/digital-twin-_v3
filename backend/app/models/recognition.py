@@ -2,6 +2,7 @@
 Recognition model.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Text, DateTime, ForeignKey
@@ -18,9 +19,9 @@ class Recognition(Base):
     )
     type: Mapped[str] = mapped_column(String(30), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[Optional[str]] = mapped_column(Text)
     date: Mapped[str] = mapped_column(String(20))
-    awarded_by: Mapped[str | None] = mapped_column(String(150))
+    awarded_by: Mapped[Optional[str]] = mapped_column(String(150))
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

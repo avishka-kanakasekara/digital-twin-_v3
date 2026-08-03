@@ -20,6 +20,7 @@ from app.models.knowledge import KnowledgeSource
 from app.models.reward import RewardItem, RewardClaim
 from app.models.recognition import Recognition
 from app.models.project import Project
+from app.models.organization import OrganizationMetric, OrganizationScenario
 
 __all__ = [
     "Employee",
@@ -42,4 +43,6 @@ __all__ = [
     "RewardClaim",
     "Recognition",
     "Project",
+    "OrganizationMetric",
+    "OrganizationScenario",
 ]

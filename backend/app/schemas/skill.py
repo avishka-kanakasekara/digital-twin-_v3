@@ -2,6 +2,7 @@
 Skill schemas.
 """
 
+from typing import Optional
 from pydantic import BaseModel
 
 from datetime import datetime
@@ -9,43 +10,43 @@ from datetime import datetime
 
 class SkillCreate(BaseModel):
     name: str
-    category: str | None = None
-    sub_category: str | None = None
-    icon: str | None = None
+    category: Optional[str] = None
+    sub_category: Optional[str] = None
+    icon: Optional[str] = None
     proficiency: int = 0
     target_level: int = 0
-    years_experience: float | None = None
+    years_experience: Optional[float] = None
     trend: str = "stable"
-    ai_confidence: int | None = None
+    ai_confidence: Optional[int] = None
     verified: bool = False
-    source: str | None = None
-    ai_recommendation: str | None = None
+    source: Optional[str] = None
+    ai_recommendation: Optional[str] = None
 
 
 class SkillUpdate(BaseModel):
-    proficiency: int | None = None
-    target_level: int | None = None
-    trend: str | None = None
-    verified: bool | None = None
-    source: str | None = None
-    ai_recommendation: str | None = None
+    proficiency: Optional[int] = None
+    target_level: Optional[int] = None
+    trend: Optional[str] = None
+    verified: Optional[bool] = None
+    source: Optional[str] = None
+    ai_recommendation: Optional[str] = None
 
 
 class SkillResponse(BaseModel):
     id: str
     employee_id: str
     name: str
-    category: str | None = None
-    sub_category: str | None = None
-    icon: str | None = None
+    category: Optional[str] = None
+    sub_category: Optional[str] = None
+    icon: Optional[str] = None
     proficiency: int = 0
     target_level: int = 0
-    years_experience: float | None = None
+    years_experience: Optional[float] = None
     trend: str = "stable"
-    ai_confidence: int | None = None
+    ai_confidence: Optional[int] = None
     verified: bool = False
-    source: str | None = None
-    ai_recommendation: str | None = None
-    last_updated: datetime | None = None
+    source: Optional[str] = None
+    ai_recommendation: Optional[str] = None
+    last_updated: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

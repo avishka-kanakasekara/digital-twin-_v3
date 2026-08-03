@@ -2,6 +2,7 @@
 Career schemas — goals, roadmaps, skill gaps, market trends.
 """
 
+from typing import Optional
 from pydantic import BaseModel
 
 from datetime import datetime
@@ -9,17 +10,17 @@ from datetime import datetime
 
 class CareerGoalCreate(BaseModel):
     target_role: str
-    timeline: str | None = None
-    focus_area: str | None = None
-    target_industry: str | None = None
+    timeline: Optional[str] = None
+    focus_area: Optional[str] = None
+    target_industry: Optional[str] = None
 
 
 class CareerGoalResponse(BaseModel):
     id: str
     target_role: str
-    timeline: str | None = None
-    focus_area: str | None = None
-    target_industry: str | None = None
+    timeline: Optional[str] = None
+    focus_area: Optional[str] = None
+    target_industry: Optional[str] = None
     readiness_score: int = 0
     is_active: bool = True
     roadmap_steps: list["CareerRoadmapStepResponse"] = []
@@ -32,7 +33,7 @@ class CareerRoadmapStepResponse(BaseModel):
     step_order: int
     title: str
     status: str = "upcoming"
-    description: str | None = None
+    description: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -43,22 +44,22 @@ class SkillGapResponse(BaseModel):
     target_level: int = 0
     gap: int = 0
     priority: str = "Medium"
-    category: str | None = None
-    color: str | None = None
+    category: Optional[str] = None
+    color: Optional[str] = None
 
 
 class MarketTrendResponse(BaseModel):
     skill: str
     demand_change: str
     trend: str = "stable"
-    category: str | None = None
+    category: Optional[str] = None
 
 
 class CareerRecommendationResponse(BaseModel):
     id: str
     title: str
-    provider: str | None = None
-    duration: str | None = None
-    readiness_impact: str | None = None
-    description: str | None = None
+    provider: Optional[str] = None
+    duration: Optional[str] = None
+    readiness_impact: Optional[str] = None
+    description: Optional[str] = None
     is_top_match: bool = False

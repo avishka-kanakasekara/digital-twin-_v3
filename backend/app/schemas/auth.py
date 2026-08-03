@@ -2,6 +2,7 @@
 Auth schemas — login, register, token.
 """
 
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 
@@ -15,8 +16,8 @@ class RegisterRequest(BaseModel):
     full_name: str
     email: str
     password: str
-    department: str | None = None
-    role: str | None = None
+    department: Optional[str] = None
+    role: Optional[str] = None
 
 
 class TokenResponse(BaseModel):

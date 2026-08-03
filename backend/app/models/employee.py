@@ -3,6 +3,7 @@ Employee model — the central entity of the Digital Twin platform.
 Uses String-based UUIDs for SQLite compatibility.
 """
 
+from typing import Optional
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import String, Integer, Text, Boolean, DateTime, JSON
@@ -20,29 +21,29 @@ class Employee(Base):
         String(20), unique=True, nullable=False
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    initials: Mapped[str | None] = mapped_column(String(5))
+    initials: Mapped[Optional[str]] = mapped_column(String(5))
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
-    password_hash: Mapped[str | None] = mapped_column(String(255))
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255))
 
-    department: Mapped[str | None] = mapped_column(String(100))
-    role: Mapped[str | None] = mapped_column(String(150))
-    team: Mapped[str | None] = mapped_column(String(150))
-    manager_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    manager_name: Mapped[str | None] = mapped_column(String(255))
-    location: Mapped[str | None] = mapped_column(String(150))
-    timezone_str: Mapped[str | None] = mapped_column(String(50))
-    phone: Mapped[str | None] = mapped_column(String(30))
+    department: Mapped[Optional[str]] = mapped_column(String(100))
+    role: Mapped[Optional[str]] = mapped_column(String(150))
+    team: Mapped[Optional[str]] = mapped_column(String(150))
+    manager_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    manager_name: Mapped[Optional[str]] = mapped_column(String(255))
+    location: Mapped[Optional[str]] = mapped_column(String(150))
+    timezone_str: Mapped[Optional[str]] = mapped_column(String(50))
+    phone: Mapped[Optional[str]] = mapped_column(String(30))
 
-    education: Mapped[dict | None] = mapped_column(JSON, default=list)
-    languages: Mapped[dict | None] = mapped_column(JSON, default=list)
+    education: Mapped[Optional[dict]] = mapped_column(JSON, default=list)
+    languages: Mapped[Optional[dict]] = mapped_column(JSON, default=list)
 
-    biography: Mapped[str | None] = mapped_column(Text)
-    headline: Mapped[str | None] = mapped_column(String(300))
-    avatar_url: Mapped[str | None] = mapped_column(String(500))
+    biography: Mapped[Optional[str]] = mapped_column(Text)
+    headline: Mapped[Optional[str]] = mapped_column(String(300))
+    avatar_url: Mapped[Optional[str]] = mapped_column(String(500))
 
-    years_experience: Mapped[int | None] = mapped_column(Integer)
-    years_in_company: Mapped[int | None] = mapped_column(Integer)
-    employment_type: Mapped[str | None] = mapped_column(
+    years_experience: Mapped[Optional[int]] = mapped_column(Integer)
+    years_in_company: Mapped[Optional[int]] = mapped_column(Integer)
+    employment_type: Mapped[Optional[str]] = mapped_column(
         String(30), default="Full-Time"
     )
     employment_status: Mapped[str] = mapped_column(
