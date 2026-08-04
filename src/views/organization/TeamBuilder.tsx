@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Wand2, ShieldCheck, CheckCircle2, Search, SlidersHorizontal, GitMerge, Star, Check, Target, Activity, HeartHandshake, Sparkles, BrainCircuit } from 'lucide-react';
 
 import { useSettings } from '../../context/SettingsContext';
@@ -23,10 +23,16 @@ export interface TeamOption {
 }
 
 export const TeamBuilder: React.FC = () => {
-  const { skills, users, roles } = useSettings();
+  const { skills, users, roles, projectTypes } = useSettings();
   const [headcount, setHeadcount] = useState(4);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(['AWS', 'Node.js', 'Figma']);
-  const [projectType, setProjectType] = useState('New Product Development');
+  const [projectType, setProjectType] = useState(projectTypes[0] || 'New Product Development');
+  
+  useEffect(() => {
+    if (projectTypes.length > 0 && !projectTypes.includes(projectType)) {
+      setProjectType(projectTypes[0]);
+    }
+  }, [projectTypes, projectType]);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [teamGenerated, setTeamGenerated] = useState(false);
@@ -141,12 +147,14 @@ export const TeamBuilder: React.FC = () => {
         {/* Left Column: Requirements */}
         <div className="col-span-4 flex flex-col gap-6">
           <div 
-            className="backdrop-blur-xl border border-white p-6 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.06)] relative overflow-hidden group h-full flex flex-col"
-            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.65) 100%)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.8)' }}
+            className="backdrop-blur-3xl border border-white/60 p-6 rounded-[2rem] shadow-[0_20px_50px_rgb(0,0,0,0.06)] relative overflow-hidden group h-full flex flex-col"
+            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 100%)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.8)' }}
           >
-            <div className="relative z-10 flex items-center gap-4 mb-6 pb-4 border-b border-slate-200/50">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 shrink-0"
-                   style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #a855f7 100%)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)' }}>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
+            
+            <div className="relative z-10 flex items-center gap-4 mb-6 pb-5 border-b border-slate-200/50">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xl shrink-0"
+                   style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #a855f7 100%)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4), inset 0 2px 4px rgba(255,255,255,0.3)' }}>
                 <SlidersHorizontal size={22} strokeWidth={2.5} />
               </div>
               <div>
@@ -168,10 +176,12 @@ export const TeamBuilder: React.FC = () => {
                     value={projectType}
                     onChange={(e) => setProjectType(e.target.value)}
                   >
-                    <option>New Product Development</option>
-                    <option>System Migration</option>
-                    <option>Maintenance & Support</option>
-                    <option>Tiger Team / Crisis Resp</option>
+                    {projectTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                    {projectTypes.length === 0 && (
+                      <option disabled value="">No project types available</option>
+                    )}
                   </select>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400 bg-indigo-50 p-1.5 rounded-lg">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -245,20 +255,21 @@ export const TeamBuilder: React.FC = () => {
             </div>
             
             <button 
-              className="w-full rounded-xl py-3 font-black text-sm hover:-translate-y-0.5 transition-all duration-300 mt-4 z-10 flex items-center justify-center gap-3 relative overflow-hidden group text-white shadow-lg border-none cursor-pointer shrink-0"
+              className="w-full rounded-2xl py-4 font-black text-sm hover:-translate-y-1 transition-all duration-300 mt-4 z-10 flex items-center justify-center gap-3 relative overflow-hidden group text-white shadow-[0_10px_30px_rgba(79,70,229,0.3)] hover:shadow-[0_15px_40px_rgba(79,70,229,0.4)] border-none cursor-pointer shrink-0"
               style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}
               onClick={handleGenerate} 
               disabled={isGenerating}
             >
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+              <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 blur-xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
                 {isGenerating ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span>Synthesizing...</span>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span className="relative z-10">Synthesizing...</span>
                   </>
                 ) : (
                   <>
-                    <Wand2 size={18} className="group-hover:rotate-12 transition-transform" /> <span>Generate Optimal Teams</span>
+                    <Wand2 size={20} className="group-hover:rotate-12 transition-transform relative z-10" /> <span className="relative z-10 tracking-wide">Generate Optimal Teams</span>
                   </>
                 )}
               </button>
@@ -269,36 +280,40 @@ export const TeamBuilder: React.FC = () => {
         <div className="col-span-8 flex flex-col h-full min-h-[600px]">
           
           {!teamGenerated && !isGenerating && (
-            <div className="flex-1 flex flex-col items-center justify-center relative rounded-[1.5rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 hover:shadow-[0_20px_40px_rgb(0,0,0,0.06)] bg-white/50 backdrop-blur-xl border border-white h-full">
-              {/* Dynamic mesh gradient background */}
-              <div className="absolute top-0 right-0 w-80 h-80 bg-blue-300/15 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }}></div>
-              <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-300/15 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s', animationDelay: '1s' }}></div>
+            <div className="flex-1 flex flex-col items-center justify-center relative rounded-[2rem] overflow-hidden shadow-2xl transition-all duration-500 bg-slate-50/40 backdrop-blur-3xl border border-white/60 h-full group">
+              {/* High-end animated mesh gradient background */}
+              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-indigo-400/20 to-purple-400/20 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '8s' }}></div>
+              <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-blue-400/20 to-emerald-400/10 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }}></div>
               
-              <div className="relative z-10 flex flex-col items-center text-center px-12 max-w-xl">
+              <div className="relative z-10 flex flex-col items-center text-center px-12 max-w-2xl transform group-hover:scale-[1.02] transition-transform duration-700">
                 
-                {/* Floating Icon */}
-                <div className="w-24 h-24 rounded-[1.5rem] flex items-center justify-center shadow-xl mb-8 relative bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 animate-bounce" style={{ animationDuration: '3s' }}>
-                  <div className="absolute inset-0 rounded-[1.5rem] border-2 border-white/40 animate-ping opacity-50" style={{ animationDuration: '2s' }}></div>
-                  <div className="absolute inset-1.5 bg-white/20 rounded-xl backdrop-blur-sm"></div>
-                  <Users size={40} className="text-white relative z-10 drop-shadow-md" strokeWidth={2.5} />
+                {/* Futuristic Floating Orb Icon */}
+                <div className="w-32 h-32 mb-10 relative">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 rounded-full animate-spin blur-md opacity-70" style={{ animationDuration: '4s' }}></div>
+                  <div className="absolute inset-1 bg-white rounded-full flex items-center justify-center shadow-inner">
+                    <Users size={48} className="text-indigo-600 drop-shadow-sm" strokeWidth={2} />
+                  </div>
+                  {/* Orbiting particles */}
+                  <div className="absolute top-0 left-1/2 w-4 h-4 bg-blue-400 rounded-full blur-[2px] animate-ping" style={{ animationDuration: '2s' }}></div>
+                  <div className="absolute bottom-0 right-0 w-5 h-5 bg-purple-400 rounded-full blur-[2px] animate-bounce" style={{ animationDuration: '3s' }}></div>
                 </div>
                 
-                <h3 className="text-4xl font-black text-slate-800 tracking-tight mb-4 drop-shadow-sm">AI Team Assembler</h3>
-                <p className="text-sm font-semibold text-slate-500 mb-10 leading-relaxed">
+                <h3 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-indigo-800 to-slate-900 tracking-tighter mb-6 drop-shadow-sm">AI Team Assembler</h3>
+                <p className="text-base font-medium text-slate-600 mb-12 leading-relaxed max-w-lg mx-auto">
                   Configure your constraints on the left. Our neural optimization engine evaluates millions of combinations across skills, availability, and collaboration graphs to surface the ultimate team composition.
                 </p>
                 
-                <div className="flex flex-wrap justify-center gap-3">
-                  <div className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm border border-slate-200/60 bg-white/90 hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="p-1.5 rounded-lg bg-blue-50 text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors"><Search size={14} strokeWidth={2.5}/></div>
+                <div className="flex flex-wrap justify-center gap-4">
+                  <div className="flex items-center gap-3 text-sm font-bold px-6 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-white/80 bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-lg hover:border-blue-200 hover:bg-white transition-all cursor-pointer group/badge">
+                    <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 group-hover/badge:from-blue-500 group-hover/badge:to-blue-600 group-hover/badge:text-white transition-all shadow-inner"><Search size={16} strokeWidth={2.5}/></div>
                     Skill Optimization
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm border border-slate-200/60 bg-white/90 hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="p-1.5 rounded-lg bg-purple-50 text-purple-500 group-hover:bg-purple-500 group-hover:text-white transition-colors"><HeartHandshake size={14} strokeWidth={2.5}/></div>
+                  <div className="flex items-center gap-3 text-sm font-bold px-6 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-white/80 bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-lg hover:border-purple-200 hover:bg-white transition-all cursor-pointer group/badge">
+                    <div className="p-2 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 group-hover/badge:from-purple-500 group-hover/badge:to-purple-600 group-hover/badge:text-white transition-all shadow-inner"><HeartHandshake size={16} strokeWidth={2.5}/></div>
                     Compatibility Matrix
                   </div>
-                  <div className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm border border-slate-200/60 bg-white/90 hover:-translate-y-1 hover:shadow-md transition-all cursor-pointer group">
-                    <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors"><ShieldCheck size={14} strokeWidth={2.5}/></div>
+                  <div className="flex items-center gap-3 text-sm font-bold px-6 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-white/80 bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-lg hover:border-emerald-200 hover:bg-white transition-all cursor-pointer group/badge">
+                    <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 group-hover/badge:from-emerald-500 group-hover/badge:to-emerald-600 group-hover/badge:text-white transition-all shadow-inner"><ShieldCheck size={16} strokeWidth={2.5}/></div>
                     Predictive Success
                   </div>
                 </div>
@@ -307,19 +322,23 @@ export const TeamBuilder: React.FC = () => {
           )}
 
           {isGenerating && (
-            <div className="flex-1 flex flex-col items-center justify-center h-full border border-white bg-white/60 backdrop-blur-xl rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5 animate-pulse"></div>
+            <div className="flex-1 flex flex-col items-center justify-center h-full border-2 border-white/50 bg-white/60 backdrop-blur-3xl rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative overflow-hidden">
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 rounded-full animate-spin" style={{ animationDuration: '10s' }}></div>
               
               <div className="relative z-10 flex flex-col items-center">
-                <div className="relative w-20 h-20 mb-6">
-                  <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                <div className="relative w-32 h-32 mb-8">
+                  <div className="absolute inset-0 border-4 border-indigo-100 rounded-full shadow-inner"></div>
+                  <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin shadow-[0_0_20px_rgba(79,70,229,0.4)]" style={{ animationDuration: '1s' }}></div>
+                  <div className="absolute inset-2 border-4 border-purple-400 rounded-full border-b-transparent animate-spin-reverse shadow-[0_0_15px_rgba(168,85,247,0.4)]" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <BrainCircuit size={28} className="text-indigo-600 animate-pulse" />
+                    <BrainCircuit size={36} className="text-indigo-600 animate-pulse drop-shadow-lg" />
                   </div>
                 </div>
-                <h3 className="text-2xl font-black text-slate-800 mb-2 tracking-tight">Running Optimization Model</h3>
-                <p className="text-slate-500 font-bold animate-pulse text-sm">Evaluating multi-dimensional workforce graphs...</p>
+                <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-900 mb-3 tracking-tighter">Running Optimization Model</h3>
+                <p className="text-slate-500 font-bold animate-pulse text-sm flex items-center gap-2">
+                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div> Evaluating multi-dimensional workforce graphs...
+                </p>
               </div>
             </div>
           )}
