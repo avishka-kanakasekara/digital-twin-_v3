@@ -1,52 +1,36 @@
 """
-SQLAlchemy engine, session factory, and Base declarative class.
-Using synchronous SQLite for compatibility (no async/greenlet issues).
+Supabase client initialization.
+Provides both anon-key and service-role clients.
 """
 
-from sqlalchemy.orm import Session, sessionmaker, DeclarativeBase
-from sqlalchemy import create_engine
+from supabase import create_client, Client
 from app.config import settings
 
-# Engine configuration
-engine_kwargs = {
-    "echo": settings.DEBUG,
-}
+# ── Clients ────────────────────────────────────────────────────
+# Anon client — respects RLS policies (used by default)
+_supabase_anon: Client | None = None
 
-if not settings.is_sqlite:
-    engine_kwargs.update({
-        "pool_size": 20,
-        "max_overflow": 10,
-        "pool_pre_ping": True,
-    })
-
-engine = create_engine(settings.DATABASE_URL_SYNC, **engine_kwargs)
-
-# Session factory
-SessionLocal = sessionmaker(
-    engine,
-    autocommit=False,
-    autoflush=False,
-)
+# Service-role client — bypasses RLS (used for admin/server operations)
+_supabase_service: Client | None = None
 
 
-class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy models."""
-    pass
+def get_supabase() -> Client:
+    """FastAPI dependency — returns the anon Supabase client."""
+    global _supabase_anon
+    if _supabase_anon is None:
+        _supabase_anon = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_ANON_KEY,
+        )
+    return _supabase_anon
 
 
-def get_db() -> Session:
-    """FastAPI dependency — yields a database session."""
-    db = SessionLocal()
-    try:
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
-
-
-def init_db():
-    """Create all tables (for development — use Alembic in production)."""
-    Base.metadata.create_all(bind=engine)
+def get_supabase_admin() -> Client:
+    """Returns the service-role Supabase client (bypasses RLS)."""
+    global _supabase_service
+    if _supabase_service is None:
+        _supabase_service = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_SERVICE_ROLE_KEY,
+        )
+    return _supabase_service
