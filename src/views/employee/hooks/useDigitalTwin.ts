@@ -29,6 +29,14 @@ export const useDigitalTwin = () => {
   });
   const [skills, setSkills] = useState<any[]>([]);
   const [twinSummary, setTwinSummary] = useState(digitalTwinMockData.twinSummary);
+  const [personalAnalytics, setPersonalAnalytics] = useState(digitalTwinMockData.personalAnalytics);
+  const [skillsData, setSkillsData] = useState(digitalTwinMockData.skillsData);
+  const [certifications, setCertifications] = useState(digitalTwinMockData.certificationsTimeline);
+  const [aiReadiness, setAIReadiness] = useState(digitalTwinMockData.aiReadiness);
+  const [twinMemory, setTwinMemory] = useState(digitalTwinMockData.twinMemory);
+  const [collaborationIntel, setCollaborationIntel] = useState(digitalTwinMockData.collaborationIntel);
+  const [projectPrediction, setProjectPrediction] = useState(digitalTwinMockData.projectPrediction);
+  const [aiRecommendations, setAIRecommendations] = useState(digitalTwinMockData.aiRecommendations);
   const [loading, setLoading] = useState(false);
   const [useAPI, setUseAPI] = useState(false);
 
@@ -58,16 +66,32 @@ export const useDigitalTwin = () => {
         });
         setUseAPI(true);
         
-        const [projectsData, knowledgeData, skillsData, twinSum] = await Promise.all([
+        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData] = await Promise.all([
           employeeAPI.getProjects(currentEmployee.id),
           employeeAPI.getKnowledgeSources(currentEmployee.id),
           employeeAPI.getSkills(currentEmployee.id),
           employeeAPI.getTwinSummary(currentEmployee.id),
+          employeeAPI.getAnalytics(currentEmployee.id),
+          employeeAPI.getSkillsGrouped(currentEmployee.id),
+          employeeAPI.getAIReadiness(currentEmployee.id),
+          employeeAPI.getTwinMemory(currentEmployee.id),
+          employeeAPI.getCollaboration(currentEmployee.id),
+          employeeAPI.getProjectPrediction(currentEmployee.id),
+          employeeAPI.getAIRecommendations(currentEmployee.id),
+          employeeAPI.getCertifications(currentEmployee.id),
         ]);
         setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
         setKnowledge(knowledgeData);
         setSkills(skillsData);
         setTwinSummary(twinSum as any);
+        setPersonalAnalytics(analyticsData);
+        setSkillsData(skillsGroupedData);
+        setAIReadiness(aiReadinessData);
+        setTwinMemory(twinMemoryData);
+        setCollaborationIntel(collaborationData);
+        setProjectPrediction(projectPredictionData);
+        setAIRecommendations(aiRecommendationsData);
+        setCertifications(certificationsData);
 
         // Load gamification data
         try {
@@ -250,15 +274,15 @@ export const useDigitalTwin = () => {
     loading,
     useAPI,
     
-    // Static data - would be loaded from API in production
-    skillsData: digitalTwinMockData.skillsData,
-    certifications: digitalTwinMockData.certificationsTimeline,
-    aiReadiness: digitalTwinMockData.aiReadiness,
-    twinMemory: digitalTwinMockData.twinMemory,
-    collaborationIntel: digitalTwinMockData.collaborationIntel,
-    projectPrediction: digitalTwinMockData.projectPrediction,
-    personalAnalytics: digitalTwinMockData.personalAnalytics,
-    aiRecommendations: digitalTwinMockData.aiRecommendations
+    // Dynamic data from backend
+    skillsData,
+    certifications,
+    aiReadiness,
+    twinMemory,
+    collaborationIntel,
+    projectPrediction,
+    personalAnalytics,
+    aiRecommendations
   };
 };
 

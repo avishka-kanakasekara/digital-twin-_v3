@@ -5,7 +5,11 @@ Supports both PostgreSQL (production) and SQLite (local dev without Docker).
 
 from pydantic_settings import BaseSettings
 from typing import List
-import os
+from pathlib import Path
+
+# Always resolve DB path relative to backend/ folder, not shell cwd
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_DEFAULT_DB = _BACKEND_DIR / "digitaltwin.db"
 
 
 class Settings(BaseSettings):
