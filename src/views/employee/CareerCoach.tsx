@@ -2,19 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Modal } from '../../components/Modal';
-import { TrendingUp, BookOpen, Crosshair, Edit, Flag, CheckCircle, PlayCircle, ArrowRight, ExternalLink } from 'lucide-react';
-import { careerAPI, learningAPI } from '../../lib/api';
+import { TrendingUp, BookOpen, Crosshair, Edit, Flag, CheckCircle, PlayCircle, ArrowRight, ExternalLink, Loader2 } from 'lucide-react';
+import { careerAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
+
+interface CareerGoalState {
+  target_role: string;
+  timeline: string;
+  focus_area: string;
+  readiness_score: number;
+}
+
+function gapStatus(current: number, target: number): string {
+  const pct = Math.round((current / target) * 100);
+  if (pct >= 100) return 'Met (Advanced)';
+  if (pct >= 60) return 'Need Expert';
+  return 'Need Advanced';
+}
 
 export const CareerCoach: React.FC = () => {
   const { currentEmployee } = useEmployee();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [careerGoal, setCareerGoal] = useState({
-    target_role: 'Cloud Architect',
-    timeline: '12-18 Months',
-    focus_area: 'Tech / Cloud',
-    readiness_score: 65,
+  const [careerGoal, setCareerGoal] = useState<CareerGoalState>({
+    target_role: '',
+    timeline: '',
+    focus_area: '',
+    readiness_score: 0,
   });
+  const [goalForm, setGoalForm] = useState({ target_role: 'Cloud Architect', timeline: '12-18 Months', focus_area: 'Tech / Cloud' });
   const [roadmap, setRoadmap] = useState<any[]>([]);
   const [skillGaps, setSkillGaps] = useState<any[]>([]);
   const [learningPaths, setLearningPaths] = useState<any[]>([]);
@@ -24,69 +41,98 @@ export const CareerCoach: React.FC = () => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const goalData = await careerAPI.getGoal(currentEmployee.id);
-        setCareerGoal({
-          target_role: goalData.target_role,
-          timeline: goalData.timeline,
-          focus_area: goalData.focus_area,
-          readiness_score: goalData.readiness_score,
-        });
-        console.log('✅ Loaded career goal from API');
-      } catch (error) {
-        console.log('⚠️ API not available, using mock data');
-      }
+        const [goalData, roadmapData, skillData, recsData, marketResp] = await Promise.all([
+          careerAPI.getGoal(currentEmployee.id),
+          careerAPI.getRoadmap(currentEmployee.id),
+          careerAPI.getSkillGaps(currentEmployee.id),
+          careerAPI.getRecommendations(currentEmployee.id),
+          careerAPI.getMarketTrends(),
+        ]);
 
-      try {
-        const roadmapData = await careerAPI.getRoadmap(currentEmployee.id);
+        if (goalData) {
+          setCareerGoal({
+            target_role: goalData.target_role,
+            timeline: goalData.timeline || '',
+            focus_area: goalData.focus_area || '',
+            readiness_score: goalData.readiness_score,
+          });
+          setGoalForm({
+            target_role: goalData.target_role,
+            timeline: goalData.timeline || '12-18 Months',
+            focus_area: goalData.focus_area || 'Tech / Cloud',
+          });
+        }
+
         setRoadmap(roadmapData || []);
-      } catch (error) {
-        console.log('⚠️ Roadmap API not available');
-        setRoadmap([
-          { id: 1, title: 'Senior Cloud', status: 'completed', step_order: 1 },
-          { id: 2, title: 'Lead Projects', status: 'in_progress', step_order: 2 },
-          { id: 3, title: 'System Design', status: 'upcoming', step_order: 3 },
-          { id: 4, title: 'Cloud Architect', status: 'upcoming', step_order: 4 },
-        ]);
-      }
-
-      try {
-        const skillData = await learningAPI.getSkillGaps(currentEmployee.id);
-        setSkillGaps(skillData?.gaps || []);
-      } catch (error) {
-        console.log('⚠️ Skill gaps API not available');
-        setSkillGaps([
-          { skill: 'AWS EKS Architecture', level: 40, status: 'Need Advanced' },
-          { skill: 'Enterprise System Design', level: 60, status: 'Need Expert' },
-          { skill: 'Infrastructure as Code (Terraform)', level: 100, status: 'Met (Advanced)' },
-        ]);
-      }
-
-      try {
-        const pathsData = await learningAPI.getPaths(currentEmployee.id);
-        setLearningPaths(pathsData || []);
-      } catch (error) {
-        console.log('⚠️ Learning paths API not available');
-        setLearningPaths([
-          { id: 1, title: 'Advanced EKS Architecture', provider: 'Coursera', hours: 12, readiness_impact: 15 },
-          { id: 2, title: 'Enterprise System Design', provider: 'Internal Academy', hours: 8, readiness_impact: 20 },
-        ]);
-      }
-
-      try {
-        const marketResp = await careerAPI.getMarketTrends();
+        setSkillGaps(
+          (skillData || []).map((g: any) => ({
+            skill: g.skill,
+            level: Math.round((g.current_level / g.target_level) * 100),
+            status: gapStatus(g.current_level, g.target_level),
+          }))
+        );
+        setLearningPaths(
+          (recsData || []).map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            provider: r.provider,
+            hours: parseInt(r.duration || '0', 10) || 0,
+            readiness_impact: parseInt((r.readiness_impact || '0').replace(/\D/g, ''), 10) || 0,
+          }))
+        );
         setMarketData(marketResp || []);
-      } catch (error) {
-        console.log('⚠️ Market trends API not available');
-        setMarketData([
-          { skill: 'Kubernetes', category: 'Platform Eng.', trend: '+14%', color: '#059669' },
-          { skill: 'GenAI Architecture', category: 'Data / Cloud Eng.', trend: '+45%', color: '#059669' },
-          { skill: 'React & Next.js', category: 'Frontend', trend: 'Stable', color: '#64748b' },
-        ]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load career data');
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  const handleSaveGoal = async () => {
+    if (!currentEmployee) return;
+    try {
+      const updated = await careerAPI.setGoal(currentEmployee.id, {
+        target_role: goalForm.target_role,
+        timeline: goalForm.timeline,
+        focus_area: goalForm.focus_area,
+        target_industry: goalForm.focus_area,
+        is_active: true,
+      });
+      setCareerGoal({
+        target_role: updated.target_role,
+        timeline: updated.timeline || '',
+        focus_area: updated.focus_area || '',
+        readiness_score: updated.readiness_score,
+      });
+      const roadmapData = await careerAPI.getRoadmap(currentEmployee.id);
+      setRoadmap(roadmapData || []);
+      setIsGoalModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save goal');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <p className="text-red-600 font-semibold">{error}</p>
+        <p className="text-sm text-slate-500">Make sure the backend is running on port 8000 and the database is seeded.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 pb-8" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 30%, #f1f5f9 60%, #f8fafc 100%)', minHeight: '100vh', padding: '2rem' }}>
@@ -108,7 +154,7 @@ export const CareerCoach: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-[10px] uppercase font-bold tracking-wider mb-1" style={{ color: '#64748b' }}>Current Target Goal</p>
-                    <h3 className="font-extrabold text-2xl" style={{ color: '#0f172a' }}>{careerGoal.target_role}</h3>
+                    <h3 className="font-extrabold text-2xl" style={{ color: '#0f172a' }}>{careerGoal.target_role || 'No goal set'}</h3>
                   </div>
                 </div>
                 <div className="flex items-center gap-6 ml-[76px]">
@@ -131,11 +177,9 @@ export const CareerCoach: React.FC = () => {
               </Button>
             </div>
             
-            {/* Career Roadmap */}
             <div className="relative z-10 mt-8">
               <h4 className="text-sm font-extrabold mb-6 flex items-center gap-2 uppercase tracking-wide" style={{ color: '#0f172a' }}><Flag size={18}/> Career Roadmap</h4>
               <div className="relative">
-                {/* Progress line */}
                 <div className="absolute top-8 left-8 right-8 h-1 rounded-full" style={{ background: 'rgba(226, 232, 240, 0.8)' }}></div>
                 <div className="absolute top-8 left-8 h-1 rounded-full" style={{ width: '50%', background: 'linear-gradient(to right, #10b981, #3b82f6)' }}></div>
                 
@@ -162,7 +206,6 @@ export const CareerCoach: React.FC = () => {
               </div>
             </div>
 
-            {/* Skill Gap Analysis */}
             <div className="mt-4 relative z-10">
               <h4 className="text-sm font-extrabold mb-4 flex items-center gap-2 uppercase tracking-wide" style={{ color: '#0f172a' }}>Skill Readiness Analysis</h4>
               <div className="flex flex-col gap-4 w-full p-5 rounded-2xl shadow-sm" style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
@@ -178,7 +221,7 @@ export const CareerCoach: React.FC = () => {
                     </div>
                     <div className="w-full rounded-full h-2 shadow-inner overflow-hidden" style={{ background: 'rgba(226, 232, 240, 0.8)' }}>
                       <div className="h-full rounded-full transition-all" style={{ 
-                        width: `${gap.level}%`, 
+                        width: `${Math.min(gap.level, 100)}%`, 
                         background: gap.level >= 100 ? 'linear-gradient(to right, #10b981, #059669)' : gap.level >= 60 ? 'linear-gradient(to right, #f59e0b, #f97316)' : 'linear-gradient(to right, #ef4444, #dc2626)'
                       }}></div>
                     </div>
@@ -190,7 +233,7 @@ export const CareerCoach: React.FC = () => {
             <h4 className="text-sm font-extrabold flex items-center gap-2 uppercase tracking-wide mt-2 relative z-10" style={{ color: '#0f172a' }}>AI Recommended Learning Path</h4>
             <div className="grid grid-cols-2 gap-5 relative z-10">
               {learningPaths.map((path, index) => (
-                <div key={path.id} className={`relative rounded-2xl p-6 flex flex-col gap-3 hover:shadow-lg transition-all duration-300 cursor-pointer backdrop-blur-sm group overflow-hidden ${index === 0 ? '' : ''}`} style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
+                <div key={path.id} className="relative rounded-2xl p-6 flex flex-col gap-3 hover:shadow-lg transition-all duration-300 cursor-pointer backdrop-blur-sm group overflow-hidden" style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
                   {index === 0 && <div className="absolute top-0 right-0 text-white text-[10px] font-bold px-3 py-1 shadow-sm rounded-bl-xl" style={{ background: '#f59e0b' }}>Top Match</div>}
                   <div className="w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-all" style={{ color: '#3b82f6', background: 'rgba(59, 130, 246, 0.1)' }}>
                     <BookOpen size={20}/>
@@ -246,7 +289,12 @@ export const CareerCoach: React.FC = () => {
           <p className="text-sm font-medium" style={{ color: '#475569' }}>Define your next career milestone so the AI can map your learning path and calculate your readiness score.</p>
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Target Role</label>
-            <select className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm appearance-none cursor-pointer" style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
+            <select
+              value={goalForm.target_role}
+              onChange={e => setGoalForm(f => ({ ...f, target_role: e.target.value }))}
+              className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm appearance-none cursor-pointer"
+              style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}
+            >
               <option>Cloud Architect</option>
               <option>Engineering Manager</option>
               <option>Principal Engineer</option>
@@ -255,7 +303,12 @@ export const CareerCoach: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Timeline</label>
-              <select className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm appearance-none cursor-pointer" style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
+              <select
+                value={goalForm.timeline}
+                onChange={e => setGoalForm(f => ({ ...f, timeline: e.target.value }))}
+                className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm appearance-none cursor-pointer"
+                style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}
+              >
                 <option>12-18 Months</option>
                 <option>6-12 Months</option>
                 <option>2+ Years</option>
@@ -263,20 +316,21 @@ export const CareerCoach: React.FC = () => {
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-xs font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Target Industry</label>
-              <select className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm appearance-none cursor-pointer" style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}>
+              <select
+                value={goalForm.focus_area}
+                onChange={e => setGoalForm(f => ({ ...f, focus_area: e.target.value }))}
+                className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm appearance-none cursor-pointer"
+                style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }}
+              >
                 <option>Tech / Cloud</option>
                 <option>FinTech</option>
                 <option>HealthTech</option>
               </select>
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Focus Areas (Optional)</label>
-            <input type="text" className="h-10 px-3 rounded-xl w-full text-sm font-semibold outline-none shadow-sm" style={{ border: '1px solid rgba(226, 232, 240, 0.8)', background: 'rgba(255,255,255,0.9)' }} placeholder="e.g. Serverless, Team Leadership" />
-          </div>
           <div className="flex justify-end gap-3 mt-4 pt-5" style={{ borderTop: '1px solid rgba(226, 232, 240, 0.8)' }}>
             <Button variant="ghost" onClick={() => setIsGoalModalOpen(false)} className="rounded-xl font-bold" style={{ background: 'rgba(248, 250, 252, 0.8)' }}>Cancel</Button>
-            <Button variant="primary" onClick={() => setIsGoalModalOpen(false)} className="rounded-xl shadow-md font-bold px-6">Update Goal</Button>
+            <Button variant="primary" onClick={handleSaveGoal} className="rounded-xl shadow-md font-bold px-6">Update Goal</Button>
           </div>
         </div>
       </Modal>

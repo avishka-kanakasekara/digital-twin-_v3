@@ -100,6 +100,12 @@ class StreakCalendarDay(BaseModel):
     intensity: int = 0
 
 
+class StreakResponse(BaseModel):
+    streak_days: int = 0
+    longest_streak: int = 0
+    calendar: list[StreakCalendarDay] = []
+
+
 class RewardItemResponse(BaseModel):
     id: str
     name: str

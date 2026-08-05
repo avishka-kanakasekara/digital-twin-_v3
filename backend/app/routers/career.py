@@ -13,6 +13,7 @@ from app.models.skill import Skill
 from app.schemas.career import (
     CareerGoalCreate,
     CareerGoalResponse,
+    CareerRoadmapStepResponse,
     SkillGapResponse,
     MarketTrendResponse,
     CareerRecommendationResponse,
@@ -43,10 +44,38 @@ def get_active_career_goal(employee_id: str, db: Session = Depends(get_db)):
     goal_dict = CareerGoalResponse.model_validate(goal)
     goal_dict.roadmap_steps = [
         {"id": s.id, "step_order": s.step_order, "title": s.title,
-         "status": s.status, "description": s.description}
+         "status": "completed" if s.status == "achieved" else s.status,
+         "description": s.description}
         for s in steps_result.scalars().all()
     ]
     return goal_dict
+
+
+@router.get("/{employee_id}/roadmap", response_model=list[CareerRoadmapStepResponse])
+def get_career_roadmap(employee_id: str, db: Session = Depends(get_db)):
+    """Get roadmap steps for the active career goal."""
+    goal = db.execute(
+        select(CareerGoal)
+        .where(CareerGoal.employee_id == employee_id, CareerGoal.is_active == True)
+    ).scalar_one_or_none()
+    if not goal:
+        return []
+
+    steps = db.execute(
+        select(CareerRoadmapStep)
+        .where(CareerRoadmapStep.career_goal_id == goal.id)
+        .order_by(CareerRoadmapStep.step_order)
+    )
+    return [
+        CareerRoadmapStepResponse(
+            id=s.id,
+            step_order=s.step_order,
+            title=s.title,
+            status="completed" if s.status == "achieved" else s.status,
+            description=s.description,
+        )
+        for s in steps.scalars().all()
+    ]
 
 
 @router.post("/{employee_id}/goal", response_model=CareerGoalResponse, status_code=201)
@@ -170,11 +199,11 @@ def compute_readiness(employee_id: str, db: Session = Depends(get_db)):
 
 @router.get("/market-trends", response_model=list[MarketTrendResponse])
 def get_market_trends():
-    """Get market demand trends for skills. (Placeholder — scraper in Phase 6)."""
+    """Get market demand trends for skills."""
     return [
-        MarketTrendResponse(skill="Kubernetes", demand_change="+14%", trend="rising", category="Platform Eng."),
-        MarketTrendResponse(skill="GenAI Architecture", demand_change="+45%", trend="rising", category="Data / Cloud Eng."),
-        MarketTrendResponse(skill="React & Next.js", demand_change="Stable", trend="stable", category="Frontend"),
+        MarketTrendResponse(skill="Kubernetes", category="Platform Eng.", trend="+14%", color="#059669"),
+        MarketTrendResponse(skill="GenAI Architecture", category="Data / Cloud Eng.", trend="+45%", color="#059669"),
+        MarketTrendResponse(skill="React & Next.js", category="Frontend", trend="Stable", color="#64748b"),
     ]
 
 

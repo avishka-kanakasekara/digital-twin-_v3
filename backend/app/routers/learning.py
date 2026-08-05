@@ -22,6 +22,8 @@ from app.schemas.learning import (
     LearningFeedItem,
     WeeklyScheduleResponse,
     MonthlyHoursResponse,
+    SkillGapsResponse,
+    SkillGapItem,
 )
 
 router = APIRouter(prefix="/api/learning", tags=["Learning"])
@@ -116,10 +118,15 @@ def update_path_progress(
 
 # ─── Skill Gaps ────────────────────────────────────────────────
 
-@router.get("/{employee_id}/skill-gaps")
+@router.get("/{employee_id}/skill-gaps", response_model=SkillGapsResponse)
 def get_skill_gaps(employee_id: str, db: Session = Depends(get_db)):
     """Get skill gaps vs target role."""
     from app.models.skill import Skill
+    from app.models.career import CareerGoal
+
+    goal = db.execute(
+        select(CareerGoal).where(CareerGoal.employee_id == employee_id, CareerGoal.is_active == True)
+    ).scalar_one_or_none()
 
     skills = db.execute(
         select(Skill).where(Skill.employee_id == employee_id, Skill.target_level > 0)
@@ -129,19 +136,21 @@ def get_skill_gaps(employee_id: str, db: Session = Depends(get_db)):
         gap = max(0, skill.target_level - skill.proficiency)
         if gap > 0:
             priority = "Critical" if gap >= 40 else "High" if gap >= 25 else "Medium"
-            gaps.append({
-                "skill": skill.name,
-                "current_level": skill.proficiency,
-                "target_level": skill.target_level,
-                "gap": gap,
-                "priority": priority,
-                "category": skill.category or "General",
-                "color": "#7c3aed" if skill.category == "AI" else "#06b6d4" if skill.category == "Cloud" else "#f59e0b",
-            })
+            gaps.append(SkillGapItem(
+                skill=skill.name,
+                current_level=skill.proficiency,
+                target_level=skill.target_level,
+                gap=gap,
+                priority=priority,
+                category=skill.category or "General",
+                color="#7c3aed" if skill.category == "AI" else "#06b6d4" if skill.category == "Cloud" else "#f59e0b",
+            ))
 
-    # Sort by gap descending
-    gaps.sort(key=lambda x: x["gap"], reverse=True)
-    return gaps
+    gaps.sort(key=lambda x: x.gap, reverse=True)
+    return SkillGapsResponse(
+        target_role=goal.target_role if goal else None,
+        gaps=gaps,
+    )
 
 
 # ─── Certifications ───────────────────────────────────────────

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, TrendingUp, Clock, CheckCircle, PlayCircle, BarChart3, Calendar, Search, Flame, Brain, GraduationCap, Sparkles, ChevronRight, Lock } from 'lucide-react';
-import * as data from '../../dummy/employee/learningHubData';
+import { BookOpen, TrendingUp, Clock, CheckCircle, PlayCircle, BarChart3, Calendar, Search, Flame, Brain, GraduationCap, Sparkles, ChevronRight, Lock, Loader2 } from 'lucide-react';
 import { learningAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -46,31 +45,38 @@ const GlassCard: React.FC<{ children: React.ReactNode; style?: React.CSSProperti
 // ─── Learner Stats Hero ───────────────────────────────────────
 const LearnerHero: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [learnerProfile, setLearnerProfile] = useState(data.learnerProfile);
+  const [learnerProfile, setLearnerProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const profileData = await learningAPI.getProfile(currentEmployee.id);
-        // Transform API data to match mock structure
         setLearnerProfile({
-          ...data.learnerProfile,
-          hoursThisMonth: profileData.hours_this_month || data.learnerProfile.hoursThisMonth,
-          hoursThisYear: profileData.hours_this_year || data.learnerProfile.hoursThisYear,
-          coursesCompleted: profileData.courses_completed || data.learnerProfile.coursesCompleted,
-          coursesInProgress: profileData.courses_in_progress || data.learnerProfile.coursesInProgress,
-          currentStreak: profileData.streak_days || data.learnerProfile.currentStreak,
-          learningScore: profileData.skill_score || data.learnerProfile.learningScore,
+          name: profileData.name || currentEmployee.full_name,
+          hoursThisMonth: profileData.hours_this_month || 0,
+          hoursThisYear: profileData.hours_this_year || 0,
+          coursesCompleted: profileData.courses_completed || 0,
+          coursesInProgress: profileData.courses_in_progress || 0,
+          currentStreak: profileData.current_streak || 0,
+          learningScore: profileData.learning_score || 0,
+          targetRole: profileData.target_role || 'Cloud Architect',
         });
-        console.log('✅ Loaded learner profile from API');
       } catch (error) {
-        console.log('⚠️ API not available, using mock data');
+        console.error('Failed to load learner profile:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
-  }, []);
+  }, [currentEmployee]);
+
+  if (loading || !learnerProfile) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
 
   const pct = Math.round((learnerProfile.coursesCompleted / (learnerProfile.coursesCompleted + learnerProfile.coursesInProgress + 3)) * 100);
   const heroStats = [
@@ -140,32 +146,42 @@ const LearnerHero: React.FC = () => {
 // ─── Learning Paths ───────────────────────────────────────────
 const LearningPaths: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [learningPaths, setLearningPaths] = useState(data.learningPaths);
+  const [learningPaths, setLearningPaths] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const pathsData = await learningAPI.getPaths(currentEmployee.id);
-        // Transform API data to match mock structure
-        const transformedPaths = (pathsData || []).map((path: any) => ({
-          ...path,
+        setLearningPaths((pathsData || []).map((path: any) => ({
+          id: path.id,
+          title: path.title,
+          description: path.description,
+          progress: path.progress,
           recommended: path.is_ai_recommended || false,
           dueDate: path.due_date || 'TBD',
           estimatedHours: path.estimated_hours || 0,
           completedCourses: path.completed_courses || 0,
           totalCourses: path.total_courses || 0,
           color: path.color || '#7c3aed',
-        }));
-        setLearningPaths(transformedPaths);
-        console.log('✅ Loaded learning paths from API');
+          tags: path.tags || [],
+          platform: path.platform,
+        })));
       } catch (error) {
-        console.log('⚠️ Learning paths API not available, using mock data');
+        console.error('Failed to load learning paths:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -186,7 +202,7 @@ const LearningPaths: React.FC = () => {
                 </div>
                 <p style={{ fontSize: '12px', color: '#64748b', lineHeight: 1.5, marginBottom: '10px' }}>{path.description}</p>
                 <div className="flex items-center gap-3 flex-wrap">
-                  {path.tags && Array.isArray(path.tags) && path.tags.slice(0, 3).map(tag => (
+                  {path.tags && Array.isArray(path.tags) && path.tags.slice(0, 3).map((tag: string) => (
                     <span key={tag} style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, background: `${path.color}15`, color: path.color, border: `1px solid ${path.color}28` }}>{tag}</span>
                   ))}
                   <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 600 }}>📅 Due {path.dueDate}</span>
@@ -214,24 +230,39 @@ const LearningPaths: React.FC = () => {
 // ─── Skill Gap Analysis ───────────────────────────────────────
 const SkillGapAnalysis: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [skillGaps, setSkillGaps] = useState(data.skillGaps);
-  const [targetRole, setTargetRole] = useState(data.learnerProfile.targetRole);
+  const [skillGaps, setSkillGaps] = useState<any[]>([]);
+  const [targetRole, setTargetRole] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await learningAPI.getSkillGaps(currentEmployee.id);
-        setSkillGaps(data?.gaps || []);
-        setTargetRole(data?.target_role || data.learnerProfile.targetRole);
-        console.log('✅ Loaded skill gaps from API');
+        setSkillGaps((data?.gaps || []).map((g: any) => ({
+          skill: g.skill,
+          currentLevel: g.current_level,
+          targetLevel: g.target_level,
+          gap: g.gap,
+          priority: g.priority,
+          category: g.category,
+          color: g.color,
+        })));
+        setTargetRole(data?.target_role || 'Cloud Architect');
       } catch (error) {
-        console.log('⚠️ Skill gaps API not available, using mock data');
+        console.error('Failed to load skill gaps:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -267,28 +298,38 @@ const SkillGapAnalysis: React.FC = () => {
 // ─── Certifications ───────────────────────────────────────────
 const Certifications: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [certifications, setCertifications] = useState(data.certifications);
+  const [certifications, setCertifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await learningAPI.getCertifications(currentEmployee.id);
-        // Transform API data to match mock structure
-        const transformedCerts = (data || []).map((cert: any) => ({
-          ...cert,
-          status: cert.status === 'completed' ? 'completed' : cert.status === 'in_progress' ? 'in_progress' : 'planned',
-          examDate: cert.exam_date || cert.due_date,
-        }));
-        setCertifications(transformedCerts);
-        console.log('✅ Loaded certifications from API');
+        setCertifications((data || []).map((cert: any) => ({
+          id: cert.id,
+          name: cert.name,
+          issuer: cert.issuer,
+          status: cert.status,
+          score: cert.score,
+          progress: cert.progress,
+          emoji: cert.emoji,
+          examDate: cert.exam_date,
+        })));
       } catch (error) {
-        console.log('⚠️ Certifications API not available, using mock data');
+        console.error('Failed to load certifications:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -329,22 +370,39 @@ const Certifications: React.FC = () => {
 // ─── AI Learning Feed ─────────────────────────────────────────
 const LearningFeed: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [learningFeed, setLearningFeed] = useState(data.learningFeed);
+  const [learningFeed, setLearningFeed] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const feedData = await learningAPI.getFeed(currentEmployee.id);
-        setLearningFeed(feedData || []);
-        console.log('✅ Loaded learning feed from API');
+        setLearningFeed((feedData || []).map((item: any) => ({
+          id: item.id,
+          type: item.type,
+          title: item.title,
+          source: item.source,
+          readTime: item.read_time,
+          relevance: item.relevance,
+          tags: item.tags || [],
+          color: item.color,
+          published: item.published,
+        })));
       } catch (error) {
-        console.log('⚠️ Learning feed API not available, using mock data');
+        console.error('Failed to load learning feed:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -385,32 +443,41 @@ const LearningFeed: React.FC = () => {
 const CourseLibrary: React.FC = () => {
   const { currentEmployee } = useEmployee();
   const [search, setSearch] = useState('');
-  const [courseLibrary, setCourseLibrary] = useState(data.courseLibrary);
+  const [courseLibrary, setCourseLibrary] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
-        const coursesData = await learningAPI.getCourses();
-        // Transform API data to match mock structure
-        const transformedCourses = (coursesData || []).map((course: any) => ({
-          ...course,
+        const coursesData = await learningAPI.getCourses({ employee_id: currentEmployee.id });
+        setCourseLibrary((coursesData || []).map((course: any) => ({
+          id: course.id,
+          title: course.title,
+          provider: course.provider,
+          hours: course.hours,
+          level: course.level,
+          rating: course.rating,
           status: course.status || 'available',
           progress: course.progress || 0,
-          enrolled: course.enrolled_count || course.enrolled || 0,
           tags: course.tags || [],
           emoji: course.emoji || '📚',
           color: course.color || '#7c3aed',
-        }));
-        setCourseLibrary(transformedCourses);
-        console.log('✅ Loaded course library from API');
+        })));
       } catch (error) {
-        console.log('⚠️ Course library API not available, using mock data');
+        console.error('Failed to load course library:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
 
   const filtered = courseLibrary.filter(c =>
     c.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -478,11 +545,42 @@ const CourseLibrary: React.FC = () => {
 };
 
 // ─── Weekly Schedule ──────────────────────────────────────────
-const WeeklySchedule: React.FC = () => (
+const WeeklySchedule: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      setLoading(true);
+      try {
+        const data = await learningAPI.getSchedule(currentEmployee.id);
+        setSchedule((data || []).map((s: any) => ({
+          day: s.day,
+          topic: s.topic,
+          duration: s.duration,
+          status: s.status,
+        })));
+      } catch (error) {
+        console.error('Failed to load schedule:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
+
+  return (
   <GlassCard style={{ padding: '1.5rem' }}>
     <SectionHeader icon={<Calendar size={14} style={{ color: '#10b981' }} />} title="This Week's Schedule" subtitle="Your personalized learning plan" />
     <div className="space-y-2">
-      {data.weeklySchedule.map((session, i) => (
+      {schedule.map((session, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 14px', borderRadius: '12px', background: session.status === 'completed' ? 'rgba(16,185,129,0.06)' : session.status === 'in_progress' ? 'rgba(245,158,11,0.06)' : 'rgba(255,255,255,0.9)', border: `1px solid ${session.status === 'completed' ? 'rgba(16,185,129,0.2)' : session.status === 'in_progress' ? 'rgba(245,158,11,0.2)' : 'rgba(226, 232, 240, 0.8)'}` }}>
           <div style={{ width: '40px', textAlign: 'center', flexShrink: 0 }}>
             <p style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>{session.day}</p>
@@ -500,15 +598,42 @@ const WeeklySchedule: React.FC = () => (
       ))}
     </div>
   </GlassCard>
-);
+  );
+};
 
 // ─── Hours Chart ──────────────────────────────────────────────
-const HoursChart: React.FC = () => (
+const HoursChart: React.FC = () => {
+  const { currentEmployee } = useEmployee();
+  const [monthlyHours, setMonthlyHours] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!currentEmployee) return;
+
+    const loadFromAPI = async () => {
+      setLoading(true);
+      try {
+        const data = await learningAPI.getHours(currentEmployee.id);
+        setMonthlyHours(data || []);
+      } catch (error) {
+        console.error('Failed to load hours:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFromAPI();
+  }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-violet-500" size={24} /></GlassCard>;
+  }
+
+  return (
   <GlassCard style={{ padding: '1.5rem' }}>
     <SectionHeader icon={<BarChart3 size={14} style={{ color: '#a78bfa' }} />} title="Learning Hours" subtitle="Monthly learning time logged" />
     <div style={{ height: '180px' }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data.monthlyHours} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+        <BarChart data={monthlyHours} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(226, 232, 240, 0.8)" />
           <XAxis dataKey="month" tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
@@ -524,7 +649,8 @@ const HoursChart: React.FC = () => (
       </ResponsiveContainer>
     </div>
   </GlassCard>
-);
+  );
+};
 
 // ─── Main Page ────────────────────────────────────────────────
 type TabId = 'overview' | 'paths' | 'gaps' | 'certs' | 'courses';
