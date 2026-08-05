@@ -110,8 +110,8 @@ export const useDigitalTwin = () => {
             streakDays: gamProfile.streak_days,
             title: gamProfile.title,
             streaks: {
-              learning: gamStreak?.learning_streak || 14,
-              project: gamStreak?.project_streak || 7,
+              learning: gamStreak?.streak_days || 14,
+              project: gamStreak?.longest_streak || 7,
             },
             achievements: gamAchievements.map((ach: any) => ({
               id: ach.id,
