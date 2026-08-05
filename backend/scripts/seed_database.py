@@ -163,6 +163,18 @@ def seed():
                 category=cat, emoji=emoji,
                 created_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago),
             ))
+
+        # Historical XP for chart (last 6 months)
+        monthly_xp = [320, 480, 410, 620, 550, 875]
+        month_names = ["Mar", "Apr", "May", "Jun", "Jul", "Aug"]
+        for i, (month_xp, month_name) in enumerate(zip(monthly_xp, month_names)):
+            days_ago = (5 - i) * 30 + 15
+            db.add(XPTransaction(
+                employee_id=alex.id, amount=month_xp,
+                reason=f"Monthly learning & project XP ({month_name})",
+                category="learning", emoji="📈",
+                created_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+            ))
         print("  ✅ XP transactions created")
 
         # ════════════════════════════════════════════════════════

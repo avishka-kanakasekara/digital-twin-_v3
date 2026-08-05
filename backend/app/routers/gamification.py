@@ -27,11 +27,23 @@ from app.schemas.gamification import (
     AchievementResponse,
     XPTransactionResponse,
     RecentActivityResponse,
+    StreakResponse,
     StreakCalendarDay,
     RewardItemResponse,
 )
 
 router = APIRouter(prefix="/api/gamification", tags=["Gamification"])
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """Normalize DB datetimes (often naive) to UTC-aware."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 # ─── Player Profile ───────────────────────────────────────────
@@ -148,7 +160,7 @@ def get_challenges(employee_id: str, db: Session = Depends(get_db)):
         # Calculate days left
         days_left = 0
         if ch.end_date:
-            delta = ch.end_date - datetime.now(timezone.utc)
+            delta = _as_utc(ch.end_date) - _utc_now()
             days_left = max(0, delta.days)
 
         result.append(ChallengeResponse(
@@ -194,7 +206,7 @@ def update_challenge_progress(
     # Auto-complete and award XP
     if prog.progress >= 100 and not prog.completed:
         prog.completed = True
-        prog.completed_at = datetime.now(timezone.utc)
+        prog.completed_at = _utc_now()
 
         # Get challenge XP reward
         ch_result = db.execute(select(Challenge).where(Challenge.id == challenge_id))
@@ -240,7 +252,7 @@ def get_achievements(employee_id: str, db: Session = Depends(get_db)):
 def get_xp_history(employee_id: str, months: int = 6, db: Session = Depends(get_db)):
     """Get monthly XP aggregation for charts."""
     # Get XP transactions for last N months
-    since = datetime.now(timezone.utc) - timedelta(days=months * 30)
+    since = _utc_now() - timedelta(days=months * 30)
     result = db.execute(
         select(XPTransaction)
         .where(XPTransaction.employee_id == employee_id, XPTransaction.created_at >= since)
@@ -273,7 +285,7 @@ def get_recent_activity(employee_id: str, limit: int = 10, db: Session = Depends
     activities = []
     for tx in transactions:
         # Compute relative time
-        delta = datetime.now(timezone.utc) - tx.created_at
+        delta = _utc_now() - _as_utc(tx.created_at)
         if delta.total_seconds() < 3600:
             time_str = f"{int(delta.total_seconds() / 60)}m ago"
         elif delta.total_seconds() < 86400:
@@ -293,32 +305,38 @@ def get_recent_activity(employee_id: str, limit: int = 10, db: Session = Depends
 
 # ─── Streak Calendar ──────────────────────────────────────────
 
-@router.get("/{employee_id}/streak", response_model=list[StreakCalendarDay])
+@router.get("/{employee_id}/streak", response_model=StreakResponse)
 def get_streak_calendar(employee_id: str, days: int = 42, db: Session = Depends(get_db)):
     """Get activity streak calendar data (last N days)."""
-    since = datetime.now(timezone.utc) - timedelta(days=days)
+    profile = db.execute(
+        select(GamificationProfile).where(GamificationProfile.employee_id == employee_id)
+    ).scalar_one_or_none()
+
+    since = _utc_now() - timedelta(days=days)
     result = db.execute(
         select(XPTransaction)
         .where(XPTransaction.employee_id == employee_id, XPTransaction.created_at >= since)
     )
     transactions = result.scalars().all()
 
-    # Build a map of day → XP earned
     daily_xp: dict[str, int] = {}
     for tx in transactions:
         day_key = tx.created_at.strftime("%Y-%m-%d")
         daily_xp[day_key] = daily_xp.get(day_key, 0) + tx.amount
 
-    # Generate calendar
     calendar = []
     for i in range(days - 1, -1, -1):
-        d = datetime.now(timezone.utc) - timedelta(days=i)
+        d = _utc_now() - timedelta(days=i)
         day_str = d.strftime("%Y-%m-%d")
         xp = daily_xp.get(day_str, 0)
         intensity = 3 if xp >= 200 else 2 if xp >= 100 else 1 if xp > 0 else 0
         calendar.append(StreakCalendarDay(date=day_str, intensity=intensity))
 
-    return calendar
+    return StreakResponse(
+        streak_days=profile.streak_days if profile else 0,
+        longest_streak=profile.longest_streak if profile else 0,
+        calendar=calendar,
+    )
 
 
 # ─── Reward Store ──────────────────────────────────────────────
@@ -397,7 +415,7 @@ def _add_xp(
 
     profile.xp += amount
     profile.total_xp_earned += amount
-    profile.last_activity = datetime.now(timezone.utc)
+    profile.last_activity = _utc_now()
 
     # Level-up check
     while profile.xp >= profile.next_level_xp:

@@ -175,6 +175,30 @@ export const employeeAPI = {
   
   getRecognitions: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/recognitions`),
+  
+  getCertifications: (id: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/certifications`),
+  
+  getAnalytics: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/analytics`),
+  
+  getSkillsGrouped: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/skills-grouped`),
+  
+  getAIReadiness: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/ai-readiness`),
+  
+  getTwinMemory: (id: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/twin-memory`),
+  
+  getCollaboration: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/collaboration`),
+  
+  getProjectPrediction: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/project-prediction`),
+  
+  getAIRecommendations: (id: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/ai-recommendations`),
 };
 
 // ==================== GAMIFICATION ====================
@@ -237,8 +261,14 @@ export const gamificationAPI = {
   getProfile: (employeeId: string) =>
     fetchAPI<GamificationProfile>(`/api/gamification/${employeeId}/profile`),
   
-  getLeaderboard: (params?: { dept?: string; limit?: number }) =>
-    fetchAPI<any[]>(`/api/gamification/leaderboard?${new URLSearchParams(params as any).toString()}`),
+  getLeaderboard: (params?: { department?: string; limit?: number; current_employee_id?: string }) =>
+    fetchAPI<any[]>(
+      `/api/gamification/leaderboard?${new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+        )
+      ).toString()}`
+    ),
   
   getChallenges: (employeeId: string) =>
     fetchAPI<{ challenges: Challenge[]; progress: ChallengeProgress[] }>(`/api/gamification/${employeeId}/challenges`),
@@ -349,8 +379,14 @@ export const learningAPI = {
   getFeed: (employeeId: string) =>
     fetchAPI<any[]>(`/api/learning/${employeeId}/feed`),
   
-  getCourses: (params?: { search?: string; category?: string; level?: string }) =>
-    fetchAPI<Course[]>(`/api/learning/courses?${new URLSearchParams(params as any).toString()}`),
+  getCourses: (params?: { search?: string; level?: string; employee_id?: string }) =>
+    fetchAPI<Course[]>(
+      `/api/learning/courses?${new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+        )
+      ).toString()}`
+    ),
   
   enrollCourse: (employeeId: string, courseId: string) =>
     fetchAPI<any>(`/api/learning/${employeeId}/courses/${courseId}/enroll`, {

@@ -49,9 +49,9 @@ class SkillGapResponse(BaseModel):
 
 class MarketTrendResponse(BaseModel):
     skill: str
-    demand_change: str
-    trend: str = "stable"
     category: str | None = None
+    trend: str  # display string e.g. "+14%" or "Stable"
+    color: str = "#64748b"
 
 
 class CareerRecommendationResponse(BaseModel):

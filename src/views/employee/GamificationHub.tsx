@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, BarChart3 } from 'lucide-react';
-import * as data from '../../dummy/employee/gamificationHubData';
+import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, BarChart3, Loader2 } from 'lucide-react';
 import { gamificationAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -40,34 +39,39 @@ const GlassCard: React.FC<{ children: React.ReactNode; style?: React.CSSProperti
 // ─── XP Hero Banner ───────────────────────────────────────────
 const XPProgressBar: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [profile, setProfile] = useState(data.playerProfile);
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const gamData = await gamificationAPI.getProfile(currentEmployee.id);
-        // Transform API data to match mock structure
         setProfile({
-          ...data.playerProfile,
           level: gamData.level,
           xp: gamData.xp,
           nextLevelXp: gamData.next_level_xp,
           totalXpEarned: gamData.total_xp_earned,
-          companyRank: gamData.company_rank || data.playerProfile.companyRank,
-          departmentRank: gamData.department_rank || data.playerProfile.departmentRank,
+          companyRank: gamData.company_rank,
+          departmentRank: gamData.department_rank,
           streakDays: gamData.streak_days,
           title: gamData.title,
           name: currentEmployee.full_name,
         });
-        console.log('✅ Loaded gamification data from API');
       } catch (error) {
-        console.log('⚠️ API not available, using mock data');
+        console.error('Failed to load gamification profile:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading || !profile) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   const pct = (profile.xp / profile.nextLevelXp) * 100;
   const quickStats = [
@@ -130,22 +134,42 @@ const XPProgressBar: React.FC = () => {
 // ─── Leaderboard ──────────────────────────────────────────────
 const Leaderboard: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [leaderboard, setLeaderboard] = useState(data.leaderboard);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
-        const data = await gamificationAPI.getLeaderboard();
-        setLeaderboard(data);
-        console.log('✅ Loaded leaderboard from API');
+        const rows = await gamificationAPI.getLeaderboard({
+          limit: 10,
+          current_employee_id: currentEmployee.id,
+        });
+        setLeaderboard(rows.map((p: any) => ({
+          rank: p.rank,
+          name: p.name,
+          initials: p.initials,
+          level: p.level,
+          xp: p.xp,
+          department: p.department,
+          badge: p.badge,
+          trend: p.trend,
+          isMe: p.is_me,
+        })));
       } catch (error) {
-        console.log('⚠️ Leaderboard API not available, using mock data');
+        console.error('Failed to load leaderboard:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -185,32 +209,42 @@ const Leaderboard: React.FC = () => {
 // ─── Challenges ───────────────────────────────────────────────
 const Challenges: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [challenges, setChallenges] = useState(data.challenges);
+  const [challenges, setChallenges] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await gamificationAPI.getChallenges(currentEmployee.id);
-        // Transform API data to match mock structure
         const challengesData = Array.isArray(data) ? data : (data?.challenges || []);
-        const transformedChallenges = challengesData.map((ch: any) => ({
-          ...ch,
-          xpReward: ch.xp_reward || ch.xpReward || 0,
-          bonusBadge: ch.bonus_badge || ch.bonusBadge || '🏆',
-          deadline: ch.deadline || ch.due_date || 'TBD',
-          daysLeft: ch.days_left || ch.daysLeft || 0,
+        setChallenges(challengesData.map((ch: any) => ({
+          id: ch.id,
+          title: ch.title,
+          description: ch.description,
+          difficulty: ch.difficulty,
+          type: ch.type,
+          color: ch.color,
+          xpReward: ch.xp_reward || 0,
+          bonusBadge: ch.bonus_badge || '🏆',
+          daysLeft: ch.days_left || 0,
           participants: ch.participants || 0,
-        }));
-        setChallenges(transformedChallenges);
-        console.log('✅ Loaded challenges from API');
+          progress: ch.progress || 0,
+        })));
       } catch (error) {
-        console.log('⚠️ Challenges API not available, using mock data');
+        console.error('Failed to load challenges:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -251,31 +285,37 @@ const Challenges: React.FC = () => {
 // ─── Achievement Gallery ──────────────────────────────────────
 const AchievementGallery: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [achievements, setAchievements] = useState(data.achievements);
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await gamificationAPI.getAchievements(currentEmployee.id);
-        // Transform API data to match mock structure
-        const transformedAchievements = (data || []).map((ach: any) => ({
-          ...ach,
-          unlocked: ach.unlocked || !!ach.unlocked_at,
-          xpValue: ach.xp_value || ach.xpValue || 0,
-          unlockedDate: ach.unlocked_date || ach.unlockedDate || (ach.unlocked_at ? new Date(ach.unlocked_at).toISOString() : null),
-          rarity: ach.rarity || 'Common',
+        setAchievements((data || []).map((ach: any) => ({
+          id: ach.id,
+          name: ach.name,
           emoji: ach.emoji || '🏆',
-        }));
-        setAchievements(transformedAchievements);
-        console.log('✅ Loaded achievements from API');
+          rarity: ach.rarity || 'Common',
+          unlocked: ach.unlocked || !!ach.unlocked_at,
+          unlockedDate: ach.unlocked_date,
+          xpValue: ach.xp_value || 0,
+        })));
       } catch (error) {
-        console.log('⚠️ Achievements API not available, using mock data');
+        console.error('Failed to load achievements:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -303,22 +343,29 @@ const AchievementGallery: React.FC = () => {
 // ─── XP Chart ─────────────────────────────────────────────────
 const XPChart: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [xpHistory, setXpHistory] = useState(data.xpHistory);
+  const [xpHistory, setXpHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await gamificationAPI.getXPHistory(currentEmployee.id);
         setXpHistory(data || []);
-        console.log('✅ Loaded XP history from API');
       } catch (error) {
-        console.log('⚠️ XP history API not available, using mock data');
+        console.error('Failed to load XP history:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -347,26 +394,33 @@ const XPChart: React.FC = () => {
 // ─── Streak Calendar ──────────────────────────────────────────
 const StreakCalendar: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [streakData, setStreakData] = useState({ streakDays: data.playerProfile.streakDays, longestStreak: data.playerProfile.longestStreak, streakCalendar: data.streakCalendar });
+  const [streakData, setStreakData] = useState({ streakDays: 0, longestStreak: 0, streakCalendar: [] as any[] });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await gamificationAPI.getStreak(currentEmployee.id);
         setStreakData({
-          streakDays: data?.learning_streak || data?.streak_days || 14,
-          longestStreak: data?.longest_streak || 21,
-          streakCalendar: data?.calendar || data.streakCalendar,
+          streakDays: data.streak_days || 0,
+          longestStreak: data.longest_streak || 0,
+          streakCalendar: data.calendar || [],
         });
-        console.log('✅ Loaded streak data from API');
       } catch (error) {
-        console.log('⚠️ Streak API not available, using mock data');
+        console.error('Failed to load streak data:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   const HEAT_COLORS = ['rgba(248, 250, 252, 0.8)', 'rgba(16,185,129,0.25)', 'rgba(16,185,129,0.55)', 'rgba(16,185,129,0.9)'];
   return (
@@ -389,22 +443,29 @@ const StreakCalendar: React.FC = () => {
 // ─── Recent Activity Feed ─────────────────────────────────────
 const RecentActivity: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [activity, setActivity] = useState(data.recentActivity);
+  const [activity, setActivity] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
         const data = await gamificationAPI.getActivity(currentEmployee.id);
         setActivity(data || []);
-        console.log('✅ Loaded activity from API');
       } catch (error) {
-        console.log('⚠️ Activity API not available, using mock data');
+        console.error('Failed to load activity:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>
@@ -429,25 +490,34 @@ const RecentActivity: React.FC = () => {
 const RewardStore: React.FC = () => {
   const { currentEmployee } = useEmployee();
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
-  const [rewards, setRewards] = useState(data.rewardStore);
-  const [playerXP, setPlayerXP] = useState(data.playerProfile.xp);
+  const [rewards, setRewards] = useState<any[]>([]);
+  const [playerXP, setPlayerXP] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!currentEmployee) return;
 
     const loadFromAPI = async () => {
+      setLoading(true);
       try {
-        const data = await gamificationAPI.getRewards();
-        setRewards(data || []);
-        const profile = await gamificationAPI.getProfile(currentEmployee.id);
+        const [rewardsData, profile] = await Promise.all([
+          gamificationAPI.getRewards(),
+          gamificationAPI.getProfile(currentEmployee.id),
+        ]);
+        setRewards(rewardsData || []);
         setPlayerXP(profile.xp);
-        console.log('✅ Loaded rewards from API');
       } catch (error) {
-        console.log('⚠️ Rewards API not available, using mock data');
+        console.error('Failed to load rewards:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadFromAPI();
   }, [currentEmployee]);
+
+  if (loading) {
+    return <GlassCard style={{ padding: '1.5rem', display: 'flex', justifyContent: 'center' }}><Loader2 className="animate-spin text-amber-500" size={24} /></GlassCard>;
+  }
 
   return (
     <GlassCard style={{ padding: '1.5rem' }}>

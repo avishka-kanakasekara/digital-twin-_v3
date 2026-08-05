@@ -41,7 +41,7 @@ def list_employees(
     count_query = select(func.count()).select_from(query.subquery())
     total = db.execute(count_query).scalar_one()
 
-    result = db.execute(query.offset(skip).limit(limit).order_by(Employee.full_name))
+    result = db.execute(query.order_by(Employee.full_name).offset(skip).limit(limit))
     employees = result.scalars().all()
 
     return EmployeeListResponse(employees=employees, total=total)
@@ -250,6 +250,167 @@ def get_recognitions(employee_id: str, db: Session = Depends(get_db)):
             .order_by(Recognition.date.desc())
     )
     return result.scalars().all()
+
+
+# ─── Certifications ──────────────────────────────────────────
+
+@router.get("/{employee_id}/certifications")
+def get_certifications(employee_id: str, db: Session = Depends(get_db)):
+    """Get certifications for an employee."""
+    from app.models.learning import Certification
+    result = db.execute(
+        select(Certification).where(Certification.employee_id == employee_id)
+            .order_by(Certification.status, Certification.name)
+    )
+    return result.scalars().all()
+
+
+# ─── Personal Analytics ────────────────────────────────────────
+
+@router.get("/{employee_id}/analytics")
+def get_personal_analytics(employee_id: str, db: Session = Depends(get_db)):
+    """Get personal analytics data (productivity and skill growth trends)."""
+    # TODO: Compute from actual activity data in Phase 6
+    # For now, return mock data matching the frontend structure
+    return {
+        "productivity": [
+            {"day": "Mon", "score": 85},
+            {"day": "Tue", "score": 92},
+            {"day": "Wed", "score": 78},
+            {"day": "Thu", "score": 95},
+            {"day": "Fri", "score": 88},
+        ],
+        "skillGrowth": [
+            {"month": "Jan", "ai": 40, "cloud": 85, "leadership": 60},
+            {"month": "Feb", "ai": 45, "cloud": 88, "leadership": 65},
+            {"month": "Mar", "ai": 60, "cloud": 90, "leadership": 70},
+            {"month": "Apr", "ai": 78, "cloud": 95, "leadership": 80},
+        ],
+    }
+
+
+# ─── Skills Data (Grouped by Category) ───────────────────────
+
+@router.get("/{employee_id}/skills-grouped")
+def get_skills_grouped(employee_id: str, db: Session = Depends(get_db)):
+    """Get skills grouped by category for the dashboard."""
+    skills = db.execute(
+        select(Skill).where(Skill.employee_id == employee_id).order_by(Skill.category, Skill.name)
+    )
+    all_skills = skills.scalars().all()
+    
+    # Group by category
+    grouped = {}
+    for skill in all_skills:
+        if skill.category not in grouped:
+            grouped[skill.category] = []
+        grouped[skill.category].append({
+            "id": skill.id,
+            "name": skill.name,
+            "category": skill.category,
+            "sub_category": skill.sub_category,
+            "experience": skill.years_experience or 0,
+            "proficiency": skill.proficiency,
+            "aiConfidence": skill.ai_confidence or 0,
+            "verified": skill.verified,
+            "source": skill.source,
+            "lastUpdated": skill.last_updated.strftime("%Y-%m-%d") if skill.last_updated else "Unknown",
+        })
+    
+    return grouped
+
+
+# ─── AI Readiness ─────────────────────────────────────────────
+
+@router.get("/{employee_id}/ai-readiness")
+def get_ai_readiness(employee_id: str, db: Session = Depends(get_db)):
+    """Get AI readiness score and breakdown."""
+    # TODO: Compute from actual AI usage data in Phase 6
+    return {
+        "overallScore": 78,
+        "breakdown": [
+            {"category": "AI Literacy", "score": 85},
+            {"category": "Prompt Engineering", "score": 65},
+            {"category": "LLM Usage", "score": 90},
+            {"category": "Copilot Usage", "score": 95},
+            {"category": "Automation Skills", "score": 80},
+            {"category": "AI Ethics", "score": 70},
+            {"category": "Responsible AI", "score": 75},
+            {"category": "Generative AI", "score": 60},
+        ],
+        "recommendation": {
+            "message": "Your prompt engineering score is moderate.",
+            "action": "Complete Prompt Engineering Level 2.",
+            "impact": "+12 points"
+        }
+    }
+
+
+# ─── Twin Memory ───────────────────────────────────────────────
+
+@router.get("/{employee_id}/twin-memory")
+def get_twin_memory(employee_id: str, db: Session = Depends(get_db)):
+    """Get twin memory events."""
+    # TODO: Compute from actual activity logs in Phase 6
+    return [
+        {"date": "Today", "event": "AI Reprocessed Knowledge from GitHub (3 new repos)"},
+        {"date": "Yesterday", "event": "Project Added: AI Talent Marketplace"},
+        {"date": "Last Week", "event": "New Skill Extracted: Prompt Engineering (Level 2)"},
+        {"date": "2 Weeks Ago", "event": "Uploaded Knowledge: Alex_Carter_CV_2026.pdf"},
+        {"date": "1 Month Ago", "event": "Certificate Verified: AWS Solutions Architect"},
+    ]
+
+
+# ─── Collaboration Intelligence ───────────────────────────────
+
+@router.get("/{employee_id}/collaboration")
+def get_collaboration_intel(employee_id: str, db: Session = Depends(get_db)):
+    """Get collaboration intelligence data."""
+    # TODO: Compute from actual collaboration data in Phase 6
+    return {
+        "stats": {
+            "availability": "Available (Capacity: 15h/week)",
+            "bestCommunication": "Slack (Async)",
+            "reputation": "Top 5% in Cloud Architecture",
+            "knowledgeConfidence": 94
+        },
+        "questions": [
+            "Can this employee help with Kubernetes?",
+            "Has this employee worked on HR Tech domain?",
+            "Who should contact this employee for mentorship?"
+        ]
+    }
+
+
+# ─── Project Prediction ─────────────────────────────────────────
+
+@router.get("/{employee_id}/project-prediction")
+def get_project_prediction(employee_id: str, db: Session = Depends(get_db)):
+    """Get project prediction data."""
+    # TODO: Compute using ML model in Phase 6
+    return {
+        "hypotheticalProject": "Generative AI Knowledge Base for Sales",
+        "successProbability": 88,
+        "skillMatch": 92,
+        "domainMatch": 60,
+        "leadershipMatch": 85,
+        "riskLevel": "Low",
+        "learningCurve": "Medium (Domain context needed)",
+        "expectedContribution": "High (Architecture & AI Integration)"
+    }
+
+
+# ─── AI Recommendations ────────────────────────────────────────
+
+@router.get("/{employee_id}/ai-recommendations")
+def get_ai_recommendations(employee_id: str, db: Session = Depends(get_db)):
+    """Get AI-powered recommendations."""
+    # TODO: Generate using AI model in Phase 6
+    return [
+        {"id": "r1", "text": "Complete Azure AI certification to boost Domain Match for upcoming projects.", "type": "Certification"},
+        {"id": "r2", "text": "Mentor 2 junior engineers in Kubernetes.", "type": "Leadership"},
+        {"id": "r3", "text": "Contribute to the 'Internal Identity Platform' repository to increase knowledge freshness.", "type": "Project"},
+    ]
 
 
 # ─── Helpers ──────────────────────────────────────────────────

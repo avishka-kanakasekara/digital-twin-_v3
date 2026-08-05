@@ -5,13 +5,17 @@ Supports both PostgreSQL (production) and SQLite (local dev without Docker).
 
 from pydantic_settings import BaseSettings
 from typing import List
-import os
+from pathlib import Path
+
+# Always resolve DB path relative to backend/ folder, not shell cwd
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_DEFAULT_DB = _BACKEND_DIR / "digitaltwin.db"
 
 
 class Settings(BaseSettings):
-    # Database — defaults to SQLite for zero-setup local dev
-    DATABASE_URL: str = "sqlite+aiosqlite:///./digitaltwin.db"
-    DATABASE_URL_SYNC: str = "sqlite:///./digitaltwin.db"
+    # Database — always uses backend/digitaltwin.db regardless of cwd
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{_DEFAULT_DB}"
+    DATABASE_URL_SYNC: str = f"sqlite:///{_DEFAULT_DB}"
 
     # Redis (optional — gracefully degrades without it)
     REDIS_URL: str = "redis://localhost:6379/0"
