@@ -5,7 +5,7 @@ Organization models for the Digital Twin platform.
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Float, DateTime
+from sqlalchemy import String, Integer, Float, DateTime, Boolean, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -68,3 +68,90 @@ class OrganizationScenario(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+
+class OrgInnovationIdea(Base):
+    __tablename__ = "org_innovation_ideas"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title: Mapped[str] = mapped_column(String(255))
+    author_initials: Mapped[str] = mapped_column(String(10))
+    author_bg: Mapped[str] = mapped_column(String(50))
+    description: Mapped[str] = mapped_column(String(1000))
+    full_description: Mapped[str] = mapped_column(String(5000))
+    roi: Mapped[str] = mapped_column(String(100))
+    timeline: Mapped[str] = mapped_column(String(100))
+    budget: Mapped[str] = mapped_column(String(100))
+    risks: Mapped[str] = mapped_column(String(2000))
+    team_required: Mapped[str] = mapped_column(String(2000))
+    impact_score: Mapped[int] = mapped_column(Integer)
+    feasibility: Mapped[str] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(50))
+    patent_pending: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class OrgInnovationCommunity(Base):
+    __tablename__ = "org_innovation_communities"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255))
+    members: Mapped[int] = mapped_column(Integer)
+    joined: Mapped[bool] = mapped_column(Boolean, default=False)
+    icon: Mapped[str] = mapped_column(String(50))
+    bg_class: Mapped[str] = mapped_column(String(50))
+
+class OrgAtRiskEmployee(Base):
+    __tablename__ = "org_at_risk_employees"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    employee_id: Mapped[str] = mapped_column(String(36), ForeignKey("employees.id"))
+    risk_level: Mapped[str] = mapped_column(String(50))
+    risk_score: Mapped[float] = mapped_column(Float)
+    primary_factor: Mapped[str] = mapped_column(String(255))
+    burnout_probability: Mapped[float] = mapped_column(Float)
+    compensation_satisfaction: Mapped[float] = mapped_column(Float)
+    career_stagnation_score: Mapped[float] = mapped_column(Float)
+    last_1_on_1: Mapped[str] = mapped_column(String(100))
+    ai_retention_suggestion: Mapped[str] = mapped_column(String(2000))
+
+class OrgTalentGig(Base):
+    __tablename__ = "org_talent_gigs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    role_title: Mapped[str] = mapped_column(String(255))
+    department: Mapped[str] = mapped_column(String(100))
+    required_skills: Mapped[dict] = mapped_column(JSON)
+    matched_employees: Mapped[dict] = mapped_column(JSON)
+    urgency: Mapped[str] = mapped_column(String(50))
+
+class OrgTalentMentor(Base):
+    __tablename__ = "org_talent_mentors"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(String(1000))
+    match_score: Mapped[int] = mapped_column(Integer)
+    initials: Mapped[str] = mapped_column(String(10))
+    icon_bg: Mapped[str] = mapped_column(String(50))
+
+class OrgTeamBuilderOption(Base):
+    __tablename__ = "org_team_builder_options"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(255))
+    success_rate: Mapped[int] = mapped_column(Integer)
+    compatibility_score: Mapped[int] = mapped_column(Integer)
+    skill_balance: Mapped[int] = mapped_column(Integer)
+    performance_prediction: Mapped[int] = mapped_column(Integer)
+    rationale: Mapped[str] = mapped_column(String(2000))
+    members: Mapped[dict] = mapped_column(JSON)
+
+class OrgOKR(Base):
+    __tablename__ = "org_okrs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title: Mapped[str] = mapped_column(String(255))
+    owner: Mapped[str] = mapped_column(String(100))
+    progress: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(50))
+    initiatives: Mapped[dict] = mapped_column(JSON)
