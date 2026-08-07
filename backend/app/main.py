@@ -21,12 +21,12 @@ async def lifespan(app: FastAPI):
     try:
         sb = get_supabase_admin()
         sb.table("employees").select("id").limit(1).execute()
-        print("✅ Supabase connection verified")
+        print("[SUCCESS] Supabase connection verified")
     except Exception as e:
-        print(f"⚠️  Supabase connection warning: {e}")
-    print("✅ Digital Twin v3 API starting up")
+        print(f"[WARNING] Supabase connection warning: {e}")
+    print("[SUCCESS] Digital Twin v3 API starting up")
     yield
-    print("🛑 Shutting down Digital Twin v3 API")
+    print("[STOP] Shutting down Digital Twin v3 API")
 
 
 app = FastAPI(
