@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.database import init_db
+from app.database import get_supabase_admin
 
 # Import all routers
 from app.routers import auth, employees, gamification, learning, career, organization
@@ -17,14 +17,15 @@ from app.routers import auth, employees, gamification, learning, career, organiz
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
-    # Startup: create tables if they don't exist (dev only)
-    # Disabled - using Alembic migrations instead
-    # if settings.DEBUG:
-    #     await init_db()
-    #     print("✅ Database tables created / verified")
+    # Verify Supabase connection on startup
+    try:
+        sb = get_supabase_admin()
+        sb.table("employees").select("id").limit(1).execute()
+        print("✅ Supabase connection verified")
+    except Exception as e:
+        print(f"⚠️  Supabase connection warning: {e}")
     print("✅ Digital Twin v3 API starting up")
     yield
-    # Shutdown: cleanup if needed
     print("🛑 Shutting down Digital Twin v3 API")
 
 
@@ -61,10 +62,11 @@ async def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
+        "database": "Supabase",
         "docs": "/docs",
     }
 
 
 @app.get("/health", tags=["Health"])
 async def health():
-    return {"status": "healthy"}
+    return {"status": "healthy", "database": "Supabase"}

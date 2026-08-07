@@ -39,8 +39,11 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         }
         
-        // Default to first employee if no saved selection
-        if (data.employees.length > 0) {
+        // Default to Alex Carter (primary seeded demo user) or first employee
+        const demoUser = data.employees.find(e => e.email === 'alex.carter@company.com');
+        if (demoUser) {
+          setCurrentEmployee(demoUser);
+        } else if (data.employees.length > 0) {
           setCurrentEmployee(data.employees[0]);
         }
       } catch (error) {
