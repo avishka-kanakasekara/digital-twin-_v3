@@ -458,10 +458,128 @@ export const careerAPI = {
     }),
 };
 
+// ==================== ORGANIZATION ====================
+
+export interface OrganizationMetric {
+  id: string;
+  month: string;
+  date: string;
+  total_headcount: number;
+  voluntary_attrition_rate: number;
+  involuntary_attrition_rate: number;
+  new_hires: number;
+  open_positions: number;
+  enps: number;
+  training_hours_per_employee: number;
+  absenteeism_rate: number;
+  revenue: number;
+  operating_cost: number;
+  ebitda: number;
+  net_profit: number;
+  marketing_spend: number;
+  rd_spend: number;
+  overall_productivity_score: number;
+  csat: number;
+  nps: number;
+  market_share_percentage: number;
+  project_completion_rate: number;
+  carbon_footprint_tons: number;
+  energy_consumption_kwh: number;
+  compliance_score: number;
+  security_incidents: number;
+  anomaly_flag: string;
+  created_at: string;
+}
+
+export interface OrganizationScenario {
+  id: string;
+  scenario_name: string;
+  target_metric: string;
+  confidence_level: number;
+  predicted_impact_percentage: number;
+  predicted_roi: number;
+  time_to_impact_months: number;
+  ai_recommendation: string;
+  created_at: string;
+}
+
+export interface InnovationIdea {
+  id: string;
+  title: string;
+  author_initials: string;
+  author_bg: string;
+  description: string;
+  full_description: string;
+  roi: string;
+  timeline: string;
+  budget: string;
+  risks: string;
+  team_required: string;
+  impact_score: number;
+  feasibility: string;
+  status: string;
+  patent_pending: boolean;
+  created_at: string;
+}
+
+export interface InnovationCommunity {
+  id: string;
+  name: string;
+  members: number;
+  joined: boolean;
+  icon: string;
+  bg_class: string;
+}
+
+export interface RiskProfile {
+  id: string;
+  employee_id: string;
+  risk_level: string; // 'High', 'Medium', 'Low'
+  risk_score: number;
+  primary_factor: string;
+  burnout_probability: number;
+  compensation_satisfaction: number;
+  career_stagnation_score: number;
+  last_1_on_1: string;
+  ai_retention_suggestion: string;
+}
+
+export interface TalentMatch {
+  id: string;
+  role_title: string;
+  department: string;
+  required_skills: string[];
+  matched_employees: {
+    employee_id: string;
+    match_score: number;
+    skill_gap: string[];
+  }[];
+  urgency: string; // 'High', 'Normal'
+}
+
+export const organizationAPI = {
+  getHistory: (params?: { limit?: number }) =>
+    fetchAPI<OrganizationMetric[]>(`/api/organization/history?${new URLSearchParams(params as any || {}).toString()}`),
+    
+  getScenarios: (params?: { limit?: number }) =>
+    fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios?${new URLSearchParams(params as any || {}).toString()}`),
+    
+  // Innovation Hub Endpoints
+  getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/ideas'),
+  submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/ideas', { method: 'POST', body: JSON.stringify(data) }),
+  approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/ideas/${id}/approve`, { method: 'POST' }),
+  getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/communities'),
+  
+  // Risk & Talent Endpoints
+  getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/risks'),
+  getTalentMatches: () => fetchAPI<TalentMatch[]>('/api/organization/talent-matches'),
+};
+
 export default {
   auth: authAPI,
   employee: employeeAPI,
   gamification: gamificationAPI,
   learning: learningAPI,
   career: careerAPI,
+  organization: organizationAPI,
 };

@@ -1,7 +1,9 @@
+from __future__ import annotations
 """
 Gamification schemas — profiles, leaderboard, challenges, achievements, XP.
 """
 
+from typing import Optional
 from pydantic import BaseModel
 
 from datetime import datetime
@@ -15,8 +17,8 @@ class GamificationProfileResponse(BaseModel):
     xp: int = 0
     next_level_xp: int = 1000
     total_xp_earned: int = 0
-    company_rank: int | None = None
-    department_rank: int | None = None
+    company_rank: Optional[int] = None
+    department_rank: Optional[int] = None
     total_players: int = 0
     department_players: int = 0
     streak_days: int = 0
@@ -43,13 +45,13 @@ class LeaderboardEntry(BaseModel):
 class ChallengeResponse(BaseModel):
     id: str
     title: str
-    description: str | None = None
+    description: Optional[str] = None
     xp_reward: int = 0
-    bonus_badge: str | None = None
-    difficulty: str | None = None
-    type: str | None = None
-    category: str | None = None
-    color: str | None = None
+    bonus_badge: Optional[str] = None
+    difficulty: Optional[str] = None
+    type: Optional[str] = None
+    category: Optional[str] = None
+    color: Optional[str] = None
     days_left: int = 0
     progress: int = 0
     participants: int = 0
@@ -65,12 +67,12 @@ class ChallengeProgressUpdate(BaseModel):
 class AchievementResponse(BaseModel):
     id: str
     name: str
-    description: str | None = None
-    emoji: str | None = None
+    description: Optional[str] = None
+    emoji: Optional[str] = None
     xp_value: int = 0
-    rarity: str | None = None
+    rarity: Optional[str] = None
     unlocked: bool = False
-    unlocked_date: str | None = None
+    unlocked_date: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -78,9 +80,9 @@ class AchievementResponse(BaseModel):
 class XPTransactionResponse(BaseModel):
     id: str
     amount: int
-    reason: str | None = None
-    category: str | None = None
-    emoji: str | None = None
+    reason: Optional[str] = None
+    category: Optional[str] = None
+    emoji: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -109,10 +111,10 @@ class StreakResponse(BaseModel):
 class RewardItemResponse(BaseModel):
     id: str
     name: str
-    description: str | None = None
+    description: Optional[str] = None
     cost: int
-    emoji: str | None = None
-    category: str | None = None
+    emoji: Optional[str] = None
+    category: Optional[str] = None
     available: bool = True
 
     model_config = {"from_attributes": True}

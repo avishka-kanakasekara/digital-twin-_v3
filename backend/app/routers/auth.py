@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Auth router — register, login, me.
 Uses Supabase as the database backend.

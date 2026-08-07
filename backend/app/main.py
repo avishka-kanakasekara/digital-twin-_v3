@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Digital Twin v3 — FastAPI Application Entry Point
 """
@@ -10,7 +11,7 @@ from app.config import settings
 from app.database import get_supabase_admin
 
 # Import all routers
-from app.routers import auth, employees, gamification, learning, career
+from app.routers import auth, employees, gamification, learning, career, organization
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ app.include_router(employees.router)
 app.include_router(gamification.router)
 app.include_router(learning.router)
 app.include_router(career.router)
+app.include_router(organization.router)
 
 
 @app.get("/", tags=["Health"])

@@ -10,13 +10,12 @@ export const OrgSimulator: React.FC = () => {
   const [trainingBudget, setTrainingBudget] = useState(0);
   const [restructuringLevel, setRestructuringLevel] = useState(0);
   const [selectedScenario, setSelectedScenario] = useState<any | null>(null);
-
   const [simulationData, setSimulationData] = useState<any[] | null>(null);
   const [snapshotData, setSnapshotData] = useState<any[] | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
-
-  const { metrics, loading: loadingMetrics } = useOrganizationMetrics();
-  const { scenarios, loading: loadingScenarios } = useOrganizationScenarios();
+  
+  const { metrics } = useOrganizationMetrics();
+  const { scenarios } = useOrganizationScenarios();
 
   // Use fetched scenarios or fallback
   const simData = scenarios || [];
@@ -26,12 +25,20 @@ export const OrgSimulator: React.FC = () => {
   const baseProductivity = latestMonth?.overallProductivityScore || 90;
   const baseHealth = (latestMonth?.enps || 50) + 40; // Approx mapping to 0-100
   const baseCapacity = 100;
+<<<<<<< HEAD
   const baseAttrition = parseFloat(latestMonth?.voluntaryAttritionRate || '2') * 4;
+=======
+  const baseAttrition = parseFloat(latestMonth?.voluntaryAttritionRate || '2') * 4; 
+>>>>>>> dev_imasha
   const baseCsat = parseFloat(latestMonth?.csat || '85');
   const baseRevenue = parseFloat(latestMonth?.revenue || '15000000') / 1000000; // In Millions
 
   const generateData = (params: any, isSnapshot: boolean = false) => {
+<<<<<<< HEAD
     return Array.from({ length: 6 }, (_, i) => {
+=======
+    return Array.from({length: 6}, (_, i) => {
+>>>>>>> dev_imasha
       const monthMultiplier = (i + 1) * 0.2;
 
       const prodEffect = params.headcountChange * 0.5 + (params.remoteDays - 2) * 1.5 + params.trainingBudget * 1.2 - params.restructuringLevel * 2;
@@ -69,22 +76,36 @@ export const OrgSimulator: React.FC = () => {
     setSelectedScenario(scenario);
     // Parse the scenario to map to sliders (dummy mapping for effect)
     const name = scenario.scenarioName.toLowerCase();
+<<<<<<< HEAD
 
     let hc = 0, sc = 0, rd = 2, tb = 0, rl = 0;
 
+=======
+    
+    let hc = 0, sc = 0, rd = 2, tb = 0, rl = 0;
+    
+>>>>>>> dev_imasha
     if (name.includes('headcount')) hc = name.includes('reduce') ? -5 : 5;
     if (name.includes('salary')) sc = 5;
     if (name.includes('4-day')) rd = 4;
     if (name.includes('office')) rd = 1;
     if (name.includes('r&d') || name.includes('training')) tb = 20;
     if (name.includes('outsource') || name.includes('hub')) rl = 8;
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> dev_imasha
     setHeadcountChange(hc);
     setSalaryChange(sc);
     setRemoteDays(rd);
     setTrainingBudget(tb);
     setRestructuringLevel(rl);
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> dev_imasha
     // Auto-run simulation
     setIsSimulating(true);
     setTimeout(() => {
@@ -137,7 +158,11 @@ export const OrgSimulator: React.FC = () => {
       </div>
 
       <div className="flex gap-6 items-start relative z-10">
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> dev_imasha
         {/* Left Panel: Scenario Library */}
         <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden" style={{ width: '280px', backgroundColor: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(24px)', borderRadius: '32px' }}>
           <div className="flex items-center gap-3 px-6 py-6 shrink-0" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
@@ -151,8 +176,13 @@ export const OrgSimulator: React.FC = () => {
           </div>
           <div className="flex flex-col gap-3 p-4">
             {scenarioLibrary.map((scen: any) => (
+<<<<<<< HEAD
               <div
                 key={scen.id}
+=======
+              <div 
+                key={scen.id} 
+>>>>>>> dev_imasha
                 onClick={() => handleApplyScenario(scen)}
                 className={`p-4 rounded-2xl cursor-pointer transition-all border ${selectedScenario?.id === scen.id ? 'border-blue-400 shadow-md scale-[1.02]' : 'border-slate-200 hover:border-blue-300 hover:shadow-sm'}`}
                 style={{ backgroundColor: selectedScenario?.id === scen.id ? '#eff6ff' : 'white' }}
@@ -173,7 +203,11 @@ export const OrgSimulator: React.FC = () => {
 
         {/* Middle Panel: Controls */}
         <div className="shrink-0 flex flex-col shadow-2xl overflow-hidden" style={{ width: '320px', backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
+<<<<<<< HEAD
 
+=======
+          
+>>>>>>> dev_imasha
           <div className="flex items-center gap-4 px-6 py-6 shrink-0" style={{ borderBottom: '1px solid rgba(226, 232, 240, 0.6)' }}>
             <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0" style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)' }}>
               <Sliders size={22} strokeWidth={2.5} />
@@ -185,7 +219,11 @@ export const OrgSimulator: React.FC = () => {
           </div>
 
           <div className="flex flex-col flex-1 p-2">
+<<<<<<< HEAD
 
+=======
+            
+>>>>>>> dev_imasha
             <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.8)' }}>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
@@ -337,7 +375,11 @@ export const OrgSimulator: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-8 pb-4">
+<<<<<<< HEAD
 
+=======
+                
+>>>>>>> dev_imasha
                 <div className="flex flex-col h-[340px] p-8 shadow-xl transition-all" style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)', borderRadius: '32px' }}>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4" style={{ color: '#0f172a' }}>

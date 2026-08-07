@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Application configuration — loads from .env file or environment variables.
 Connects to Supabase (hosted PostgreSQL) as the database backend.

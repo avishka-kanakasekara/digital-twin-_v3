@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Redis client utility — handles connection and provides graceful degradation when Redis is unavailable.
 """

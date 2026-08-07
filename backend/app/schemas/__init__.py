@@ -1,3 +1,4 @@
+from __future__ import annotations
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
@@ -34,3 +35,9 @@ from app.schemas.career import (
     MarketTrendResponse,
 )
 from app.schemas.auth import TokenResponse, LoginRequest, RegisterRequest
+from app.schemas.organization import (
+    OrganizationMetricRead,
+    OrganizationMetricCreate,
+    OrganizationScenarioRead,
+    OrganizationScenarioCreate,
+)

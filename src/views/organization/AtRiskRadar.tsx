@@ -112,13 +112,13 @@ export const AtRiskRadar: React.FC = () => {
           </Card>
 
           {/* System Learning */}
-          <Card className="p-6 bg-slate-900 border border-slate-800/50 text-white flex flex-col gap-3 shadow-glass rounded-3xl relative overflow-hidden group hover:border-blue-500/30 transition-all">
-            <div className="absolute -top-10 -right-10 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl group-hover:bg-blue-400/30 transition-all duration-500"></div>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 opacity-70"></div>
-            <h3 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wide z-10 text-sky-400">
-              <Compass size={16} className="animate-pulse" /> System Learning
+          <Card className="p-6 bg-gradient-to-br from-indigo-50 to-white border-indigo-100 flex flex-col gap-3 shadow-sm rounded-3xl relative overflow-hidden group hover:shadow-md transition-all">
+            <div className="absolute -top-10 -right-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all duration-500"></div>
+            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 opacity-70"></div>
+            <h3 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wide z-10 text-indigo-900">
+              <Compass size={16} className="text-indigo-500 animate-pulse" /> System Learning
             </h3>
-            <p className="text-sm text-slate-300 leading-relaxed font-medium z-10">
+            <p className="text-sm text-slate-600 leading-relaxed font-medium z-10">
               Every action you log on this page feeds back into the causal ML model, making future recommendations more accurate.
             </p>
           </Card>
@@ -142,8 +142,8 @@ export const AtRiskRadar: React.FC = () => {
               {filteredEmployees.map((emp) => (
                 <div key={emp.name} className="relative flex items-center gap-4 lg:gap-8 p-4 bg-white rounded-xl border border-subtle hover:border-gray-300 hover:shadow-md transition-all duration-200 group">
                   
-                  {/* Glowing left edge indicator */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}></div>
+                  {/* Glowing floating edge indicator */}
+                  <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 rounded-r-md shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}></div>
 
                   {/* 1. Avatar & Info (Fixed width ensures metrics align perfectly across all rows) */}
                   <div className="flex items-center gap-3.5 w-[200px] lg:w-[240px] shrink-0 pl-2">
@@ -184,8 +184,8 @@ export const AtRiskRadar: React.FC = () => {
 
                   {/* 3. Actions */}
                   <div className="flex items-center gap-2 shrink-0 pr-1">
-                    {/* Secondary actions only appear on row hover for a cleaner default state */}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    {/* Secondary actions always visible for better UX */}
+                    <div className="flex gap-1 transition-opacity duration-200">
                       <button 
                         onClick={() => triggerToast(`Scheduled 1:1 check-in with ${emp.name}.`)}
                         className="p-2 text-tertiary hover:text-info hover:bg-gray-100 rounded-lg transition-colors"

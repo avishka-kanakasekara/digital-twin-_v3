@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Supabase client initialization.
 Provides both anon-key and service-role clients.

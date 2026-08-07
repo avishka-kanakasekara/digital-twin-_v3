@@ -1,6 +1,6 @@
 import React from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain } from 'lucide-react';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain, Settings, LogOut, Bell, UserCog } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
 
@@ -8,6 +8,7 @@ export const Layout: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
+  const navigate = useNavigate();
 
   const orgNavItems = [
     { name: 'Executive Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
@@ -163,16 +164,66 @@ export const Layout: React.FC = () => {
       </Modal>
 
       <Modal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} title="User Profile Settings">
-        <div className="flex flex-col items-center justify-center py-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-primary to-secondary flex items-center justify-center text-white text-2xl font-black shadow-lg mb-4">
-            HR
+        <div className="flex flex-col items-center justify-center py-8 relative">
+          <div className="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl pointer-events-none opacity-30" style={{ backgroundColor: '#8b5cf6', transform: 'translate(20%, -40%)' }}></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full blur-3xl pointer-events-none opacity-20" style={{ backgroundColor: '#3b82f6', transform: 'translate(-30%, 30%)' }}></div>
+          
+          <div className="relative group mb-5">
+            <div className="absolute inset-0 rounded-full blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-500" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #8b5cf6 100%)' }}></div>
+            <div className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-black shadow-xl relative z-10 border-[3px]" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)', borderColor: 'rgba(255,255,255,0.8)' }}>
+              HR
+            </div>
+            <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 bg-emerald-500 z-20" style={{ borderColor: '#ffffff' }}></div>
           </div>
-          <h3 className="text-lg font-bold text-primary">Admin User</h3>
-          <p className="text-sm text-secondary mb-6">HR Leader • Super Admin</p>
-          <div className="w-full flex flex-col gap-2">
-            <button className="w-full py-3 px-4 bg-[var(--bg-main)] hover:bg-primary-light hover:text-primary text-secondary text-sm font-bold rounded-xl transition-colors text-left">Manage Account Settings</button>
-            <button className="w-full py-3 px-4 bg-[var(--bg-main)] hover:bg-primary-light hover:text-primary text-secondary text-sm font-bold rounded-xl transition-colors text-left">Notification Preferences</button>
-            <button className="w-full py-3 px-4 bg-danger-light/50 hover:bg-danger-light text-danger text-sm font-bold rounded-xl transition-colors text-left mt-2">Log Out</button>
+          
+          <h3 className="text-xl font-extrabold text-slate-800 mb-1">Admin User</h3>
+          <p className="text-sm font-bold text-slate-500 mb-8 uppercase tracking-wider">HR Leader • Super Admin</p>
+          
+          <div className="w-full flex flex-col gap-3 relative z-10">
+            <button 
+              onClick={() => {
+                setIsProfileOpen(false);
+                navigate('/admin/settings');
+              }}
+              className="w-full py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-2xl transition-all shadow-sm hover:shadow text-left flex items-center justify-between border cursor-pointer group"
+              style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-indigo-50 text-indigo-600 transition-colors group-hover:bg-indigo-100">
+                  <Settings size={16} strokeWidth={2.5} />
+                </div>
+                <span>Admin Dashboard</span>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-indigo-400 transition-colors"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            
+            <button className="w-full py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-2xl transition-all shadow-sm hover:shadow text-left flex items-center justify-between border cursor-pointer group" style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-sky-50 text-sky-600 transition-colors group-hover:bg-sky-100">
+                  <UserCog size={16} strokeWidth={2.5} />
+                </div>
+                <span>Manage Account Settings</span>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-sky-400 transition-colors"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            
+            <button className="w-full py-3.5 px-5 bg-white hover:bg-slate-50 text-slate-700 text-sm font-bold rounded-2xl transition-all shadow-sm hover:shadow text-left flex items-center justify-between border cursor-pointer group mb-2" style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-amber-50 text-amber-600 transition-colors group-hover:bg-amber-100">
+                  <Bell size={16} strokeWidth={2.5} />
+                </div>
+                <span>Notification Preferences</span>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-amber-400 transition-colors"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+            
+            <button 
+              className="w-full py-4 px-5 text-white text-[15px] font-extrabold tracking-wide rounded-2xl transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 text-left flex items-center justify-center gap-3 border-none cursor-pointer group mt-3"
+              style={{ background: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)', boxShadow: '0 8px 20px -6px rgba(225, 29, 72, 0.5)' }}
+            >
+              <LogOut size={18} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" /> 
+              <span>Log Out Securely</span>
+            </button>
           </div>
         </div>
       </Modal>

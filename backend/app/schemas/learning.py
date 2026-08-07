@@ -1,7 +1,9 @@
+from __future__ import annotations
 """
 Learning schemas — paths, courses, certifications, feed, schedule.
 """
 
+from typing import Optional
 from pydantic import BaseModel
 
 from datetime import datetime
@@ -16,7 +18,7 @@ class LearnerProfileResponse(BaseModel):
     current_streak: int = 0
     longest_streak: int = 0
     learning_score: int = 0
-    target_role: str | None = None
+    target_role: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -24,38 +26,38 @@ class LearnerProfileResponse(BaseModel):
 class LearningPathResponse(BaseModel):
     id: str
     title: str
-    description: str | None = None
+    description: Optional[str] = None
     progress: int = 0
     total_courses: int = 0
     completed_courses: int = 0
-    estimated_hours: float | None = None
-    due_date: str | None = None
-    tags: list | None = None
-    color: str | None = None
+    estimated_hours: Optional[float] = None
+    due_date: Optional[str] = None
+    tags: Optional[list] = None
+    color: Optional[str] = None
     is_ai_recommended: bool = False
-    platform: str | None = None
-    instructor: str | None = None
+    platform: Optional[str] = None
+    instructor: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
 
 class LearningPathProgressUpdate(BaseModel):
     progress: int
-    completed_courses: int | None = None
+    completed_courses: Optional[int] = None
 
 
 class CourseResponse(BaseModel):
     id: str
     title: str
-    provider: str | None = None
-    hours: float | None = None
-    level: str | None = None
-    rating: float | None = None
+    provider: Optional[str] = None
+    hours: Optional[float] = None
+    level: Optional[str] = None
+    rating: Optional[float] = None
     enrolled_count: int = 0
-    tags: list | None = None
-    emoji: str | None = None
-    color: str | None = None
-    description: str | None = None
+    tags: Optional[list] = None
+    emoji: Optional[str] = None
+    color: Optional[str] = None
+    description: Optional[str] = None
     # Per-employee fields (from junction table)
     status: str = "available"
     progress: int = 0
@@ -65,29 +67,29 @@ class CourseResponse(BaseModel):
 
 class CertificationCreate(BaseModel):
     name: str
-    issuer: str | None = None
+    issuer: Optional[str] = None
     status: str = "planned"
-    score: int | None = None
+    score: Optional[int] = None
     progress: int = 0
-    credential_id: str | None = None
-    exam_date: str | None = None
-    emoji: str | None = None
-    color: str | None = None
+    credential_id: Optional[str] = None
+    exam_date: Optional[str] = None
+    emoji: Optional[str] = None
+    color: Optional[str] = None
 
 
 class CertificationResponse(BaseModel):
     id: str
     name: str
-    issuer: str | None = None
+    issuer: Optional[str] = None
     status: str = "planned"
-    score: int | None = None
+    score: Optional[int] = None
     progress: int = 0
-    credential_id: str | None = None
-    completed_date: str | None = None
-    expiry_date: str | None = None
-    exam_date: str | None = None
-    emoji: str | None = None
-    color: str | None = None
+    credential_id: Optional[str] = None
+    completed_date: Optional[str] = None
+    expiry_date: Optional[str] = None
+    exam_date: Optional[str] = None
+    emoji: Optional[str] = None
+    color: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -100,9 +102,9 @@ class LearningFeedItem(BaseModel):
     read_time: str
     relevance: int = 0
     tags: list = []
-    emoji: str | None = None
-    color: str | None = None
-    published: str | None = None
+    emoji: Optional[str] = None
+    color: Optional[str] = None
+    published: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -112,7 +114,7 @@ class WeeklyScheduleResponse(BaseModel):
     topic: str
     duration: str
     status: str = "upcoming"
-    color: str | None = None
+    color: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

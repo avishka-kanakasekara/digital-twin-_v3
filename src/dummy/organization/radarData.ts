@@ -54,5 +54,49 @@ export const mockRiskyEmployees: EmployeeRisk[] = [
     attritionRisk: 45,
     perfCurrent: 4.0,
     perfPrior: 4.5
+  },
+  {
+    name: 'Kavindi Alwis',
+    role: 'Data Scientist',
+    dept: 'Data & Analytics',
+    urgency: 'High',
+    urgencyColor: 'text-warning-dark bg-warning-light/50 border-warning/20',
+    burnoutScore: 71,
+    attritionRisk: 55,
+    perfCurrent: 3.4,
+    perfPrior: 4.1
+  },
+  {
+    name: 'Ruwan Wijesinghe',
+    role: 'DevOps Engineer',
+    dept: 'Engineering',
+    urgency: 'Critical (Key Project)',
+    urgencyColor: 'text-danger bg-danger-light border-danger/20',
+    burnoutScore: 88,
+    attritionRisk: 80,
+    perfCurrent: 2.7,
+    perfPrior: 4.0
+  },
+  {
+    name: 'Thisara Jayawardena',
+    role: 'Marketing Specialist',
+    dept: 'Marketing',
+    urgency: 'Moderate',
+    urgencyColor: 'text-info bg-info/10 border-info/20',
+    burnoutScore: 42,
+    attritionRisk: 28,
+    perfCurrent: 3.8,
+    perfPrior: 3.9
+  },
+  {
+    name: 'Malitha Rathnayake',
+    role: 'QA Engineer',
+    dept: 'Engineering',
+    urgency: 'High',
+    urgencyColor: 'text-warning-dark bg-warning-light/50 border-warning/20',
+    burnoutScore: 60,
+    attritionRisk: 48,
+    perfCurrent: 3.3,
+    perfPrior: 3.7
   }
 ];

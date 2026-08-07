@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Employees router — CRUD for employee profiles, twin summary, skills.
 Uses Supabase as the database backend.
