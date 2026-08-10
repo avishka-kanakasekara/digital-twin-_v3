@@ -19,6 +19,11 @@ from app.schemas.organization import (
     OrgStrategyVisionResponse, OrgAIReadinessResponse,
     OrgCapabilityResponse, OrgTransformationResponse
 )
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ml", "src"))
+from organization.workforce_forecasting.forecast_engine import forecast_headcount_loss, rank_skill_shortages
+from organization.workforce_forecasting.burnout_calculator import calculate_average_burnout
 
 router = APIRouter(
     prefix="/api/organization",
@@ -382,3 +387,47 @@ def get_transformations():
     sb = get_supabase_admin()
     result = sb.table("org_transformations").select("*").execute()
     return result.data
+
+@router.get("/talent/skill-shortages")
+def get_skill_shortages():
+    sb = get_supabase_admin()
+    # 1. Fetch current employees to build skill inventory and calculate burnout
+    res = sb.table("employees").select("role, department, twin_health, years_experience").execute()
+    employees = res.data
+    
+    current_headcount = len(employees)
+    
+    # Build inventory
+    skill_inventory = {}
+    for emp in employees:
+        role = emp.get("role", "Unknown")
+        dept = emp.get("department", "Unknown")
+        if role not in skill_inventory:
+            skill_inventory[role] = {"count": 0, "dept": dept, "core_skill": f"{role} Core Skills"}
+        skill_inventory[role]["count"] += 1
+        
+    # 2. Calculate dynamic average burnout for the whole org based on Proxy Metrics
+    avg_burnout = calculate_average_burnout(employees)
+    
+    # Other features (Mocked for now)
+    comp_ratio = 1.05
+    industry_demand = 82.0
+    avg_tenure = 4.2
+    planned_retirements = 15 # Mocked
+    
+    # 3. Forecast loss using trained ML model
+    projected_loss = forecast_headcount_loss(
+        current_headcount=current_headcount, 
+        average_burnout_score=avg_burnout, 
+        comp_ratio=comp_ratio, 
+        industry_demand=industry_demand, 
+        average_tenure=avg_tenure, 
+        planned_retirements=planned_retirements
+    )
+    
+    # 4. Rank shortages using Rule-weighted ML scoring (Assume 15% growth target)
+    growth_target = 15.0
+    shortages = rank_skill_shortages(skill_inventory, growth_target, current_headcount, projected_loss)
+    
+    # Return top 15 shortages
+    return shortages[:15]

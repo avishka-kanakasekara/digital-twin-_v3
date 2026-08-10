@@ -15,6 +15,7 @@ export const WorkforcePlanning: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hiringAttrition, setHiringAttrition] = useState<any[]>([]);
   const [deptDistribution, setDeptDistribution] = useState<any[]>([]);
+  const [skillShortages, setSkillShortages] = useState<any[]>([]);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -33,12 +34,21 @@ export const WorkforcePlanning: React.FC = () => {
       })));
     }).catch(console.error);
 
-    // Fetch departments for distribution chart
     api.departments.list().then((data: any[]) => {
       setDeptDistribution(data.map((d: any) => ({
         name: d.name,
         employees: d.headcount,
       })));
+    }).catch(console.error);
+
+    // Fetch actual calculated skill shortages from ML Engine
+    api.organization.getSkillShortages().then(data => {
+      // Add mock rank to the data for UI compatibility
+      const rankedData = data.map((item, index) => ({
+        ...item,
+        rank: index + 1
+      }));
+      setSkillShortages(rankedData);
     }).catch(console.error);
   }, []);
 
@@ -209,7 +219,7 @@ export const WorkforcePlanning: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-3">
-                {mockSkillShortages.map((item) => (
+                {skillShortages.map((item) => (
                   <div key={item.rank} className="p-4 bg-white rounded-xl border border-[var(--border-subtle)] hover:border-primary shadow-sm flex items-center justify-between transition-all hover:shadow-md group">
                     <div className="flex items-center gap-4">
                       <span className="text-xl font-extrabold text-tertiary w-8 text-center">{item.rank}</span>

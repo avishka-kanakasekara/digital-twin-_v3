@@ -582,6 +582,7 @@ export const organizationAPI = {
   getAIReadiness: () => fetchAPI<any[]>('/api/organization/strategy/ai-readiness'),
   getCapabilities: () => fetchAPI<any[]>('/api/organization/strategy/capabilities'),
   getTransformations: () => fetchAPI<any[]>('/api/organization/strategy/transformations'),
+  getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
 };
 
 // ==================== DEPARTMENTS ====================
