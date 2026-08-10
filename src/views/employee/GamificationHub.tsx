@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, BarChart3, Loader2 } from 'lucide-react';
+import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, Loader2, CheckCircle2 } from 'lucide-react';
 import { gamificationAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card } from '../../components/Card';
 
 const DIFF_COLORS: Record<string, string> = { Easy: 'var(--color-success)', Medium: 'var(--color-warning)', Hard: 'var(--color-danger)' };

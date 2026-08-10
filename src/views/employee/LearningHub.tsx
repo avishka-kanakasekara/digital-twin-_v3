@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, TrendingUp, Clock, CheckCircle, PlayCircle, BarChart3, Calendar, Search, Flame, Brain, GraduationCap, Sparkles, ChevronRight, Lock, Loader2 } from 'lucide-react';
+import { BookOpen, TrendingUp, Clock, CheckCircle, PlayCircle, BarChart3, Search, Flame, Brain, Sparkles, ChevronRight, Loader2 } from 'lucide-react';
 import { learningAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Card } from '../../components/Card';
 
 const PRIORITY_STYLES: Record<string, { color: string; bg: string; border: string }> = {
@@ -372,6 +371,12 @@ const SkillGapAnalysis: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-5">
+      {targetRole && (
+        <div className="flex items-center gap-2 pb-2 border-b border-[var(--border-subtle)]">
+          <span className="text-[10px] font-bold text-secondary uppercase tracking-wider">Target Role:</span>
+          <span className="text-xs font-bold text-primary bg-[var(--bg-main)] border border-[var(--border-subtle)] px-2.5 py-0.5 rounded-md">{targetRole}</span>
+        </div>
+      )}
       {skillGaps.map((gap, i) => {
         const ps = PRIORITY_STYLES[gap.priority] || PRIORITY_STYLES.Medium;
         return (
