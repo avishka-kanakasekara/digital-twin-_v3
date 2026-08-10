@@ -1,12 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { Briefcase, BrainCircuit, Users, Target, CheckCircle2, Plus, Sparkles, Network, X } from 'lucide-react';
-import { mockGigs, mockMentors } from '../../dummy/organization/talentMarketplaceData';
+import api from '../../lib/api';
 
 export const TalentMarketplace: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'gigs' | 'mentoring'>('gigs');
   const [showPostModal, setShowPostModal] = useState(false);
   const [newOpportunity, setNewOpportunity] = useState({ title: '', type: 'gig', description: '', timeCommitment: '' });
+  const [gigs, setGigs] = useState<any[]>([]);
+  const [mentors, setMentors] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.organization.getGigs().then(data => {
+      setGigs(data.map((d: any) => ({
+        id: d.id,
+        title: d.role_title,
+        timeCommitment: d.urgency === 'High' ? '10 HRS/WEEK' : '5 HRS/WEEK',
+        description: `${d.department} department opportunity. Skills needed: ${d.required_skills.join(', ')}.`,
+        tags: d.required_skills.map((s: string) => ({ text: s })),
+        icon: d.urgency === 'High' ? 'Target' : 'Briefcase',
+        aiMatch: d.matched_employees?.[0]?.match ?? 85,
+      })));
+    }).catch(console.error);
+
+    api.organization.getMentors().then(data => {
+      setMentors(data.map((d: any) => ({
+        id: d.id,
+        initials: d.initials,
+        name: d.name,
+        role: d.role,
+        description: d.description,
+        matchScore: d.match_score,
+      })));
+    }).catch(console.error);
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 relative pb-8 animate-fade-in z-0">
@@ -70,7 +97,7 @@ export const TalentMarketplace: React.FC = () => {
             <div className="flex flex-col gap-6 z-10" style={{ padding: '32px', backgroundColor: 'transparent' }}>
               {activeTab === 'gigs' && (
                 <>
-                  {mockGigs.map((gig) => (
+                  {gigs.map((gig) => (
                     <div key={gig.id} className="flex gap-6 transition-all shadow-md hover:shadow-2xl rounded-3xl group bg-white/90 hover:bg-white hover:-translate-y-1.5 cursor-pointer" style={{ padding: '28px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
                       <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xl group-hover:scale-110 transition-transform duration-500" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #a855f7 100%)' }}>
                         {gig.icon === 'Target' && <Target size={28} />}
@@ -113,7 +140,7 @@ export const TalentMarketplace: React.FC = () => {
 
               {activeTab === 'mentoring' && (
                 <>
-                  {mockMentors.map((mentor) => (
+                  {mentors.map((mentor) => (
                     <div key={mentor.id} className="flex gap-6 transition-all shadow-md hover:shadow-2xl rounded-3xl group bg-white/90 hover:bg-white hover:-translate-y-1.5 cursor-pointer" style={{ padding: '28px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
                       <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shrink-0 shadow-xl font-black text-2xl group-hover:scale-110 transition-transform duration-500" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
                         {mentor.initials}

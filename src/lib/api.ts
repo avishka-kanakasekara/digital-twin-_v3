@@ -565,14 +565,52 @@ export const organizationAPI = {
     fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios?${new URLSearchParams(params as any || {}).toString()}`),
     
   // Innovation Hub Endpoints
-  getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/ideas'),
-  submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/ideas', { method: 'POST', body: JSON.stringify(data) }),
-  approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/ideas/${id}/approve`, { method: 'POST' }),
-  getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/communities'),
+  getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
+  submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/innovation/ideas', { method: 'POST', body: JSON.stringify(data) }),
+  approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/innovation/ideas/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'Approved' }) }),
+  getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
   
   // Risk & Talent Endpoints
-  getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/risks'),
-  getTalentMatches: () => fetchAPI<TalentMatch[]>('/api/organization/talent-matches'),
+  getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
+  getGigs: () => fetchAPI<any[]>('/api/organization/talent/gigs'),
+  getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
+  getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
+
+  // Strategy
+  getOKRs: () => fetchAPI<any[]>('/api/organization/strategy/okrs'),
+  getStrategyVision: () => fetchAPI<any[]>('/api/organization/strategy/vision'),
+  getAIReadiness: () => fetchAPI<any[]>('/api/organization/strategy/ai-readiness'),
+  getCapabilities: () => fetchAPI<any[]>('/api/organization/strategy/capabilities'),
+  getTransformations: () => fetchAPI<any[]>('/api/organization/strategy/transformations'),
+};
+
+// ==================== DEPARTMENTS ====================
+
+export interface Department {
+  id: string;
+  name: string;
+  region: string;
+  function: string;
+  headcount: number;
+  open_positions: number;
+  allocated_budget: number;
+  actual_spend: number;
+  performance_score: number;
+  target_score: number;
+  enps: number;
+  attrition_rate: number;
+  risk_level: string;
+}
+
+export const departmentsAPI = {
+  list: (params?: { region?: string; function?: string; risk_level?: string; limit?: number }) =>
+    fetchAPI<Department[]>(`/api/departments?${new URLSearchParams(
+      Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+    ).toString()}`),
+
+  get: (id: string) => fetchAPI<Department>(`/api/departments/${id}`),
+
+  getSummary: () => fetchAPI<any>('/api/departments/summary'),
 };
 
 export default {
@@ -582,4 +620,5 @@ export default {
   learning: learningAPI,
   career: careerAPI,
   organization: organizationAPI,
+  departments: departmentsAPI,
 };

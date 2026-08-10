@@ -1,14 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { BrainCircuit, Activity, Calendar, Compass, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
 import { TwinChatModal } from '../../components/TwinChatModal';
-
-import { mockRiskyEmployees } from '../../dummy/organization/radarData';
+import api from '../../lib/api';
 
 export const AtRiskRadar: React.FC = () => {
   const [searchQuery] = useState('');
   const [chattingEmployee, setChattingEmployee] = useState<{ name: string; role: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [atRiskEmployees, setAtRiskEmployees] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.organization.getRiskProfiles().then(data => {
+      setAtRiskEmployees(data.map((d: any) => ({
+        name: d.employee_id,
+        role: d.primary_factor,
+        dept: 'At-Risk Employee',
+        urgency: d.risk_level === 'Critical' ? 'High' : d.risk_level === 'High' ? 'Moderate' : 'Low',
+        burnoutScore: `${Math.round(d.burnout_probability * 100)}%`,
+        attritionRisk: Math.round(d.risk_score),
+        perfCurrent: `${Math.round(d.career_stagnation_score * 100)}%`,
+        aiSuggestion: d.ai_retention_suggestion,
+        last1on1: d.last_1_on_1,
+      })));
+    }).catch(console.error);
+  }, []);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -17,10 +33,9 @@ export const AtRiskRadar: React.FC = () => {
     }, 4000);
   };
 
-  const filteredEmployees = mockRiskyEmployees.filter(emp => 
+  const filteredEmployees = atRiskEmployees.filter(emp =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.dept.toLowerCase().includes(searchQuery.toLowerCase())
+    emp.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -140,13 +155,13 @@ export const AtRiskRadar: React.FC = () => {
 
             <div className="flex flex-col gap-5">
               {filteredEmployees.map((emp) => (
-                <div key={emp.name} className="relative flex items-center gap-4 lg:gap-8 p-4 bg-white rounded-xl border border-subtle hover:border-gray-300 hover:shadow-md transition-all duration-200 group">
+                <div key={emp.name} className="relative flex items-center justify-between gap-2 lg:gap-6 p-4 bg-white rounded-xl border border-subtle hover:border-gray-300 hover:shadow-md transition-all duration-200 group">
                   
                   {/* Glowing floating edge indicator */}
                   <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 rounded-r-md shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}></div>
 
                   {/* 1. Avatar & Info (Fixed width ensures metrics align perfectly across all rows) */}
-                  <div className="flex items-center gap-3.5 w-[200px] lg:w-[240px] shrink-0 pl-2">
+                  <div className="flex items-center gap-3.5 w-[160px] lg:w-[220px] shrink-0 pl-2">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[13px] font-bold shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}>
                       {emp.name.split(' ').map(n=>n[0]).join('')}
                     </div>
@@ -157,7 +172,7 @@ export const AtRiskRadar: React.FC = () => {
                   </div>
 
                   {/* 2. Metrics (Clean whitespace layout, no cluttered boxes) */}
-                  <div className="flex flex-1 items-center gap-6 lg:gap-12">
+                  <div className="flex flex-1 items-center gap-4 lg:gap-8">
                     
                     <div className="flex flex-col">
                       <span className="text-[10px] text-tertiary font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">

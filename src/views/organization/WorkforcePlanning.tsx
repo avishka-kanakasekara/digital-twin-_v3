@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { Users, TrendingUp, Layers, Target, Activity, Minus, Plus, Equal, AlertCircle, ArrowUpRight, CheckCircle2, X } from 'lucide-react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import {
-  mockHiringAttrition, mockDeptDistribution, DEPT_COLORS,
+  DEPT_COLORS,
   mockExperience, EXP_COLORS, mockSkills, mockSkillShortages
 } from '../../dummy/organization/workforcePlanningData';
+import api from '../../lib/api';
 
 export const WorkforcePlanning: React.FC = () => {
   const [scope, setScope] = useState('Engineering');
   const [horizon, setHorizon] = useState('Next 2 Quarters');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [hiringAttrition, setHiringAttrition] = useState<any[]>([]);
+  const [deptDistribution, setDeptDistribution] = useState<any[]>([]);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -19,6 +22,25 @@ export const WorkforcePlanning: React.FC = () => {
       setToastMessage(null);
     }, 4000);
   };
+
+  useEffect(() => {
+    // Fetch org history for hiring vs attrition chart
+    api.organization.getHistory({ limit: 12 }).then((data: any[]) => {
+      setHiringAttrition(data.slice(-12).map((d: any) => ({
+        month: d.month,
+        hired: d.new_hires,
+        attrition: Math.round(d.total_headcount * d.voluntary_attrition_rate / 100),
+      })));
+    }).catch(console.error);
+
+    // Fetch departments for distribution chart
+    api.departments.list().then((data: any[]) => {
+      setDeptDistribution(data.map((d: any) => ({
+        name: d.name,
+        employees: d.headcount,
+      })));
+    }).catch(console.error);
+  }, []);
 
   const handleGenerate = () => {
     setIsGenerating(true);
@@ -241,7 +263,7 @@ export const WorkforcePlanning: React.FC = () => {
               </div>
               <div className="flex-1 w-full z-10">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={mockHiringAttrition} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={hiringAttrition} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorHired" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.4} />
@@ -274,8 +296,8 @@ export const WorkforcePlanning: React.FC = () => {
               <div className="w-full relative" style={{ height: '180px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={mockDeptDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={2} dataKey="employees" stroke="none">
-                      {mockDeptDistribution.map((_, index) => (
+                    <Pie data={deptDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={2} dataKey="employees" stroke="none">
+                      {deptDistribution.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
                       ))}
                     </Pie>
@@ -284,7 +306,7 @@ export const WorkforcePlanning: React.FC = () => {
                 </ResponsiveContainer>
               </div>
               <div className="flex flex-wrap justify-center gap-2 mt-4 overflow-y-auto" style={{ maxHeight: '80px', scrollbarWidth: 'none' }}>
-                {mockDeptDistribution.map((d, i) => (
+                {deptDistribution.map((d, i) => (
                   <div key={d.name} className="flex items-center gap-2 bg-white px-2 py-1 rounded-md border border-[var(--border-subtle)] shadow-sm">
                     <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: DEPT_COLORS[i] }}></div>
                     <span className="text-[10px] font-bold text-primary">{d.name} ({d.employees})</span>

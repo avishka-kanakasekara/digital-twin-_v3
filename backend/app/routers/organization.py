@@ -3,40 +3,110 @@ from __future__ import annotations
 API routes for Organization module.
 """
 from typing import List
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 
 from app.database import get_supabase_admin
 from app.schemas.organization import (
-    OrganizationMetricRead,
-    OrganizationScenarioRead,
-    OrgInnovationIdeaRead, OrgInnovationCommunityRead,
-    OrgAtRiskEmployeeRead, OrgTalentGigRead,
-    OrgTalentMentorRead, OrgTeamBuilderOptionRead, OrgOKRRead
+    OrganizationMetricRead, OrganizationMetricCreate, OrganizationMetricUpdate,
+    OrganizationScenarioRead, OrganizationScenarioCreate, OrganizationScenarioUpdate,
+    OrgInnovationIdeaRead, OrgInnovationIdeaCreate, OrgInnovationIdeaUpdate,
+    OrgInnovationCommunityRead, OrgInnovationCommunityCreate, OrgInnovationCommunityUpdate,
+    OrgAtRiskEmployeeRead, OrgAtRiskEmployeeCreate, OrgAtRiskEmployeeUpdate,
+    OrgTalentGigRead, OrgTalentGigCreate, OrgTalentGigUpdate,
+    OrgTalentMentorRead, OrgTalentMentorCreate, OrgTalentMentorUpdate,
+    OrgTeamBuilderOptionRead, OrgTeamBuilderOptionCreate, OrgTeamBuilderOptionUpdate,
+    OrgOKRRead, OrgOKRCreate, OrgOKRUpdate,
+    OrgStrategyVisionResponse, OrgAIReadinessResponse,
+    OrgCapabilityResponse, OrgTransformationResponse
 )
 
 router = APIRouter(
-    prefix="/organization",
+    prefix="/api/organization",
     tags=["Organization"],
 )
+
+# --- Organization Metrics ---
 
 @router.get("/history", response_model=List[OrganizationMetricRead])
 def get_organization_history(limit: int = 100):
     """
-    Retrieve historical organization metrics.
+    Retrieve historical organization metrics. (Legacy alias for GET /metrics)
     """
     sb = get_supabase_admin()
     result = sb.table("organization_metrics").select("*").order("date").limit(limit).execute()
     return result.data
 
+@router.get("/metrics", response_model=List[OrganizationMetricRead])
+def get_organization_metrics(limit: int = 100):
+    sb = get_supabase_admin()
+    result = sb.table("organization_metrics").select("*").order("date").limit(limit).execute()
+    return result.data
+
+@router.post("/metrics", response_model=OrganizationMetricRead, status_code=status.HTTP_201_CREATED)
+def create_organization_metric(metric: OrganizationMetricCreate):
+    sb = get_supabase_admin()
+    result = sb.table("organization_metrics").insert(metric.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create metric")
+    return result.data[0]
+
+@router.put("/metrics/{id}", response_model=OrganizationMetricRead)
+def update_organization_metric(id: str, metric: OrganizationMetricUpdate):
+    sb = get_supabase_admin()
+    update_data = metric.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("organization_metrics").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Metric not found")
+    return result.data[0]
+
+@router.delete("/metrics/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_organization_metric(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("organization_metrics").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Metric not found")
+    return None
+
+
+# --- Organization Scenarios ---
 
 @router.get("/scenarios", response_model=List[OrganizationScenarioRead])
 def get_organization_scenarios():
-    """
-    Retrieve pre-calculated AI simulation scenarios.
-    """
     sb = get_supabase_admin()
     result = sb.table("organization_scenarios").select("*").execute()
     return result.data
+
+@router.post("/scenarios", response_model=OrganizationScenarioRead, status_code=status.HTTP_201_CREATED)
+def create_organization_scenario(scenario: OrganizationScenarioCreate):
+    sb = get_supabase_admin()
+    result = sb.table("organization_scenarios").insert(scenario.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create scenario")
+    return result.data[0]
+
+@router.put("/scenarios/{id}", response_model=OrganizationScenarioRead)
+def update_organization_scenario(id: str, scenario: OrganizationScenarioUpdate):
+    sb = get_supabase_admin()
+    update_data = scenario.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("organization_scenarios").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return result.data[0]
+
+@router.delete("/scenarios/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_organization_scenario(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("organization_scenarios").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Scenario not found")
+    return None
+
+
+# --- Innovation Ideas ---
 
 @router.get("/innovation/ideas", response_model=List[OrgInnovationIdeaRead])
 def get_innovation_ideas():
@@ -44,11 +114,71 @@ def get_innovation_ideas():
     result = sb.table("org_innovation_ideas").select("*").execute()
     return result.data
 
+@router.post("/innovation/ideas", response_model=OrgInnovationIdeaRead, status_code=status.HTTP_201_CREATED)
+def create_innovation_idea(idea: OrgInnovationIdeaCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_innovation_ideas").insert(idea.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create innovation idea")
+    return result.data[0]
+
+@router.put("/innovation/ideas/{id}", response_model=OrgInnovationIdeaRead)
+def update_innovation_idea(id: str, idea: OrgInnovationIdeaUpdate):
+    sb = get_supabase_admin()
+    update_data = idea.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_innovation_ideas").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Innovation idea not found")
+    return result.data[0]
+
+@router.delete("/innovation/ideas/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_innovation_idea(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_innovation_ideas").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Innovation idea not found")
+    return None
+
+
+# --- Innovation Communities ---
+
 @router.get("/innovation/communities", response_model=List[OrgInnovationCommunityRead])
 def get_innovation_communities():
     sb = get_supabase_admin()
     result = sb.table("org_innovation_communities").select("*").execute()
     return result.data
+
+@router.post("/innovation/communities", response_model=OrgInnovationCommunityRead, status_code=status.HTTP_201_CREATED)
+def create_innovation_community(community: OrgInnovationCommunityCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_innovation_communities").insert(community.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create innovation community")
+    return result.data[0]
+
+@router.put("/innovation/communities/{id}", response_model=OrgInnovationCommunityRead)
+def update_innovation_community(id: str, community: OrgInnovationCommunityUpdate):
+    sb = get_supabase_admin()
+    update_data = community.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_innovation_communities").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Innovation community not found")
+    return result.data[0]
+
+@router.delete("/innovation/communities/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_innovation_community(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_innovation_communities").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Innovation community not found")
+    return None
+
+
+# --- At Risk Employees ---
 
 @router.get("/talent/risks", response_model=List[OrgAtRiskEmployeeRead])
 def get_at_risk_employees():
@@ -56,11 +186,71 @@ def get_at_risk_employees():
     result = sb.table("org_at_risk_employees").select("*").execute()
     return result.data
 
+@router.post("/talent/risks", response_model=OrgAtRiskEmployeeRead, status_code=status.HTTP_201_CREATED)
+def create_at_risk_employee(risk: OrgAtRiskEmployeeCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_at_risk_employees").insert(risk.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create at-risk employee record")
+    return result.data[0]
+
+@router.put("/talent/risks/{id}", response_model=OrgAtRiskEmployeeRead)
+def update_at_risk_employee(id: str, risk: OrgAtRiskEmployeeUpdate):
+    sb = get_supabase_admin()
+    update_data = risk.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_at_risk_employees").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="At-risk employee record not found")
+    return result.data[0]
+
+@router.delete("/talent/risks/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_at_risk_employee(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_at_risk_employees").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="At-risk employee record not found")
+    return None
+
+
+# --- Talent Gigs ---
+
 @router.get("/talent/gigs", response_model=List[OrgTalentGigRead])
 def get_talent_gigs():
     sb = get_supabase_admin()
     result = sb.table("org_talent_gigs").select("*").execute()
     return result.data
+
+@router.post("/talent/gigs", response_model=OrgTalentGigRead, status_code=status.HTTP_201_CREATED)
+def create_talent_gig(gig: OrgTalentGigCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_talent_gigs").insert(gig.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create talent gig")
+    return result.data[0]
+
+@router.put("/talent/gigs/{id}", response_model=OrgTalentGigRead)
+def update_talent_gig(id: str, gig: OrgTalentGigUpdate):
+    sb = get_supabase_admin()
+    update_data = gig.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_talent_gigs").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Talent gig not found")
+    return result.data[0]
+
+@router.delete("/talent/gigs/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_talent_gig(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_talent_gigs").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Talent gig not found")
+    return None
+
+
+# --- Talent Mentors ---
 
 @router.get("/talent/mentors", response_model=List[OrgTalentMentorRead])
 def get_talent_mentors():
@@ -68,14 +258,127 @@ def get_talent_mentors():
     result = sb.table("org_talent_mentors").select("*").execute()
     return result.data
 
+@router.post("/talent/mentors", response_model=OrgTalentMentorRead, status_code=status.HTTP_201_CREATED)
+def create_talent_mentor(mentor: OrgTalentMentorCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_talent_mentors").insert(mentor.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create talent mentor")
+    return result.data[0]
+
+@router.put("/talent/mentors/{id}", response_model=OrgTalentMentorRead)
+def update_talent_mentor(id: str, mentor: OrgTalentMentorUpdate):
+    sb = get_supabase_admin()
+    update_data = mentor.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_talent_mentors").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Talent mentor not found")
+    return result.data[0]
+
+@router.delete("/talent/mentors/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_talent_mentor(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_talent_mentors").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Talent mentor not found")
+    return None
+
+
+# --- Team Builder Options ---
+
 @router.get("/talent/team-builder", response_model=List[OrgTeamBuilderOptionRead])
 def get_team_builder_options():
     sb = get_supabase_admin()
     result = sb.table("org_team_builder_options").select("*").execute()
     return result.data
 
+@router.post("/talent/team-builder", response_model=OrgTeamBuilderOptionRead, status_code=status.HTTP_201_CREATED)
+def create_team_builder_option(option: OrgTeamBuilderOptionCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_team_builder_options").insert(option.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create team builder option")
+    return result.data[0]
+
+@router.put("/talent/team-builder/{id}", response_model=OrgTeamBuilderOptionRead)
+def update_team_builder_option(id: str, option: OrgTeamBuilderOptionUpdate):
+    sb = get_supabase_admin()
+    update_data = option.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_team_builder_options").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Team builder option not found")
+    return result.data[0]
+
+@router.delete("/talent/team-builder/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_team_builder_option(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_team_builder_options").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Team builder option not found")
+    return None
+
+
+# --- Strategy OKRs ---
+
 @router.get("/strategy/okrs", response_model=List[OrgOKRRead])
 def get_okrs():
     sb = get_supabase_admin()
     result = sb.table("org_okrs").select("*").execute()
+    return result.data
+
+@router.post("/strategy/okrs", response_model=OrgOKRRead, status_code=status.HTTP_201_CREATED)
+def create_okr(okr: OrgOKRCreate):
+    sb = get_supabase_admin()
+    result = sb.table("org_okrs").insert(okr.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create OKR")
+    return result.data[0]
+
+@router.put("/strategy/okrs/{id}", response_model=OrgOKRRead)
+def update_okr(id: str, okr: OrgOKRUpdate):
+    sb = get_supabase_admin()
+    update_data = okr.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_okrs").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="OKR not found")
+    return result.data[0]
+
+@router.delete("/strategy/okrs/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_okr(id: str):
+    sb = get_supabase_admin()
+    result = sb.table("org_okrs").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="OKR not found")
+    return None
+
+# --- Organization Context & Strategy ---
+
+@router.get("/strategy/vision", response_model=List[OrgStrategyVisionResponse])
+def get_strategy_vision():
+    sb = get_supabase_admin()
+    result = sb.table("org_strategy_vision").select("*").execute()
+    return result.data
+
+@router.get("/strategy/ai-readiness", response_model=List[OrgAIReadinessResponse])
+def get_ai_readiness():
+    sb = get_supabase_admin()
+    result = sb.table("org_ai_readiness").select("*").execute()
+    return result.data
+
+@router.get("/strategy/capabilities", response_model=List[OrgCapabilityResponse])
+def get_capabilities():
+    sb = get_supabase_admin()
+    result = sb.table("org_capabilities").select("*").execute()
+    return result.data
+
+@router.get("/strategy/transformations", response_model=List[OrgTransformationResponse])
+def get_transformations():
+    sb = get_supabase_admin()
+    result = sb.table("org_transformations").select("*").execute()
     return result.data
