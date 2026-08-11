@@ -207,6 +207,14 @@ export const employeeAPI = {
       method: 'DELETE',
     }),
   
+  getAIReadiness: (id: string) =>
+    fetchAPI<{
+      overallScore: number;
+      breakdown: Array<{ category: string; score: number }>;
+      recommendation: { action: string; message: string; impact: string };
+      analysisSummary: string;
+    }>(`/api/employees/${id}/ai-readiness`),
+  
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
   
@@ -221,9 +229,6 @@ export const employeeAPI = {
   
   getSkillsGrouped: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/skills-grouped`),
-  
-  getAIReadiness: (id: string) =>
-    fetchAPI<any>(`/api/employees/${id}/ai-readiness`),
   
   getTwinMemory: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/twin-memory`),

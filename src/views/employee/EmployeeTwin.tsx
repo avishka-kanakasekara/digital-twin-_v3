@@ -24,8 +24,9 @@ const EmployeeTwin: React.FC = () => {
     profile, updateProfile,
     projects, addProject, updateProjectProgress, deleteProject,
     getProjectTasks, addTask, updateTask, deleteTask,
-    knowledge, uploadKnowledgeSource, refreshAllData,
+    knowledge, uploadKnowledgeSource, refreshAllData, refreshAIReadiness,
     gamification, completeMission,
+    skills, updateSkill, deleteSkill,
     skillsData, aiReadiness, twinSummary, twinMemory,
     personalAnalytics, aiRecommendations
   } = useDigitalTwin();
@@ -111,7 +112,7 @@ const EmployeeTwin: React.FC = () => {
 
           {/* Left Column — Main Content (8 cols) */}
           <div className="lg:col-span-8 space-y-6">
-            <SkillsIntelligence skillsData={skillsData} />
+            <SkillsIntelligence skillsData={skillsData} updateSkill={updateSkill} deleteSkill={deleteSkill} />
             <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} onDeleteProject={deleteProject} getProjectTasks={getProjectTasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />
             <GamificationBoard gamification={gamification} onCompleteMission={completeMission} />
             <PersonalAnalytics analytics={personalAnalytics} />
@@ -120,7 +121,7 @@ const EmployeeTwin: React.FC = () => {
           {/* Right Column — Sidebar (4 cols) */}
           <div className="lg:col-span-4 space-y-6">
             <TwinSummary summary={twinSummary} />
-            <AIReadiness data={aiReadiness} />
+            <AIReadiness data={aiReadiness} onRefresh={refreshAIReadiness} />
             <KnowledgeSources
               sources={knowledge}
               onUpload={uploadKnowledgeSource}
