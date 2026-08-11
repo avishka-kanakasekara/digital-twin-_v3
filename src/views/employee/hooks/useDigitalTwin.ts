@@ -175,12 +175,22 @@ export const useDigitalTwin = () => {
   const addProject = useCallback(async (projectData: any) => {
     if (useAPI && currentEmployee) {
       try {
-        await employeeAPI.getProjects(currentEmployee.id); // Would be POST in real API
+        console.log('Adding project to backend:', projectData);
+        await employeeAPI.createProject(currentEmployee.id, projectData);
+        // Refresh projects from backend to get the updated list
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
       } catch (error) {
         console.error('Failed to add project:', error);
+        // Fallback to local state if backend fails
       }
     }
-    setProjects((prev: any) => [...prev, { ...projectData, id: Date.now().toString() }]);
+    // Fallback for offline mode
+    setProjects((prev: any) => ({
+      ...prev,
+      current: [...(prev.current || []), { ...projectData, id: projectData.id || Date.now().toString() }]
+    }));
   }, [useAPI, currentEmployee]);
 
   const uploadKnowledgeSource = useCallback(async (name: string, type: string) => {
@@ -294,11 +304,119 @@ export const useDigitalTwin = () => {
     });
   }, [addXp]);
 
-  const updateProjectProgress = useCallback((projectId: string, status: string) => {
-    setProjects((prev: any) => prev.map((p: any) => 
-      p.id === projectId ? { ...p, status } : p
-    ));
-  }, []);
+  const updateProjectProgress = useCallback(async (projectId: string, status: string, progress?: number) => {
+    if (useAPI && currentEmployee) {
+      try {
+        const updateData: any = { status };
+        if (progress !== undefined) {
+          updateData.progress = progress;
+        }
+        await employeeAPI.updateProject(currentEmployee.id, projectId, updateData);
+        // Refresh projects from backend to get the updated list
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to update project status:', error);
+      }
+    }
+    // Fallback for offline mode
+    setProjects((prev: any) => {
+      const updatedCurrent = (prev.current || []).map((p: any) => 
+        p.id === projectId ? { ...p, status, ...(progress !== undefined ? { progress } : {}) } : p
+      );
+      const updatedCompleted = (prev.completed || []).map((p: any) => 
+        p.id === projectId ? { ...p, status, ...(progress !== undefined ? { progress } : {}) } : p
+      );
+      // If status is Completed, move to completed array
+      if (status === 'Completed' || status === 'completed') {
+        const projectToMove = updatedCurrent.find((p: any) => p.id === projectId);
+        const remainingCurrent = updatedCurrent.filter((p: any) => p.id !== projectId);
+        return {
+          ...prev,
+          current: remainingCurrent,
+          completed: [...(prev.completed || []), projectToMove]
+        };
+      }
+      return { ...prev, current: updatedCurrent, completed: updatedCompleted };
+    });
+  }, [useAPI, currentEmployee]);
+
+  const deleteProject = useCallback(async (projectId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.deleteProject(currentEmployee.id, projectId);
+        // Refresh projects from backend to get the updated list
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to delete project:', error);
+      }
+    }
+    // Fallback for offline mode
+    setProjects((prev: any) => ({
+      ...prev,
+      current: (prev.current || []).filter((p: any) => p.id !== projectId),
+      completed: (prev.completed || []).filter((p: any) => p.id !== projectId),
+    }));
+  }, [useAPI, currentEmployee]);
+
+  const getProjectTasks = useCallback(async (projectId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        const tasks = await employeeAPI.getTasks(currentEmployee.id, projectId);
+        return tasks;
+      } catch (error) {
+        console.error('Failed to get tasks (table may not exist):', error);
+        return [];
+      }
+    }
+    return [];
+  }, [useAPI, currentEmployee]);
+
+  const addTask = useCallback(async (projectId: string, taskData: any) => {
+    if (useAPI && currentEmployee) {
+      try {
+        console.log('Adding task to backend:', projectId, taskData);
+        await employeeAPI.createTask(currentEmployee.id, projectId, taskData);
+        // Refresh projects to get updated progress
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to add task:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const updateTask = useCallback(async (projectId: string, taskId: string, taskData: any) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.updateTask(currentEmployee.id, projectId, taskId, taskData);
+        // Refresh projects to get updated progress
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to update task:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const deleteTask = useCallback(async (projectId: string, taskId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.deleteTask(currentEmployee.id, projectId, taskId);
+        // Refresh projects to get updated progress
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
 
   return {
     profile,
@@ -307,6 +425,11 @@ export const useDigitalTwin = () => {
     projects,
     addProject,
     updateProjectProgress,
+    deleteProject,
+    getProjectTasks,
+    addTask,
+    updateTask,
+    deleteTask,
     
     knowledge,
     uploadKnowledgeSource,

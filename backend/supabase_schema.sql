@@ -391,10 +391,30 @@ CREATE TABLE IF NOT EXISTS projects (
     leadership_score INTEGER DEFAULT 0,
     customer_rating NUMERIC(3,2),
     status          TEXT DEFAULT 'On Track',
+    progress        INTEGER DEFAULT 0,
     created_at      TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_projects_employee ON projects(employee_id);
+
+
+-- ──────────────────────────────────────────────────────────────
+-- 21. TASKS
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tasks (
+    id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    employee_id     TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    title           TEXT NOT NULL,
+    description     TEXT,
+    status          TEXT DEFAULT 'Pending',
+    priority        TEXT DEFAULT 'Medium',
+    due_date        DATE,
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_employee ON tasks(employee_id);
 
 
 -- ──────────────────────────────────────────────────────────────
@@ -420,6 +440,7 @@ ALTER TABLE reward_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reward_claims ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recognitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
 -- Allow service_role full access (your backend uses the service role key)
 -- These policies allow the service_role to bypass RLS entirely (which it does by default).
@@ -444,6 +465,7 @@ CREATE POLICY "Allow all for service_role" ON reward_items FOR ALL USING (true) 
 CREATE POLICY "Allow all for service_role" ON reward_claims FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON recognitions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON projects FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for service_role" ON tasks FOR ALL USING (true) WITH CHECK (true);
 
 
 -- ✅ Schema creation complete!

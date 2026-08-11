@@ -170,6 +170,43 @@ export const employeeAPI = {
   getProjects: (id: string) =>
     fetchAPI<{ current: any[]; completed: any[] }>(`/api/employees/${id}/projects`),
   
+  createProject: (id: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateProject: (id: string, projectId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteProject: (id: string, projectId: string) =>
+    fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}`, {
+      method: 'DELETE',
+    }),
+  
+  getTasks: (id: string, projectId: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/projects/${projectId}/tasks`),
+  
+  createTask: (id: string, projectId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateTask: (id: string, projectId: string, taskId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteTask: (id: string, projectId: string, taskId: string) =>
+    fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'DELETE',
+    }),
+  
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
   
