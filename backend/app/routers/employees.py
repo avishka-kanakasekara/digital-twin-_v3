@@ -1,10 +1,10 @@
 """
-Employees router — CRUD for employee profiles, twin summary, skills.
+Employees router — CRUD for employee profiles, twin summary, skills, knowledge pipeline.
 Uses Supabase as the database backend.
 """
 
 import uuid
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, UploadFile, status
 
 from app.database import get_supabase_admin
 from app.schemas.employee import (
@@ -15,6 +15,7 @@ from app.schemas.employee import (
     TwinSummaryResponse,
 )
 from app.schemas.skill import SkillCreate, SkillUpdate, SkillResponse
+from app.schemas.knowledge import KnowledgeSourceResponse, UploadResponse
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
 
@@ -239,8 +240,235 @@ def get_employee_projects(employee_id: str):
 def get_knowledge_sources(employee_id: str):
     """Get all knowledge sources for an employee."""
     sb = get_supabase_admin()
-    result = sb.table("knowledge_sources").select("*").eq("employee_id", employee_id).order("last_synced", desc=True).execute()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return result.data
+
+
+@router.post("/{employee_id}/knowledge-sources/upload", response_model=UploadResponse)
+async def upload_knowledge_source(
+    employee_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
+    """
+    Upload a professional document (CV, certificate, project doc, etc.).
+    
+    The file is stored immediately. AI processing runs in the background.
+    Poll GET /knowledge-sources to track progress.
+    """
+    # Verify employee exists
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    # Read file content
+    content = await file.read()
+    filename = file.filename or "uploaded_document"
+
+    # Run pipeline in background (returns immediately)
+    from app.services.knowledge.pipeline import run_pipeline
+
+    # Use a list to capture result from background task
+    pipeline_result_holder: list = []
+
+    def _run():
+        result = run_pipeline(
+            employee_id=employee_id,
+            filename=filename,
+            content=content,
+        )
+        pipeline_result_holder.append(result)
+
+    background_tasks.add_task(_run)
+
+    return UploadResponse(
+        source_id="processing",
+        status="PROCESSING",
+        message=f"'{filename}' received and queued for processing. The AI pipeline will extract skills, projects, and certifications automatically.",
+    )
+
+
+@router.post("/{employee_id}/knowledge-sources/upload-sync", response_model=UploadResponse)
+async def upload_knowledge_source_sync(
+    employee_id: str,
+    file: UploadFile = File(...),
+):
+    """
+    Upload and synchronously process a document.
+    Blocks until the full pipeline completes. Use for testing.
+    For production use the async /upload endpoint.
+    """
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    content = await file.read()
+    filename = file.filename or "uploaded_document"
+
+    from app.services.knowledge.pipeline import run_pipeline
+    result = run_pipeline(
+        employee_id=employee_id,
+        filename=filename,
+        content=content,
+    )
+
+    if not result.success:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=result.error_message or "Document processing failed.",
+        )
+
+    return UploadResponse(
+        source_id=result.source_id,
+        status="COMPLETED",
+        message=f"Document processed successfully.",
+        skills_added=result.skills_added,
+        skills_updated=result.skills_updated,
+        projects_added=result.projects_added,
+        certifications_added=result.certifications_added,
+        conflicts=result.conflicts,
+    )
+
+
+@router.get("/{employee_id}/knowledge-sources/{source_id}")
+def get_knowledge_source(employee_id: str, source_id: str):
+    """Get a single knowledge source with full status details."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("id", source_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge source not found")
+    return result.data[0]
+
+
+@router.post("/{employee_id}/knowledge-sources/{source_id}/reprocess")
+async def reprocess_knowledge_source(
+    employee_id: str,
+    source_id: str,
+    background_tasks: BackgroundTasks,
+):
+    """Reprocess an existing knowledge source (re-runs the full pipeline)."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("id", source_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge source not found")
+
+    source = result.data[0]
+    storage_path = source.get("storage_path")
+    filename = source.get("original_filename") or source.get("name", "document")
+
+    if not storage_path:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No stored file found for this knowledge source. Please re-upload.",
+        )
+
+    from app.config import settings
+    from pathlib import Path
+
+    full_path = Path(settings.UPLOAD_DIR) / storage_path
+    if not full_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Stored file not found. Please re-upload.",
+        )
+
+    content = full_path.read_bytes()
+
+    # Reset status
+    sb.table("knowledge_sources").update({
+        "status": "UPLOADED",
+        "processing_stage": "UPLOADED",
+        "error_code": None,
+        "error_message": None,
+    }).eq("id", source_id).execute()
+
+    from app.services.knowledge.pipeline import run_pipeline
+
+    def _run():
+        run_pipeline(
+            employee_id=employee_id,
+            filename=filename,
+            content=content,
+        )
+
+    background_tasks.add_task(_run)
+    return {"status": "REPROCESSING", "message": "Reprocessing started in background."}
+
+
+@router.delete("/{employee_id}/knowledge-sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_knowledge_source(employee_id: str, source_id: str):
+    """Delete a knowledge source and its stored file."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("id", source_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge source not found")
+
+    source = result.data[0]
+    storage_path = source.get("storage_path")
+
+    # Delete stored file
+    if storage_path:
+        from app.services.knowledge.file_validator import delete_stored_file
+        delete_stored_file(storage_path)
+
+    # Delete DB record (cascades to extracted_facts + update_events)
+    sb.table("knowledge_sources").delete().eq("id", source_id).execute()
+
+
+@router.get("/{employee_id}/knowledge-sources/{source_id}/changes")
+def get_knowledge_source_changes(employee_id: str, source_id: str):
+    """Get the audit trail of changes made by this knowledge source."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_update_events")
+        .select("*")
+        .eq("source_id", source_id)
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data or []
+
+
+@router.get("/{employee_id}/knowledge/change-history")
+def get_knowledge_change_history(employee_id: str):
+    """Get full knowledge change history for an employee."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_update_events")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return result.data or []
 
 
 # ─── Recognitions ─────────────────────────────────────────────

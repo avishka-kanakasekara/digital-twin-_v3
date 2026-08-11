@@ -465,3 +465,109 @@ export default {
   learning: learningAPI,
   career: careerAPI,
 };
+
+// ==================== KNOWLEDGE INTELLIGENCE ====================
+
+export interface KnowledgeSource {
+  id: string;
+  employee_id: string;
+  name: string;
+  original_filename?: string;
+  type?: string;
+  source_type?: string;
+  status: string;
+  processing_stage?: string;
+  file_size?: number;
+  mime_type?: string;
+  coverage: number;
+  skills_extracted: number;
+  projects_found: number;
+  confidence: number;
+  connected: boolean;
+  error_code?: string;
+  error_message?: string;
+  analysis_result?: {
+    skills_count?: number;
+    projects_count?: number;
+    certifications_count?: number;
+    experience_count?: number;
+    education_count?: number;
+  };
+  last_synced?: string;
+  processed_at?: string;
+  created_at?: string;
+}
+
+export interface KnowledgeUploadResponse {
+  source_id: string;
+  status: string;
+  message: string;
+  skills_added: number;
+  skills_updated: number;
+  projects_added: number;
+  certifications_added: number;
+  conflicts: number;
+}
+
+export interface KnowledgeChangeEvent {
+  id: string;
+  operation: string;
+  entity_type: string;
+  entity_key: string;
+  old_value?: any;
+  new_value?: any;
+  confidence?: number;
+  reason?: string;
+  evidence_text?: string;
+  requires_approval: boolean;
+  approval_status?: string;
+  created_at?: string;
+}
+
+async function uploadFileToAPI(endpoint: string, file: File): Promise<any> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const token = localStorage.getItem('auth_token');
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers: HeadersInit = {
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+  const response = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export const knowledgeAPI = {
+  upload: (employeeId: string, file: File): Promise<KnowledgeUploadResponse> =>
+    uploadFileToAPI(`/api/employees/${employeeId}/knowledge-sources/upload`, file),
+
+  uploadSync: (employeeId: string, file: File): Promise<KnowledgeUploadResponse> =>
+    uploadFileToAPI(`/api/employees/${employeeId}/knowledge-sources/upload-sync`, file),
+
+  list: (employeeId: string): Promise<KnowledgeSource[]> =>
+    fetchAPI<KnowledgeSource[]>(`/api/employees/${employeeId}/knowledge-sources`),
+
+  get: (employeeId: string, sourceId: string): Promise<KnowledgeSource> =>
+    fetchAPI<KnowledgeSource>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}`),
+
+  reprocess: (employeeId: string, sourceId: string): Promise<any> =>
+    fetchAPI<any>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}/reprocess`, {
+      method: 'POST',
+    }),
+
+  deleteSource: (employeeId: string, sourceId: string): Promise<void> =>
+    fetchAPI<void>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}`, {
+      method: 'DELETE',
+    }),
+
+  getChanges: (employeeId: string, sourceId: string): Promise<KnowledgeChangeEvent[]> =>
+    fetchAPI<KnowledgeChangeEvent[]>(
+      `/api/employees/${employeeId}/knowledge-sources/${sourceId}/changes`
+    ),
+
+  getChangeHistory: (employeeId: string): Promise<KnowledgeChangeEvent[]> =>
+    fetchAPI<KnowledgeChangeEvent[]>(`/api/employees/${employeeId}/knowledge/change-history`),
+};
