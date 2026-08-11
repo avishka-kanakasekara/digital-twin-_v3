@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { employeeAPI, gamificationAPI } from '../../../lib/api';
+import { employeeAPI, gamificationAPI, knowledgeAPI } from '../../../lib/api';
 import { useEmployee } from '../../../contexts/EmployeeContext';
 import * as digitalTwinMockData from '../../../dummy/employee/digitalTwinMockData';
 import * as gamificationData from '../../../dummy/employee/gamificationHubData';
@@ -183,21 +183,68 @@ export const useDigitalTwin = () => {
     setProjects((prev: any) => [...prev, { ...projectData, id: Date.now().toString() }]);
   }, [useAPI, currentEmployee]);
 
-  const uploadKnowledgeSource = useCallback(async (fileOrConnection: any, type: string) => {
+  const uploadKnowledgeSource = useCallback(async (name: string, type: string) => {
+    // Real upload is handled directly by KnowledgeSources component via knowledgeAPI.upload().
+    // This callback exists for legacy compatibility — refreshes the knowledge list after upload.
     if (useAPI && currentEmployee) {
       try {
-        await employeeAPI.getKnowledgeSources(currentEmployee.id); // Would be POST in real API
+        const sources = await knowledgeAPI.list(currentEmployee.id);
+        setKnowledge(sources);
       } catch (error) {
-        console.error('Failed to upload knowledge source:', error);
+        console.warn('Could not refresh knowledge sources after upload:', error);
       }
+    } else {
+      // Offline fallback
+      setKnowledge((prev: any) => [...prev, {
+        id: Date.now().toString(),
+        name,
+        type,
+        status: 'COMPLETED',
+        connected: true,
+        skills_extracted: 0,
+        projects_found: 0,
+        confidence: 0,
+        coverage: 0,
+        last_synced: new Date().toISOString(),
+      }]);
     }
-    setKnowledge((prev: any) => [...prev, { 
-      ...fileOrConnection, 
-      id: Date.now().toString(),
-      type,
-      last_synced: new Date().toISOString()
-    }]);
   }, [useAPI, currentEmployee]);
+
+  const refreshKnowledge = useCallback(async () => {
+    if (!currentEmployee) return;
+    try {
+      const sources = await knowledgeAPI.list(currentEmployee.id);
+      setKnowledge(sources);
+    } catch (error) {
+      console.warn('Could not refresh knowledge sources:', error);
+    }
+  }, [currentEmployee]);
+
+  /**
+   * Called when a knowledge pipeline completes.
+   * Re-fetches ALL derived data that the pipeline may have updated:
+   * skills, projects, certifications, twin summary.
+   */
+  const refreshAllData = useCallback(async () => {
+    if (!currentEmployee) return;
+    try {
+      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary] = await Promise.all([
+        employeeAPI.getSkills(currentEmployee.id),
+        employeeAPI.getSkillsGrouped(currentEmployee.id),
+        employeeAPI.getProjects(currentEmployee.id),
+        employeeAPI.getCertifications(currentEmployee.id),
+        employeeAPI.getTwinSummary(currentEmployee.id),
+      ]);
+      setSkills(newSkills);
+      setSkillsData(newSkillsGrouped);
+      setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
+      setCertifications(newCertifications);
+      setTwinSummary(newTwinSummary as any);
+      console.log('✅ Digital Twin refreshed after pipeline completion');
+    } catch (error) {
+      console.warn('Could not refresh data after pipeline completion:', error);
+    }
+  }, [currentEmployee]);
 
   const updateGamificationXP = useCallback(async (xpChange: number) => {
     if (useAPI && currentEmployee) {
@@ -263,7 +310,9 @@ export const useDigitalTwin = () => {
     
     knowledge,
     uploadKnowledgeSource,
-    
+    refreshKnowledge,
+    refreshAllData,
+
     gamification,
     completeMission,
     updateGamificationXP,

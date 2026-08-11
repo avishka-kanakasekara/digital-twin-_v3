@@ -23,7 +23,7 @@ const EmployeeTwin: React.FC = () => {
   const {
     profile, updateProfile,
     projects, addProject, updateProjectProgress,
-    knowledge, uploadKnowledgeSource,
+    knowledge, uploadKnowledgeSource, refreshAllData,
     gamification, completeMission,
     skillsData, aiReadiness, twinSummary, twinMemory,
     personalAnalytics, aiRecommendations
@@ -120,7 +120,11 @@ const EmployeeTwin: React.FC = () => {
           <div className="lg:col-span-4 space-y-6">
             <TwinSummary summary={twinSummary} />
             <AIReadiness data={aiReadiness} />
-            <KnowledgeSources sources={knowledge} onUpload={uploadKnowledgeSource} />
+            <KnowledgeSources
+              sources={knowledge}
+              onUpload={uploadKnowledgeSource}
+              onPipelineComplete={refreshAllData}
+            />
             <AIRecommendations recommendations={aiRecommendations} />
           </div>
 
