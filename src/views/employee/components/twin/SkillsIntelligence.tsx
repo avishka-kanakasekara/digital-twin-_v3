@@ -97,6 +97,9 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
         border: '1px solid rgba(226, 232, 240, 0.8)',
         padding: '1.75rem',
         backdropFilter: 'blur(20px)',
+        maxHeight: '700px',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* Ambient Orbs */}
@@ -228,7 +231,7 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
       </div>
 
       {/* Skill Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10" style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
         <AnimatePresence>
           {filteredSkills.map((skill, index) => {
             const style = getCategoryStyles(skill.category);
@@ -240,7 +243,7 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ delay: index * 0.04, duration: 0.25 }}
-                className="relative overflow-hidden"
+                className="relative"
                 style={{
                   padding: '18px 18px 16px',
                   borderRadius: '18px',
@@ -248,6 +251,8 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
                   border: `1px solid ${style.borderColor}`,
                   boxShadow: style.glowShadow,
                   transition: 'all 0.2s',
+                  height: 'auto',
+                  minHeight: '140px',
                 }}
               >
                 {/* Top gradient accent bar */}

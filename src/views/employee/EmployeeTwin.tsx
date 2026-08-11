@@ -22,7 +22,8 @@ const EmployeeTwin: React.FC = () => {
   
   const {
     profile, updateProfile,
-    projects, addProject, updateProjectProgress,
+    projects, addProject, updateProjectProgress, deleteProject,
+    getProjectTasks, addTask, updateTask, deleteTask,
     knowledge, uploadKnowledgeSource, refreshAllData,
     gamification, completeMission,
     skillsData, aiReadiness, twinSummary, twinMemory,
@@ -111,7 +112,7 @@ const EmployeeTwin: React.FC = () => {
           {/* Left Column — Main Content (8 cols) */}
           <div className="lg:col-span-8 space-y-6">
             <SkillsIntelligence skillsData={skillsData} />
-            <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} />
+            <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} onDeleteProject={deleteProject} getProjectTasks={getProjectTasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />
             <GamificationBoard gamification={gamification} onCompleteMission={completeMission} />
             <PersonalAnalytics analytics={personalAnalytics} />
           </div>
