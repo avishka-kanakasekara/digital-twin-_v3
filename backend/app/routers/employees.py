@@ -19,6 +19,8 @@ from app.schemas.employee import (
 from app.schemas.skill import SkillCreate, SkillUpdate, SkillResponse
 from app.schemas.knowledge import KnowledgeSourceResponse, UploadResponse
 from app.services.ai_readiness import analyze_ai_readiness
+from app.services.ai_twin_chat import process_chat, ChatMessage
+from app.config import settings
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
 
@@ -441,6 +443,37 @@ def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase)):
             "impact": result.recommendation.impact,
         },
         "analysisSummary": result.analysis_summary,
+    }
+
+
+@router.post("/{employee_id}/ai-chat")
+def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supabase)):
+    """Process a chat message with the AI Twin Assistant using RAG."""
+    # Check employee exists
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    
+    # Get message and conversation history
+    message = message_data.get("message", "")
+    conversation_history = message_data.get("history", [])
+    
+    # Convert history to ChatMessage objects
+    chat_history = [
+        ChatMessage(role=msg.get("role"), content=msg.get("content"))
+        for msg in conversation_history
+    ]
+    
+    # Get API key from settings
+    api_key = settings.GOOGLE_API_KEY
+    print(f"DEBUG: API key from settings: {api_key[:20] if api_key else 'None'}...")
+    
+    # Process chat
+    result = process_chat(employee_id, message, chat_history, sb, api_key)
+    
+    return {
+        "response": result.response,
+        "sources": result.sources_used,
     }
 
 

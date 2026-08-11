@@ -215,6 +215,12 @@ export const employeeAPI = {
       analysisSummary: string;
     }>(`/api/employees/${id}/ai-readiness`),
   
+  sendAIChatMessage: (id: string, message: string, history: Array<{ role: string; content: string }>) =>
+    fetchAPI<{ response: string; sources: string[] }>(`/api/employees/${id}/ai-chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+  
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
   
