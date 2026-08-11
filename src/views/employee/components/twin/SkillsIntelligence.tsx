@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { Network, Search, ShieldCheck, Sparkles, Cpu, Award, Zap, Flame, X } from 'lucide-react';
+import { Network, Search, ShieldCheck, Sparkles, Cpu, Award, Zap, Flame, X, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SkillsIntelligenceProps {
   skillsData: any;
+  updateSkill?: (skillId: string, skillData: any) => Promise<void>;
+  deleteSkill?: (skillId: string) => Promise<void>;
 }
 
-export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsData }) => {
+export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsData, updateSkill, deleteSkill }) => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingSkill, setEditingSkill] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ proficiency: 0, experience: 0, category: '' });
 
   const allSkills = Object.values(skillsData).flat() as any[];
   const categories = ['All', ...Object.keys(skillsData)];
@@ -22,6 +26,33 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
   const totalSkills = allSkills.length;
   const expertCount = allSkills.filter((s: any) => s.proficiency >= 90).length;
   const avgProficiency = Math.round(allSkills.reduce((acc: number, s: any) => acc + s.proficiency, 0) / (totalSkills || 1));
+
+  const handleEdit = (skill: any) => {
+    setEditingSkill(skill);
+    setEditForm({
+      proficiency: skill.proficiency,
+      experience: skill.experience || 0,
+      category: skill.category,
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (updateSkill && editingSkill) {
+      await updateSkill(editingSkill.id, editForm);
+      setEditingSkill(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSkill(null);
+    setEditForm({ proficiency: 0, experience: 0, category: '' });
+  };
+
+  const handleDelete = async (skillId: string) => {
+    if (deleteSkill && confirm('Are you sure you want to delete this skill?')) {
+      await deleteSkill(skillId);
+    }
+  };
 
   // Light-theme category card styles — clean on white glass
   const getCategoryStyles = (category: string) => {
@@ -278,16 +309,44 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
                       </span>
                     )}
                   </div>
-                  <span style={{
-                    padding: '3px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800,
-                    textTransform: 'uppercase', letterSpacing: '0.04em',
-                    background: isExpert ? 'linear-gradient(90deg, #f59e0b, #ea580c)' : style.badgeBg,
-                    color: isExpert ? 'white' : style.badgeText,
-                    border: isExpert ? 'none' : `1px solid ${style.borderColor}`,
-                    boxShadow: isExpert ? '0 0 10px rgba(245,158,11,0.4)' : 'none',
-                  }}>
-                    {isExpert ? '★ Expert' : skill.proficiency >= 70 ? 'Advanced' : 'Intermediate'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{
+                      padding: '3px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800,
+                      textTransform: 'uppercase', letterSpacing: '0.04em',
+                      background: isExpert ? 'linear-gradient(90deg, #f59e0b, #ea580c)' : style.badgeBg,
+                      color: isExpert ? 'white' : style.badgeText,
+                      border: isExpert ? 'none' : `1px solid ${style.borderColor}`,
+                      boxShadow: isExpert ? '0 0 10px rgba(245,158,11,0.4)' : 'none',
+                    }}>
+                      {isExpert ? '★ Expert' : skill.proficiency >= 70 ? 'Advanced' : 'Intermediate'}
+                    </span>
+                    {updateSkill && (
+                      <button
+                        onClick={() => handleEdit(skill)}
+                        style={{
+                          padding: '4px', borderRadius: '6px',
+                          background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                          border: '1px solid rgba(59,130,246,0.2)', cursor: 'pointer',
+                        }}
+                        title="Edit skill"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                    )}
+                    {deleteSkill && (
+                      <button
+                        onClick={() => handleDelete(skill.id)}
+                        style={{
+                          padding: '4px', borderRadius: '6px',
+                          background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                          border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer',
+                        }}
+                        title="Delete skill"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Category + Experience */}
@@ -351,6 +410,111 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
           )}
         </AnimatePresence>
       </div>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {editingSkill && (
+          <div
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 1000,
+            }}
+            onClick={handleCancelEdit}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'white', padding: '24px', borderRadius: '16px',
+                width: '90%', maxWidth: '400px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+              }}
+            >
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', marginBottom: '16px' }}>
+                Edit Skill: {editingSkill.name}
+              </h3>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                  Proficiency (0-100)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editForm.proficiency}
+                  onChange={e => setEditForm({ ...editForm, proficiency: parseInt(e.target.value) || 0 })}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: '8px',
+                    border: '1px solid rgba(226, 232, 240, 0.8)', fontSize: '14px',
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                  Experience (Years)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={editForm.experience}
+                  onChange={e => setEditForm({ ...editForm, experience: parseFloat(e.target.value) || 0 })}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: '8px',
+                    border: '1px solid rgba(226, 232, 240, 0.8)', fontSize: '14px',
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#64748b', display: 'block', marginBottom: '6px' }}>
+                  Category
+                </label>
+                <select
+                  value={editForm.category}
+                  onChange={e => setEditForm({ ...editForm, category: e.target.value })}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: '8px',
+                    border: '1px solid rgba(226, 232, 240, 0.8)', fontSize: '14px',
+                    background: 'white',
+                  }}
+                >
+                  {categories.filter(c => c !== 'All').map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={handleCancelEdit}
+                  style={{
+                    padding: '10px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: 600,
+                    background: 'rgba(226, 232, 240, 0.8)', color: '#64748b',
+                    border: '1px solid rgba(226, 232, 240, 0.8)', cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  style={{
+                    padding: '10px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: 600,
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                    color: 'white', border: 'none', cursor: 'pointer',
+                  }}
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

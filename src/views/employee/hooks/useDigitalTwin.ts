@@ -233,26 +233,28 @@ export const useDigitalTwin = () => {
   /**
    * Called when a knowledge pipeline completes.
    * Re-fetches ALL derived data that the pipeline may have updated:
-   * skills, projects, certifications, twin summary.
+   * skills, projects, certifications, twin summary, AI readiness.
    */
   const refreshAllData = useCallback(async () => {
     if (!currentEmployee) return;
     try {
-      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary] = await Promise.all([
+      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary, newAIReadiness] = await Promise.all([
         employeeAPI.getSkills(currentEmployee.id),
         employeeAPI.getSkillsGrouped(currentEmployee.id),
         employeeAPI.getProjects(currentEmployee.id),
         employeeAPI.getCertifications(currentEmployee.id),
         employeeAPI.getTwinSummary(currentEmployee.id),
+        employeeAPI.getAIReadiness(currentEmployee.id),
       ]);
       setSkills(newSkills);
       setSkillsData(newSkillsGrouped);
       setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
       setCertifications(newCertifications);
       setTwinSummary(newTwinSummary as any);
+      setAIReadiness(newAIReadiness);
       console.log('✅ Digital Twin refreshed after pipeline completion');
     } catch (error) {
-      console.warn('Could not refresh data after pipeline completion:', error);
+      console.error('Failed to refresh all data:', error);
     }
   }, [currentEmployee]);
 
@@ -418,6 +420,51 @@ export const useDigitalTwin = () => {
     }
   }, [useAPI, currentEmployee]);
 
+  const refreshAIReadiness = useCallback(async () => {
+    if (useAPI && currentEmployee) {
+      try {
+        const aiReadinessData = await employeeAPI.getAIReadiness(currentEmployee.id);
+        setAIReadiness(aiReadinessData);
+      } catch (error) {
+        console.error('Failed to refresh AI readiness:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const updateSkill = useCallback(async (skillId: string, skillData: any) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.updateSkill(currentEmployee.id, skillId, skillData);
+        // Refresh skills
+        const [skillsData, skillsGroupedData] = await Promise.all([
+          employeeAPI.getSkills(currentEmployee.id),
+          employeeAPI.getSkillsGrouped(currentEmployee.id),
+        ]);
+        setSkills(skillsData);
+        setSkillsData(skillsGroupedData);
+      } catch (error) {
+        console.error('Failed to update skill:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const deleteSkill = useCallback(async (skillId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.deleteSkill(currentEmployee.id, skillId);
+        // Refresh skills
+        const [skillsData, skillsGroupedData] = await Promise.all([
+          employeeAPI.getSkills(currentEmployee.id),
+          employeeAPI.getSkillsGrouped(currentEmployee.id),
+        ]);
+        setSkills(skillsData);
+        setSkillsData(skillsGroupedData);
+      } catch (error) {
+        console.error('Failed to delete skill:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
   return {
     profile,
     updateProfile,
@@ -435,19 +482,23 @@ export const useDigitalTwin = () => {
     uploadKnowledgeSource,
     refreshKnowledge,
     refreshAllData,
+    refreshAIReadiness,
 
     gamification,
     completeMission,
     updateGamificationXP,
     
     skills,
+    updateSkill,
+    deleteSkill,
+    
+    skillsData,
     twinSummary,
     
     loading,
     useAPI,
     
     // Dynamic data from backend
-    skillsData,
     certifications,
     aiReadiness,
     twinMemory,

@@ -3,6 +3,7 @@ Employees router — CRUD for employee profiles, twin summary, skills, knowledge
 Uses Supabase as the database backend.
 """
 
+import os
 import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from supabase import Client
@@ -17,6 +18,7 @@ from app.schemas.employee import (
 )
 from app.schemas.skill import SkillCreate, SkillUpdate, SkillResponse
 from app.schemas.knowledge import KnowledgeSourceResponse, UploadResponse
+from app.services.ai_readiness import analyze_ai_readiness
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
 
@@ -406,6 +408,40 @@ def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = De
         sb.table("projects").update({"progress": 0}).eq("id", project_id).execute()
     
     return {"message": "Task deleted successfully"}
+
+
+# ─── AI Readiness ───────────────────────────────────────────────
+
+@router.get("/{employee_id}/ai-readiness")
+def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get AI readiness score and analysis for an employee."""
+    # Check employee exists
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    
+    # Get API key from environment
+    api_key = os.getenv("GOOGLE_API_KEY")
+    
+    # Analyze AI readiness
+    result = analyze_ai_readiness(employee_id, sb, api_key)
+    
+    return {
+        "overallScore": result.overall_score,
+        "breakdown": [
+            {
+                "category": dim.category,
+                "score": dim.score,
+            }
+            for dim in result.breakdown
+        ],
+        "recommendation": {
+            "action": result.recommendation.action,
+            "message": result.recommendation.message,
+            "impact": result.recommendation.impact,
+        },
+        "analysisSummary": result.analysis_summary,
+    }
 
 
 # ─── Knowledge Sources ────────────────────────────────────────
