@@ -21,6 +21,7 @@ venv.bak/
 .env
 .env.*
 !.env.example
+backend/.env
 
 # ==============================
 # Node.js
