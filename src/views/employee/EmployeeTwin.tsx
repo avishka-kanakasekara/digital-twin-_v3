@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Bot, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDigitalTwin } from './hooks/useDigitalTwin';
@@ -14,11 +14,11 @@ import { ProjectsIntelligence } from './components/twin/ProjectsIntelligence';
 import { PersonalAnalytics } from './components/twin/PersonalAnalytics';
 import { GamificationBoard } from './components/twin/GamificationBoard';
 import { AIRecommendations } from './components/twin/AIRecommendations';
-import { AICareerAssistant } from '../../components/chat/AICareerAssistant';
+
 
 const EmployeeTwin: React.FC = () => {
   const navigate = useNavigate();
-  const [isChatOpen, setIsChatOpen] = useState(false);
+
   
   const {
     profile, updateProfile,
@@ -133,26 +133,7 @@ const EmployeeTwin: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Chat Button */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-8 right-8 z-50 flex items-center justify-center rounded-2xl transition-all"
-        style={{
-          width: '56px', height: '56px',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-          boxShadow: '0 0 25px rgba(59,130,246,0.35), 0 4px 15px rgba(0,0,0,0.1)',
-          border: '1px solid rgba(59,130,246,0.3)',
-        }}
-      >
-        <Bot size={24} color="white" />
-      </button>
 
-      {/* Chatbot Overlay */}
-      <AICareerAssistant
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        twinMemory={twinMemory}
-      />
     </div>
   );
 };
