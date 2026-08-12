@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain, Settings, LogOut, Bell, UserCog } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
+import { GlobalAIChatbot } from './chat/GlobalAIChatbot';
 
 export const Layout: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
@@ -227,6 +228,8 @@ export const Layout: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <GlobalAIChatbot />
     </div>
   );
 };
