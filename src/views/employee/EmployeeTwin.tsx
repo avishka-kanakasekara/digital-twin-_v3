@@ -6,14 +6,12 @@ import { EmployeeSelector } from '../../components/EmployeeSelector';
 
 // Components
 import { IdentityProfile } from './components/twin/IdentityProfile';
-import { TwinSummary } from './components/twin/TwinSummary';
 import { SkillsIntelligence } from './components/twin/SkillsIntelligence';
 import { AIReadiness } from './components/twin/AIReadiness';
 import { KnowledgeSources } from './components/twin/KnowledgeSources';
 import { ProjectsIntelligence } from './components/twin/ProjectsIntelligence';
 import { PersonalAnalytics } from './components/twin/PersonalAnalytics';
 import { GamificationBoard } from './components/twin/GamificationBoard';
-import { AIRecommendations } from './components/twin/AIRecommendations';
 
 
 const EmployeeTwin: React.FC = () => {
@@ -26,9 +24,9 @@ const EmployeeTwin: React.FC = () => {
     getProjectTasks, addTask, updateTask, deleteTask,
     knowledge, uploadKnowledgeSource, refreshAllData, refreshAIReadiness,
     gamification, completeMission,
-    skills, updateSkill, deleteSkill,
-    skillsData, aiReadiness, twinSummary, twinMemory,
-    personalAnalytics, aiRecommendations
+    updateSkill, deleteSkill,
+    skillsData, aiReadiness,
+    personalAnalytics, personalAnalyticsAI
   } = useDigitalTwin();
 
   return (
@@ -105,7 +103,7 @@ const EmployeeTwin: React.FC = () => {
       <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8 space-y-6">
 
         {/* Row 1: Hero Profile */}
-        <IdentityProfile profile={profile} onUpdate={updateProfile} twinHealth={twinSummary.twinHealth} />
+        <IdentityProfile profile={profile} onUpdate={updateProfile} />
 
         {/* Row 2: Asymmetric Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -115,19 +113,17 @@ const EmployeeTwin: React.FC = () => {
             <SkillsIntelligence skillsData={skillsData} updateSkill={updateSkill} deleteSkill={deleteSkill} />
             <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} onDeleteProject={deleteProject} getProjectTasks={getProjectTasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />
             <GamificationBoard gamification={gamification} onCompleteMission={completeMission} />
-            <PersonalAnalytics analytics={personalAnalytics} />
+            <PersonalAnalytics analytics={personalAnalytics} personalAnalyticsAI={personalAnalyticsAI} />
           </div>
 
           {/* Right Column — Sidebar (4 cols) */}
           <div className="lg:col-span-4 space-y-6">
-            <TwinSummary summary={twinSummary} />
             <AIReadiness data={aiReadiness} onRefresh={refreshAIReadiness} />
             <KnowledgeSources
               sources={knowledge}
               onUpload={uploadKnowledgeSource}
               onPipelineComplete={refreshAllData}
             />
-            <AIRecommendations recommendations={aiRecommendations} />
           </div>
 
         </div>
