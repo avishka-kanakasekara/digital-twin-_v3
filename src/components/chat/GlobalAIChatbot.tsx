@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot, Sparkles, MessageCircle, Minimize2, Maximize2, Zap, Brain, ChevronDown } from 'lucide-react';
+import { X, Send, Bot, Sparkles, MessageCircle, Minimize2, Maximize2, Zap, Brain } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { employeeAPI } from '../../lib/api';
 
@@ -78,7 +78,6 @@ export const GlobalAIChatbot: React.FC = () => {
   const handleSuggestion = (text: string) => {
     setChatInput(text);
     setTimeout(() => {
-      const fakeEvent = { trim: () => text } as any;
       if (text.trim() && currentEmployee) {
         setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date() }]);
         setChatInput('');
