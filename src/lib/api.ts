@@ -221,6 +221,15 @@ export const employeeAPI = {
       body: JSON.stringify({ message, history }),
     }),
   
+  getPersonalAnalytics: (id: string) =>
+    fetchAPI<{
+      insights: Array<{ category: string; title: string; description: string; impact: string; actionable: boolean }>;
+      productivity_trends: Array<{ period: string; score: number; key_achievements: string[] }>;
+      skill_growth: Array<{ skill_name: string; current_level: number; target_level: number; growth_rate: number; trajectory: string; category: string; recent_projects: string[] }>;
+      recommendations: string[];
+      overall_score: number;
+    }>(`/api/employees/${id}/personal-analytics`),
+  
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
   

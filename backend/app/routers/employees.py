@@ -21,6 +21,7 @@ from app.schemas.skill import SkillCreate, SkillUpdate, SkillResponse
 from app.schemas.knowledge import KnowledgeSourceResponse, UploadResponse
 from app.services.ai_readiness import analyze_ai_readiness
 from app.services.ai_twin_chat import process_chat, ChatMessage
+from app.services.personal_analytics import process_analytics, to_dict
 from app.config import settings
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
@@ -476,6 +477,23 @@ def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supab
         "response": result.response,
         "sources": result.sources_used,
     }
+
+
+@router.get("/{employee_id}/personal-analytics")
+def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get AI-powered personal analytics for an employee."""
+    # Check employee exists
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    
+    # Get API key from settings
+    api_key = settings.GOOGLE_API_KEY
+    
+    # Process analytics
+    result = process_analytics(employee_id, sb, api_key)
+    
+    return to_dict(result)
 
 
 # ─── Knowledge Sources ────────────────────────────────────────

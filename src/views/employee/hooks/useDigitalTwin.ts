@@ -30,6 +30,7 @@ export const useDigitalTwin = () => {
   const [skills, setSkills] = useState<any[]>([]);
   const [twinSummary, setTwinSummary] = useState(digitalTwinMockData.twinSummary);
   const [personalAnalytics, setPersonalAnalytics] = useState(digitalTwinMockData.personalAnalytics);
+  const [personalAnalyticsAI, setPersonalAnalyticsAI] = useState<any>(null);
   const [skillsData, setSkillsData] = useState(digitalTwinMockData.skillsData);
   const [certifications, setCertifications] = useState(digitalTwinMockData.certificationsTimeline);
   const [aiReadiness, setAIReadiness] = useState(digitalTwinMockData.aiReadiness);
@@ -66,7 +67,7 @@ export const useDigitalTwin = () => {
         });
         setUseAPI(true);
         
-        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData] = await Promise.all([
+        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData, personalAnalyticsData] = await Promise.all([
           employeeAPI.getProjects(currentEmployee.id),
           employeeAPI.getKnowledgeSources(currentEmployee.id),
           employeeAPI.getSkills(currentEmployee.id),
@@ -79,12 +80,14 @@ export const useDigitalTwin = () => {
           employeeAPI.getProjectPrediction(currentEmployee.id),
           employeeAPI.getAIRecommendations(currentEmployee.id),
           employeeAPI.getCertifications(currentEmployee.id),
+          employeeAPI.getPersonalAnalytics(currentEmployee.id),
         ]);
         setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
         setKnowledge(knowledgeData);
         setSkills(skillsData);
         setTwinSummary(twinSum as any);
         setPersonalAnalytics(analyticsData);
+        setPersonalAnalyticsAI(personalAnalyticsData);
         setSkillsData(skillsGroupedData);
         setAIReadiness(aiReadinessData);
         setTwinMemory(twinMemoryData);
@@ -494,6 +497,7 @@ export const useDigitalTwin = () => {
     
     skillsData,
     twinSummary,
+    personalAnalyticsAI,
     
     loading,
     useAPI,
