@@ -235,11 +235,11 @@ def get_projects(employee_id: str, sb: Client = Depends(get_supabase)):
     """Get projects for an employee from Supabase."""
     result = sb.table("projects").select("*").eq("employee_id", employee_id).execute()
     all_projects = result.data or []
-    
+
     # Separate into current and completed based on status
     current = [p for p in all_projects if p.get("status") not in ["Completed", "completed"]]
     completed = [p for p in all_projects if p.get("status") in ["Completed", "completed"]]
-    
+
     return {
         "current": current,
         "completed": completed
@@ -254,7 +254,7 @@ def create_project(employee_id: str, project_data: dict, sb: Client = Depends(ge
         emp = sb.table("employees").select("id").eq("id", employee_id).execute()
         if not emp.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-        
+
         new_project = {
             "id": str(uuid.uuid4()),
             "employee_id": employee_id,
@@ -269,7 +269,7 @@ def create_project(employee_id: str, project_data: dict, sb: Client = Depends(ge
             "domain": project_data.get("domain", "General"),
             "progress": project_data.get("progress", 0),
         }
-        
+
         result = sb.table("projects").insert(new_project).execute()
         return result.data[0]
     except Exception as e:
@@ -284,17 +284,17 @@ def update_project(employee_id: str, project_id: str, project_data: dict, sb: Cl
     existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    
+
     update_data = {}
     if "status" in project_data:
         update_data["status"] = project_data["status"]
     if "progress" in project_data:
         update_data["progress"] = project_data["progress"]
-    
+
     if update_data:
         result = sb.table("projects").update(update_data).eq("id", project_id).execute()
         return result.data[0]
-    
+
     return existing.data[0]
 
 
@@ -305,7 +305,7 @@ def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_s
     existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    
+
     sb.table("projects").delete().eq("id", project_id).execute()
     return {"message": "Project deleted successfully"}
 
@@ -327,7 +327,7 @@ def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client =
         project = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
         if not project.data:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-        
+
         new_task = {
             "id": str(uuid.uuid4()),
             "project_id": project_id,
@@ -338,9 +338,9 @@ def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client =
             "priority": task_data.get("priority", "Medium"),
             "due_date": task_data.get("due_date"),
         }
-        
+
         result = sb.table("tasks").insert(new_task).execute()
-        
+
         # Recalculate project progress based on tasks
         all_tasks = sb.table("tasks").select("*").eq("project_id", project_id).execute()
         tasks = all_tasks.data or []
@@ -348,7 +348,7 @@ def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client =
             completed_count = sum(1 for t in tasks if t.get("status") in ["Completed", "completed"])
             progress = int((completed_count / len(tasks)) * 100)
             sb.table("projects").update({"progress": progress}).eq("id", project_id).execute()
-        
+
         return result.data[0]
     except Exception as e:
         print(f"Error creating task: {e}")
@@ -362,7 +362,7 @@ def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict
     existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    
+
     update_data = {}
     if "status" in task_data:
         update_data["status"] = task_data["status"]
@@ -374,10 +374,10 @@ def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict
         update_data["priority"] = task_data["priority"]
     if "due_date" in task_data:
         update_data["due_date"] = task_data["due_date"]
-    
+
     if update_data:
         result = sb.table("tasks").update(update_data).eq("id", task_id).execute()
-        
+
         # Recalculate project progress based on tasks
         all_tasks = sb.table("tasks").select("*").eq("project_id", project_id).execute()
         tasks = all_tasks.data or []
@@ -385,9 +385,9 @@ def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict
             completed_count = sum(1 for t in tasks if t.get("status") in ["Completed", "completed"])
             progress = int((completed_count / len(tasks)) * 100)
             sb.table("projects").update({"progress": progress}).eq("id", project_id).execute()
-        
+
         return result.data[0]
-    
+
     return existing.data[0]
 
 
@@ -398,9 +398,9 @@ def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = De
     existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
     if not existing.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    
+
     sb.table("tasks").delete().eq("id", task_id).execute()
-    
+
     # Recalculate project progress based on tasks
     all_tasks = sb.table("tasks").select("*").eq("project_id", project_id).execute()
     tasks = all_tasks.data or []
@@ -410,7 +410,7 @@ def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = De
         sb.table("projects").update({"progress": progress}).eq("id", project_id).execute()
     else:
         sb.table("projects").update({"progress": 0}).eq("id", project_id).execute()
-    
+
     return {"message": "Task deleted successfully"}
 
 
@@ -423,13 +423,13 @@ def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase)):
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-    
+
     # Get API key from environment
     api_key = os.getenv("GOOGLE_API_KEY")
-    
+
     # Analyze AI readiness
     result = analyze_ai_readiness(employee_id, sb, api_key)
-    
+
     return {
         "overallScore": result.overall_score,
         "breakdown": [
@@ -455,24 +455,24 @@ def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supab
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-    
+
     # Get message and conversation history
     message = message_data.get("message", "")
     conversation_history = message_data.get("history", [])
-    
+
     # Convert history to ChatMessage objects
     chat_history = [
         ChatMessage(role=msg.get("role"), content=msg.get("content"))
         for msg in conversation_history
     ]
-    
+
     # Get API key from settings
     api_key = settings.GOOGLE_API_KEY
     print(f"DEBUG: API key from settings: {api_key[:20] if api_key else 'None'}...")
-    
+
     # Process chat
     result = process_chat(employee_id, message, chat_history, sb, api_key)
-    
+
     return {
         "response": result.response,
         "sources": result.sources_used,
@@ -486,13 +486,13 @@ def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase))
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-    
+
     # Get API key from settings
     api_key = settings.GOOGLE_API_KEY
-    
+
     # Process analytics
     result = process_analytics(employee_id, sb, api_key)
-    
+
     return to_dict(result)
 
 
@@ -520,7 +520,7 @@ async def upload_knowledge_source(
 ):
     """
     Upload a professional document (CV, certificate, project doc, etc.).
-    
+
     The file is stored immediately. AI processing runs in the background.
     Poll GET /knowledge-sources to track progress.
     """
@@ -781,21 +781,21 @@ def get_personal_analytics(employee_id: str):
 def get_skills_grouped(employee_id: str, sb: Client = Depends(get_supabase)):
     """Get skills grouped by category for the dashboard from Supabase."""
     from app.services.knowledge.skill_normalizer import normalize_skill
-    
+
     # Fetch skills from Supabase
     result = sb.table("skills").select("*").eq("employee_id", employee_id).execute()
     all_skills = result.data or []
-    
+
     # Group by category
     grouped = {}
     for skill in all_skills:
         category = skill.get("category", "General")
         if category not in grouped:
             grouped[category] = []
-        
+
         # Normalize skill name for consistency
         normalized = normalize_skill(skill.get("name", ""))
-        
+
         grouped[category].append({
             "id": skill.get("id"),
             "name": normalized.canonical_name,
@@ -808,7 +808,7 @@ def get_skills_grouped(employee_id: str, sb: Client = Depends(get_supabase)):
             "source": skill.get("source", "Unknown"),
             "lastUpdated": skill.get("last_updated", "Unknown"),
         })
-    
+
     return grouped
 
 
