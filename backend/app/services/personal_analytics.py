@@ -5,7 +5,6 @@ Analyzes employee data from documents, projects, and skills to generate insights
 
 from typing import Dict, List, Any
 from supabase import Client
-from google import genai
 import json
 import os
 
@@ -199,10 +198,21 @@ def process_analytics(employee_id: str, sb: Client, api_key: str) -> AnalyticsRe
     context = build_analytics_context(employee_id, sb)
     
     # Initialize Gemini client
-    from google import genai
-    from google.genai import types
+    try:
+        from google import genai
+        from google.genai import types
 
-    client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key)
+    except Exception as err:
+        return AnalyticsResponse(
+            insights=[
+                AnalyticsInsight("System", "AI Library Warning", f"Google GenAI package error: {str(err)}", "Medium", False)
+            ],
+            productivity_trends=[],
+            skill_growth=[],
+            recommendations=["Verify google-genai installation"],
+            overall_score=0,
+        )
     
     # Create prompt
     prompt = f"""EMPLOYEE DATA FOR ANALYSIS:
