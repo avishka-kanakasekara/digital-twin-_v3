@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 
 import { Modal } from '../../components/Modal';
@@ -6,12 +6,13 @@ import { Users, Target, TrendingUp, ChevronDown, Activity, ExternalLink, HeartPu
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Link } from 'react-router-dom';
 import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
-import { mockLargeDepartments } from '../../dummy/organization/largeDashboardData';
 import { useOrganizationMetrics } from '../../hooks/useOrganization';
+import api from '../../lib/api';
 
 export const Dashboard: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState('All Departments');
   const [drillDownInfo, setDrillDownInfo] = useState<{ isOpen: boolean; title: string; type: string } | null>(null);
+  const [departments, setDepartments] = useState<any[]>([]);
 
   const { metrics, loading } = useOrganizationMetrics();
   
@@ -20,6 +21,15 @@ export const Dashboard: React.FC = () => {
   
   // Latest metric for summary cards
   const latestMetric = orgHistoryData.length > 0 ? orgHistoryData[orgHistoryData.length - 1] : null;
+
+  useEffect(() => {
+    api.departments.list({ limit: 6 }).then(data => {
+      setDepartments(data.map((d: any) => ({
+        name: d.name,
+        performanceScore: d.performance_score,
+      })));
+    }).catch(console.error);
+  }, []);
 
 
 
@@ -252,7 +262,7 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="flex-1 w-full opacity-90 group-hover:opacity-100 transition-opacity">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockLargeDepartments.slice(0, 6)} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                <BarChart data={departments} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} dy={5} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} />

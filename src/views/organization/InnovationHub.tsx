@@ -1,22 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { Lightbulb, Network, BrainCircuit, Rocket, TrendingUp, Sparkles, ChevronRight, Share2, X, Wallet, Users, AlertTriangle, FileText } from 'lucide-react';
-import { mockTopIdeas, mockCommunities } from '../../dummy/organization/innovationData';
+import api from '../../lib/api';
 
 export const InnovationHub: React.FC = () => {
   const [ideaTitle, setIdeaTitle] = useState('');
   const [ideaDesc, setIdeaDesc] = useState('');
   const [isScoring, setIsScoring] = useState(false);
   const [scoreResult, setScoreResult] = useState<{ impact: string, feasibility: string, similar: number } | null>(null);
-  const [expandedIdeaId, setExpandedIdeaId] = useState<number | null>(null);
-  const [ideas, setIdeas] = useState(mockTopIdeas);
-  const [reviewIdeaId, setReviewIdeaId] = useState<number | null>(null);
+  const [expandedIdeaId, setExpandedIdeaId] = useState<string | null>(null);
+  const [ideas, setIdeas] = useState<any[]>([]);
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [reviewIdeaId, setReviewIdeaId] = useState<string | null>(null);
 
-  const handleApprove = (e: React.MouseEvent, id: number) => {
-    e.stopPropagation(); // prevent opening/closing the accordion
+  useEffect(() => {
+    api.organization.getIdeas().then(data => {
+      setIdeas(data.map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        authorInitials: d.author_initials,
+        authorBg: d.author_bg,
+        description: d.description,
+        fullDescription: d.full_description,
+        roi: d.roi,
+        timeline: d.timeline,
+        budget: d.budget,
+        risks: d.risks,
+        teamRequired: d.team_required,
+        impactScore: d.impact_score,
+        feasibility: d.feasibility,
+        status: d.status,
+        patentPending: d.patent_pending,
+      })));
+    }).catch(console.error);
+
+    api.organization.getCommunities().then(data => {
+      setCommunities(data.map((d: any) => ({
+        id: d.id,
+        name: d.name,
+        members: d.members,
+        joined: d.joined,
+        icon: d.icon,
+        bgClass: d.bg_class,
+      })));
+    }).catch(console.error);
+  }, []);
+
+  const handleApprove = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
     setIdeas(ideas.map(idea =>
       idea.id === id ? { ...idea, status: 'Approved' } : idea
     ));
+    api.organization.approveIdea(id).catch(console.error);
     setExpandedIdeaId(null);
   };
 
@@ -239,7 +274,7 @@ export const InnovationHub: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-6 relative z-10 mt-2">
-              {mockCommunities.map((community) => (
+              {communities.map((community) => (
                 <div key={community.id} className="p-6 rounded-3xl flex flex-col gap-4 shadow-md transition-all duration-300" style={{ backgroundColor: 'rgba(255,255,255,0.9)', border: '1px solid #f1f5f9' }}>
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: getCommunityGradient(community.bgClass) }}>
