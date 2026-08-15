@@ -170,6 +170,66 @@ export const employeeAPI = {
   getProjects: (id: string) =>
     fetchAPI<{ current: any[]; completed: any[] }>(`/api/employees/${id}/projects`),
   
+  createProject: (id: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateProject: (id: string, projectId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteProject: (id: string, projectId: string) =>
+    fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}`, {
+      method: 'DELETE',
+    }),
+  
+  getTasks: (id: string, projectId: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/projects/${projectId}/tasks`),
+  
+  createTask: (id: string, projectId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateTask: (id: string, projectId: string, taskId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteTask: (id: string, projectId: string, taskId: string) =>
+    fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'DELETE',
+    }),
+  
+  getAIReadiness: (id: string) =>
+    fetchAPI<{
+      overallScore: number;
+      breakdown: Array<{ category: string; score: number }>;
+      recommendation: { action: string; message: string; impact: string };
+      analysisSummary: string;
+    }>(`/api/employees/${id}/ai-readiness`),
+  
+  sendAIChatMessage: (id: string, message: string, history: Array<{ role: string; content: string }>) =>
+    fetchAPI<{ response: string; sources: string[] }>(`/api/employees/${id}/ai-chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+  
+  getPersonalAnalytics: (id: string) =>
+    fetchAPI<{
+      insights: Array<{ category: string; title: string; description: string; impact: string; actionable: boolean }>;
+      productivity_trends: Array<{ period: string; score: number; key_achievements: string[] }>;
+      skill_growth: Array<{ skill_name: string; current_level: number; target_level: number; growth_rate: number; trajectory: string; category: string; recent_projects: string[] }>;
+      recommendations: string[];
+      overall_score: number;
+    }>(`/api/employees/${id}/personal-analytics`),
+  
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
   
@@ -184,9 +244,6 @@ export const employeeAPI = {
   
   getSkillsGrouped: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/skills-grouped`),
-  
-  getAIReadiness: (id: string) =>
-    fetchAPI<any>(`/api/employees/${id}/ai-readiness`),
   
   getTwinMemory: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/twin-memory`),
@@ -622,4 +679,110 @@ export default {
   career: careerAPI,
   organization: organizationAPI,
   departments: departmentsAPI,
+};
+
+// ==================== KNOWLEDGE INTELLIGENCE ====================
+
+export interface KnowledgeSource {
+  id: string;
+  employee_id: string;
+  name: string;
+  original_filename?: string;
+  type?: string;
+  source_type?: string;
+  status: string;
+  processing_stage?: string;
+  file_size?: number;
+  mime_type?: string;
+  coverage: number;
+  skills_extracted: number;
+  projects_found: number;
+  confidence: number;
+  connected: boolean;
+  error_code?: string;
+  error_message?: string;
+  analysis_result?: {
+    skills_count?: number;
+    projects_count?: number;
+    certifications_count?: number;
+    experience_count?: number;
+    education_count?: number;
+  };
+  last_synced?: string;
+  processed_at?: string;
+  created_at?: string;
+}
+
+export interface KnowledgeUploadResponse {
+  source_id: string;
+  status: string;
+  message: string;
+  skills_added: number;
+  skills_updated: number;
+  projects_added: number;
+  certifications_added: number;
+  conflicts: number;
+}
+
+export interface KnowledgeChangeEvent {
+  id: string;
+  operation: string;
+  entity_type: string;
+  entity_key: string;
+  old_value?: any;
+  new_value?: any;
+  confidence?: number;
+  reason?: string;
+  evidence_text?: string;
+  requires_approval: boolean;
+  approval_status?: string;
+  created_at?: string;
+}
+
+async function uploadFileToAPI(endpoint: string, file: File): Promise<any> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const token = localStorage.getItem('auth_token');
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers: HeadersInit = {
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+  const response = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export const knowledgeAPI = {
+  upload: (employeeId: string, file: File): Promise<KnowledgeUploadResponse> =>
+    uploadFileToAPI(`/api/employees/${employeeId}/knowledge-sources/upload`, file),
+
+  uploadSync: (employeeId: string, file: File): Promise<KnowledgeUploadResponse> =>
+    uploadFileToAPI(`/api/employees/${employeeId}/knowledge-sources/upload-sync`, file),
+
+  list: (employeeId: string): Promise<KnowledgeSource[]> =>
+    fetchAPI<KnowledgeSource[]>(`/api/employees/${employeeId}/knowledge-sources`),
+
+  get: (employeeId: string, sourceId: string): Promise<KnowledgeSource> =>
+    fetchAPI<KnowledgeSource>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}`),
+
+  reprocess: (employeeId: string, sourceId: string): Promise<any> =>
+    fetchAPI<any>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}/reprocess`, {
+      method: 'POST',
+    }),
+
+  deleteSource: (employeeId: string, sourceId: string): Promise<void> =>
+    fetchAPI<void>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}`, {
+      method: 'DELETE',
+    }),
+
+  getChanges: (employeeId: string, sourceId: string): Promise<KnowledgeChangeEvent[]> =>
+    fetchAPI<KnowledgeChangeEvent[]>(
+      `/api/employees/${employeeId}/knowledge-sources/${sourceId}/changes`
+    ),
+
+  getChangeHistory: (employeeId: string): Promise<KnowledgeChangeEvent[]> =>
+    fetchAPI<KnowledgeChangeEvent[]>(`/api/employees/${employeeId}/knowledge/change-history`),
 };

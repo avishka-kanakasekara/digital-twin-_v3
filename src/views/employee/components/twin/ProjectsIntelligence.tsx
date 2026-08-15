@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
-import { Briefcase, Plus, TrendingUp, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
+import { Briefcase, Plus, TrendingUp, CheckCircle2, AlertTriangle, Sparkles, Trash2, Check } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
 
 interface ProjectsIntelligenceProps {
   projects: any;
   onAddProject: (project: any) => void;
-  onUpdateStatus: (projectId: string, status: string) => void;
+  onUpdateStatus: (projectId: string, status: string, progress?: number) => void;
+  onDeleteProject: (projectId: string) => void;
+  getProjectTasks: (projectId: string) => Promise<any[]>;
+  addTask: (projectId: string, taskData: any) => Promise<void>;
+  updateTask: (projectId: string, taskId: string, taskData: any) => Promise<void>;
+  deleteTask: (projectId: string, taskId: string) => Promise<void>;
 }
 
 const STATUS_STYLES: Record<string, { color: string; bg: string; border: string }> = {
   'On Track': { color: '#10b981', bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
   'At Risk': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', border: 'rgba(239,68,68,0.3)' },
   'Behind': { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
+  'Completed': { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', border: 'rgba(59,130,246,0.3)' },
 };
 
 const TECH_COLORS = [
@@ -19,14 +25,93 @@ const TECH_COLORS = [
   'rgba(245,158,11,0.15)', 'rgba(236,72,153,0.15)',
 ];
 
-export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ projects, onAddProject, onUpdateStatus }) => {
+export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ projects, onAddProject, onUpdateStatus, onDeleteProject, getProjectTasks, addTask, updateTask, deleteTask }) => {
   const [newProjectName, setNewProjectName] = useState('');
+  const [projectTasks, setProjectTasks] = useState<Record<string, any[]>>({});
+  const [newTaskTitles, setNewTaskTitles] = useState<Record<string, string>>({});
 
-  const handleAdd = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Load tasks for all projects on mount
+  React.useEffect(() => {
+    const loadAllTasks = async () => {
+      const allProjects = [...(projects.current || []), ...(projects.completed || [])];
+      const tasksMap: Record<string, any[]> = {};
+      for (const project of allProjects) {
+        const tasks = await getProjectTasks(project.id);
+        tasksMap[project.id] = tasks;
+      }
+      setProjectTasks(tasksMap);
+    };
+    loadAllTasks();
+  }, [projects, getProjectTasks]);
+
+  const handleAddTask = async (projectId: string) => {
+    const title = newTaskTitles[projectId]?.trim();
+    if (!title) return;
+    
+    try {
+      await addTask(projectId, { title, status: 'Pending', priority: 'Medium' });
+      setNewTaskTitles(prev => ({ ...prev, [projectId]: '' }));
+      
+      // Refresh tasks
+      const tasks = await getProjectTasks(projectId);
+      setProjectTasks(prev => ({ ...prev, [projectId]: tasks }));
+    } catch (error) {
+      console.error('Failed to add task:', error);
+      alert('Failed to add task. It may be saved locally.');
+      // Fallback: add to local state
+      const newTask = {
+        id: Date.now().toString(),
+        title,
+        status: 'Pending',
+        priority: 'Medium',
+      };
+      setProjectTasks(prev => ({
+        ...prev,
+        [projectId]: [...(prev[projectId] || []), newTask]
+      }));
+      setNewTaskTitles(prev => ({ ...prev, [projectId]: '' }));
+    }
+  };
+
+  const handleToggleTask = async (projectId: string, taskId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
+    await updateTask(projectId, taskId, { status: newStatus });
+    
+    // Refresh tasks
+    const tasks = await getProjectTasks(projectId);
+    setProjectTasks(prev => ({ ...prev, [projectId]: tasks }));
+  };
+
+  const handleDeleteTask = async (projectId: string, taskId: string) => {
+    await deleteTask(projectId, taskId);
+    
+    // Refresh tasks
+    const tasks = await getProjectTasks(projectId);
+    setProjectTasks(prev => ({ ...prev, [projectId]: tasks }));
+  };
+
+  const handleAdd = () => {
     if (!newProjectName.trim()) return;
-    onAddProject({ name: newProjectName, description: 'New project logged via Digital Twin.', role: 'Contributor', technologies: [], duration: 'Ongoing' });
+    onAddProject({ 
+      id: Date.now().toString(),
+      name: newProjectName, 
+      description: 'New project logged via Digital Twin.', 
+      role: 'Contributor', 
+      technologies: [], 
+      duration: 'Ongoing',
+      status: 'On Track',
+      successScore: 75,
+      leadershipScore: 70,
+      progress: 0
+    });
     setNewProjectName('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAdd();
+    }
   };
 
   return (
@@ -50,12 +135,13 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
           <p style={{ fontSize: '11px', color: '#475569' }}>Impact and success prediction for your logged initiatives</p>
         </div>
 
-        <form onSubmit={handleAdd} className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 w-full sm:w-auto">
           <input
             type="text"
             placeholder="Log new project..."
             value={newProjectName}
             onChange={e => setNewProjectName(e.target.value)}
+            onKeyDown={handleKeyDown}
             style={{
               height: '36px', padding: '0 12px',
               borderRadius: '10px', fontSize: '12px', fontWeight: 600,
@@ -66,7 +152,8 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
             className="sm:w-48"
           />
           <button
-            type="submit"
+            type="button"
+            onClick={handleAdd}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '0 14px', borderRadius: '10px', height: '36px',
@@ -79,7 +166,7 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
           >
             <Plus size={14} /> Log
           </button>
-        </form>
+        </div>
       </div>
 
       <Tabs defaultValue="current" className="w-full">
@@ -129,7 +216,10 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <select
                           value={project.status}
-                          onChange={e => onUpdateStatus(project.id, e.target.value)}
+                          onChange={e => {
+                            e.stopPropagation();
+                            onUpdateStatus(project.id, e.target.value);
+                          }}
                           style={{
                             padding: '2px 8px', borderRadius: '99px', fontSize: '10px', fontWeight: 800,
                             textTransform: 'uppercase', letterSpacing: '0.06em',
@@ -140,6 +230,7 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                           <option>On Track</option>
                           <option>At Risk</option>
                           <option>Behind</option>
+                          <option>Completed</option>
                         </select>
                         <span style={{
                           padding: '2px 8px', borderRadius: '99px', fontSize: '10px', fontWeight: 700,
@@ -172,21 +263,115 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                   </p>
                 </div>
 
-                {/* Leadership Bar */}
-                <div style={{ marginBottom: '12px' }}>
+                {/* Progress Bar */}
+                <div style={{ marginBottom: '14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                     <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Leadership Impact
+                      Progress
                     </span>
-                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#7c3aed' }}>{project.leadershipScore}%</span>
+                    <span style={{ fontSize: '10px', fontWeight: 800, color: '#10b981' }}>{project.progress || 0}%</span>
                   </div>
                   <div style={{ height: '5px', background: 'rgba(226, 232, 240, 0.8)', borderRadius: '99px', overflow: 'hidden' }}>
                     <div style={{
-                      height: '100%', width: `${project.leadershipScore}%`,
-                      background: 'linear-gradient(90deg, #3b82f6 0%, #7c3aed 100%)',
+                      height: '100%', width: `${project.progress || 0}%`,
+                      background: 'linear-gradient(90deg, #10b981 0%, #34d399 100%)',
                       borderRadius: '99px',
-                      boxShadow: '0 0 8px rgba(59,130,246,0.3)',
+                      boxShadow: '0 0 8px rgba(16,185,129,0.3)',
                     }} />
+                  </div>
+                </div>
+
+                {/* Task Tracking Section */}
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ marginTop: '10px', padding: '10px', borderRadius: '8px', background: 'rgba(248, 250, 252, 0.5)' }}>
+                    {/* Add Task Input */}
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                      <input
+                        type="text"
+                        placeholder="Add a task..."
+                        value={newTaskTitles[project.id] || ''}
+                        onChange={e => setNewTaskTitles(prev => ({ ...prev, [project.id]: e.target.value }))}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.stopPropagation();
+                            handleAddTask(project.id);
+                          }
+                        }}
+                        style={{
+                          flex: 1, padding: '6px 10px', borderRadius: '6px',
+                          fontSize: '11px', background: 'white', border: '1px solid rgba(226, 232, 240, 0.8)',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddTask(project.id);
+                        }}
+                        style={{
+                          padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                          color: 'white', border: 'none', cursor: 'pointer',
+                        }}
+                      >
+                        Add
+                      </button>
+                    </div>
+
+                    {/* Task List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {(projectTasks[project.id] || []).map((task: any) => (
+                        <div
+                          key={task.id}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '8px 10px', borderRadius: '6px',
+                            background: 'white', border: '1px solid rgba(226, 232, 240, 0.6)',
+                          }}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleTask(project.id, task.id, task.status);
+                            }}
+                            style={{
+                              width: '20px', height: '20px', borderRadius: '4px',
+                              border: `2px solid ${task.status === 'Completed' ? '#10b981' : '#cbd5e1'}`,
+                              background: task.status === 'Completed' ? '#10b981' : 'white',
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              padding: 0, flexShrink: 0,
+                            }}
+                          >
+                            {task.status === 'Completed' && <Check size={14} style={{ color: 'white' }} />}
+                          </button>
+                          <span style={{
+                            flex: 1, fontSize: '12px', fontWeight: 500,
+                            color: task.status === 'Completed' ? '#94a3b8' : '#334155',
+                            textDecoration: task.status === 'Completed' ? 'line-through' : 'none',
+                          }}>
+                            {task.title}
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTask(project.id, task.id);
+                            }}
+                            style={{
+                              padding: '4px', borderRadius: '4px',
+                              background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                              border: 'none', cursor: 'pointer', flexShrink: 0,
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      {(projectTasks[project.id] || []).length === 0 && (
+                        <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>
+                          No tasks yet. Add your first task above.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -226,15 +411,32 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                   <CheckCircle2 size={15} style={{ color: '#10b981' }} />
                   {project.name}
                 </h4>
-                <span style={{
-                  padding: '2px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800,
-                  textTransform: 'uppercase', letterSpacing: '0.06em',
-                  background: 'rgba(16,185,129,0.12)', color: '#34d399',
-                  border: '1px solid rgba(16,185,129,0.25)',
-                  width: 'fit-content',
-                }}>
-                  Completed
-                </span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{
+                    padding: '2px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800,
+                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                    background: 'rgba(16,185,129,0.12)', color: '#34d399',
+                    border: '1px solid rgba(16,185,129,0.25)',
+                    width: 'fit-content',
+                  }}>
+                    Completed
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteProject(project.id);
+                    }}
+                    style={{
+                      padding: '4px 8px', borderRadius: '8px',
+                      background: 'rgba(239,68,68,0.1)', color: '#ef4444',
+                      border: '1px solid rgba(239,68,68,0.2)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: '4px',
+                      fontSize: '10px', fontWeight: 600,
+                    }}
+                  >
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {project.technologies.map((tech: string, _ti: number) => (

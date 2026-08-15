@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { employeeAPI, gamificationAPI } from '../../../lib/api';
+import { employeeAPI, gamificationAPI, knowledgeAPI } from '../../../lib/api';
 import { useEmployee } from '../../../contexts/EmployeeContext';
 import * as digitalTwinMockData from '../../../dummy/employee/digitalTwinMockData';
 import * as gamificationData from '../../../dummy/employee/gamificationHubData';
@@ -30,6 +30,7 @@ export const useDigitalTwin = () => {
   const [skills, setSkills] = useState<any[]>([]);
   const [twinSummary, setTwinSummary] = useState(digitalTwinMockData.twinSummary);
   const [personalAnalytics, setPersonalAnalytics] = useState(digitalTwinMockData.personalAnalytics);
+  const [personalAnalyticsAI, setPersonalAnalyticsAI] = useState<any>(null);
   const [skillsData, setSkillsData] = useState(digitalTwinMockData.skillsData);
   const [certifications, setCertifications] = useState(digitalTwinMockData.certificationsTimeline);
   const [aiReadiness, setAIReadiness] = useState(digitalTwinMockData.aiReadiness);
@@ -66,7 +67,7 @@ export const useDigitalTwin = () => {
         });
         setUseAPI(true);
         
-        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData] = await Promise.all([
+        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData, personalAnalyticsData] = await Promise.all([
           employeeAPI.getProjects(currentEmployee.id),
           employeeAPI.getKnowledgeSources(currentEmployee.id),
           employeeAPI.getSkills(currentEmployee.id),
@@ -79,12 +80,14 @@ export const useDigitalTwin = () => {
           employeeAPI.getProjectPrediction(currentEmployee.id),
           employeeAPI.getAIRecommendations(currentEmployee.id),
           employeeAPI.getCertifications(currentEmployee.id),
+          employeeAPI.getPersonalAnalytics(currentEmployee.id),
         ]);
         setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
         setKnowledge(knowledgeData);
         setSkills(skillsData);
         setTwinSummary(twinSum as any);
         setPersonalAnalytics(analyticsData);
+        setPersonalAnalyticsAI(personalAnalyticsData);
         setSkillsData(skillsGroupedData);
         setAIReadiness(aiReadinessData);
         setTwinMemory(twinMemoryData);
@@ -175,29 +178,88 @@ export const useDigitalTwin = () => {
   const addProject = useCallback(async (projectData: any) => {
     if (useAPI && currentEmployee) {
       try {
-        await employeeAPI.getProjects(currentEmployee.id); // Would be POST in real API
+        console.log('Adding project to backend:', projectData);
+        await employeeAPI.createProject(currentEmployee.id, projectData);
+        // Refresh projects from backend to get the updated list
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
       } catch (error) {
         console.error('Failed to add project:', error);
+        // Fallback to local state if backend fails
       }
     }
-    setProjects((prev: any) => [...prev, { ...projectData, id: Date.now().toString() }]);
+    // Fallback for offline mode
+    setProjects((prev: any) => ({
+      ...prev,
+      current: [...(prev.current || []), { ...projectData, id: projectData.id || Date.now().toString() }]
+    }));
   }, [useAPI, currentEmployee]);
 
-  const uploadKnowledgeSource = useCallback(async (fileOrConnection: any, type: string) => {
+  const uploadKnowledgeSource = useCallback(async (name: string, type: string) => {
+    // Real upload is handled directly by KnowledgeSources component via knowledgeAPI.upload().
+    // This callback exists for legacy compatibility — refreshes the knowledge list after upload.
     if (useAPI && currentEmployee) {
       try {
-        await employeeAPI.getKnowledgeSources(currentEmployee.id); // Would be POST in real API
+        const sources = await knowledgeAPI.list(currentEmployee.id);
+        setKnowledge(sources);
       } catch (error) {
-        console.error('Failed to upload knowledge source:', error);
+        console.warn('Could not refresh knowledge sources after upload:', error);
       }
+    } else {
+      // Offline fallback
+      setKnowledge((prev: any) => [...prev, {
+        id: Date.now().toString(),
+        name,
+        type,
+        status: 'COMPLETED',
+        connected: true,
+        skills_extracted: 0,
+        projects_found: 0,
+        confidence: 0,
+        coverage: 0,
+        last_synced: new Date().toISOString(),
+      }]);
     }
-    setKnowledge((prev: any) => [...prev, { 
-      ...fileOrConnection, 
-      id: Date.now().toString(),
-      type,
-      last_synced: new Date().toISOString()
-    }]);
   }, [useAPI, currentEmployee]);
+
+  const refreshKnowledge = useCallback(async () => {
+    if (!currentEmployee) return;
+    try {
+      const sources = await knowledgeAPI.list(currentEmployee.id);
+      setKnowledge(sources);
+    } catch (error) {
+      console.warn('Could not refresh knowledge sources:', error);
+    }
+  }, [currentEmployee]);
+
+  /**
+   * Called when a knowledge pipeline completes.
+   * Re-fetches ALL derived data that the pipeline may have updated:
+   * skills, projects, certifications, twin summary, AI readiness.
+   */
+  const refreshAllData = useCallback(async () => {
+    if (!currentEmployee) return;
+    try {
+      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary, newAIReadiness] = await Promise.all([
+        employeeAPI.getSkills(currentEmployee.id),
+        employeeAPI.getSkillsGrouped(currentEmployee.id),
+        employeeAPI.getProjects(currentEmployee.id),
+        employeeAPI.getCertifications(currentEmployee.id),
+        employeeAPI.getTwinSummary(currentEmployee.id),
+        employeeAPI.getAIReadiness(currentEmployee.id),
+      ]);
+      setSkills(newSkills);
+      setSkillsData(newSkillsGrouped);
+      setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
+      setCertifications(newCertifications);
+      setTwinSummary(newTwinSummary as any);
+      setAIReadiness(newAIReadiness);
+      console.log('✅ Digital Twin refreshed after pipeline completion');
+    } catch (error) {
+      console.error('Failed to refresh all data:', error);
+    }
+  }, [currentEmployee]);
 
   const updateGamificationXP = useCallback(async (xpChange: number) => {
     if (useAPI && currentEmployee) {
@@ -247,11 +309,164 @@ export const useDigitalTwin = () => {
     });
   }, [addXp]);
 
-  const updateProjectProgress = useCallback((projectId: string, status: string) => {
-    setProjects((prev: any) => prev.map((p: any) => 
-      p.id === projectId ? { ...p, status } : p
-    ));
-  }, []);
+  const updateProjectProgress = useCallback(async (projectId: string, status: string, progress?: number) => {
+    if (useAPI && currentEmployee) {
+      try {
+        const updateData: any = { status };
+        if (progress !== undefined) {
+          updateData.progress = progress;
+        }
+        await employeeAPI.updateProject(currentEmployee.id, projectId, updateData);
+        // Refresh projects from backend to get the updated list
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to update project status:', error);
+      }
+    }
+    // Fallback for offline mode
+    setProjects((prev: any) => {
+      const updatedCurrent = (prev.current || []).map((p: any) => 
+        p.id === projectId ? { ...p, status, ...(progress !== undefined ? { progress } : {}) } : p
+      );
+      const updatedCompleted = (prev.completed || []).map((p: any) => 
+        p.id === projectId ? { ...p, status, ...(progress !== undefined ? { progress } : {}) } : p
+      );
+      // If status is Completed, move to completed array
+      if (status === 'Completed' || status === 'completed') {
+        const projectToMove = updatedCurrent.find((p: any) => p.id === projectId);
+        const remainingCurrent = updatedCurrent.filter((p: any) => p.id !== projectId);
+        return {
+          ...prev,
+          current: remainingCurrent,
+          completed: [...(prev.completed || []), projectToMove]
+        };
+      }
+      return { ...prev, current: updatedCurrent, completed: updatedCompleted };
+    });
+  }, [useAPI, currentEmployee]);
+
+  const deleteProject = useCallback(async (projectId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.deleteProject(currentEmployee.id, projectId);
+        // Refresh projects from backend to get the updated list
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to delete project:', error);
+      }
+    }
+    // Fallback for offline mode
+    setProjects((prev: any) => ({
+      ...prev,
+      current: (prev.current || []).filter((p: any) => p.id !== projectId),
+      completed: (prev.completed || []).filter((p: any) => p.id !== projectId),
+    }));
+  }, [useAPI, currentEmployee]);
+
+  const getProjectTasks = useCallback(async (projectId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        const tasks = await employeeAPI.getTasks(currentEmployee.id, projectId);
+        return tasks;
+      } catch (error) {
+        console.error('Failed to get tasks (table may not exist):', error);
+        return [];
+      }
+    }
+    return [];
+  }, [useAPI, currentEmployee]);
+
+  const addTask = useCallback(async (projectId: string, taskData: any) => {
+    if (useAPI && currentEmployee) {
+      try {
+        console.log('Adding task to backend:', projectId, taskData);
+        await employeeAPI.createTask(currentEmployee.id, projectId, taskData);
+        // Refresh projects to get updated progress
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to add task:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const updateTask = useCallback(async (projectId: string, taskId: string, taskData: any) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.updateTask(currentEmployee.id, projectId, taskId, taskData);
+        // Refresh projects to get updated progress
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to update task:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const deleteTask = useCallback(async (projectId: string, taskId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.deleteTask(currentEmployee.id, projectId, taskId);
+        // Refresh projects to get updated progress
+        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
+        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        return;
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const refreshAIReadiness = useCallback(async () => {
+    if (useAPI && currentEmployee) {
+      try {
+        const aiReadinessData = await employeeAPI.getAIReadiness(currentEmployee.id);
+        setAIReadiness(aiReadinessData);
+      } catch (error) {
+        console.error('Failed to refresh AI readiness:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const updateSkill = useCallback(async (skillId: string, skillData: any) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.updateSkill(currentEmployee.id, skillId, skillData);
+        // Refresh skills
+        const [skillsData, skillsGroupedData] = await Promise.all([
+          employeeAPI.getSkills(currentEmployee.id),
+          employeeAPI.getSkillsGrouped(currentEmployee.id),
+        ]);
+        setSkills(skillsData);
+        setSkillsData(skillsGroupedData);
+      } catch (error) {
+        console.error('Failed to update skill:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
+
+  const deleteSkill = useCallback(async (skillId: string) => {
+    if (useAPI && currentEmployee) {
+      try {
+        await employeeAPI.deleteSkill(currentEmployee.id, skillId);
+        // Refresh skills
+        const [skillsData, skillsGroupedData] = await Promise.all([
+          employeeAPI.getSkills(currentEmployee.id),
+          employeeAPI.getSkillsGrouped(currentEmployee.id),
+        ]);
+        setSkills(skillsData);
+        setSkillsData(skillsGroupedData);
+      } catch (error) {
+        console.error('Failed to delete skill:', error);
+      }
+    }
+  }, [useAPI, currentEmployee]);
 
   return {
     profile,
@@ -260,22 +475,34 @@ export const useDigitalTwin = () => {
     projects,
     addProject,
     updateProjectProgress,
+    deleteProject,
+    getProjectTasks,
+    addTask,
+    updateTask,
+    deleteTask,
     
     knowledge,
     uploadKnowledgeSource,
-    
+    refreshKnowledge,
+    refreshAllData,
+    refreshAIReadiness,
+
     gamification,
     completeMission,
     updateGamificationXP,
     
     skills,
+    updateSkill,
+    deleteSkill,
+    
+    skillsData,
     twinSummary,
+    personalAnalyticsAI,
     
     loading,
     useAPI,
     
     // Dynamic data from backend
-    skillsData,
     certifications,
     aiReadiness,
     twinMemory,

@@ -1,13 +1,15 @@
 from __future__ import annotations
 """
-Employees router — CRUD for employee profiles, twin summary, skills.
+Employees router — CRUD for employee profiles, twin summary, skills, knowledge pipeline.
 Uses Supabase as the database backend.
 """
 
+import os
 import uuid
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from supabase import Client
 
-from app.database import get_supabase_admin
+from app.database import get_supabase, get_supabase_admin
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
@@ -16,6 +18,11 @@ from app.schemas.employee import (
     TwinSummaryResponse,
 )
 from app.schemas.skill import SkillCreate, SkillUpdate, SkillResponse
+from app.schemas.knowledge import KnowledgeSourceResponse, UploadResponse
+from app.services.ai_readiness import analyze_ai_readiness
+from app.services.ai_twin_chat import process_chat, ChatMessage
+from app.services.personal_analytics import process_analytics, to_dict
+from app.config import settings
 
 router = APIRouter(prefix="/api/employees", tags=["Employees"])
 
@@ -160,12 +167,12 @@ def get_twin_summary(employee_id: str):
 
 # ─── Skills CRUD ──────────────────────────────────────────────
 
-@router.get("/{employee_id}/skills", response_model=list[SkillResponse])
+@router.get("/{employee_id}/skills")
 def get_employee_skills(employee_id: str):
-    """Get all skills for an employee."""
+    """Get all skills for an employee from Supabase."""
     sb = get_supabase_admin()
     result = sb.table("skills").select("*").eq("employee_id", employee_id).order("category").order("name").execute()
-    return result.data
+    return result.data or []
 
 
 @router.post("/{employee_id}/skills", response_model=SkillResponse, status_code=status.HTTP_201_CREATED)
@@ -221,17 +228,272 @@ def delete_skill(employee_id: str, skill_id: str):
     sb.table("skills").delete().eq("id", skill_id).execute()
 
 
-# ─── Projects ─────────────────────────────────────────────────
+# ─── Projects ───────────────────────────────────────────────
 
 @router.get("/{employee_id}/projects")
-def get_employee_projects(employee_id: str):
-    """Get all projects for an employee."""
-    sb = get_supabase_admin()
-    result = sb.table("projects").select("*").eq("employee_id", employee_id).order("created_at", desc=True).execute()
-    projects = result.data
-    current = [p for p in projects if p.get("status") != "Completed"]
-    completed = [p for p in projects if p.get("status") == "Completed"]
-    return {"current": current, "completed": completed}
+def get_projects(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get projects for an employee from Supabase."""
+    result = sb.table("projects").select("*").eq("employee_id", employee_id).execute()
+    all_projects = result.data or []
+
+    # Separate into current and completed based on status
+    current = [p for p in all_projects if p.get("status") not in ["Completed", "completed"]]
+    completed = [p for p in all_projects if p.get("status") in ["Completed", "completed"]]
+
+    return {
+        "current": current,
+        "completed": completed
+    }
+
+
+@router.post("/{employee_id}/projects")
+def create_project(employee_id: str, project_data: dict, sb: Client = Depends(get_supabase)):
+    """Create a new project for an employee in Supabase."""
+    try:
+        # Check employee exists
+        emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+        if not emp.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+        new_project = {
+            "id": str(uuid.uuid4()),
+            "employee_id": employee_id,
+            "name": project_data.get("name", "New Project"),
+            "description": project_data.get("description", ""),
+            "role": project_data.get("role", "Contributor"),
+            "technologies": project_data.get("technologies", []),
+            "duration": project_data.get("duration", "Ongoing"),
+            "status": project_data.get("status", "On Track"),
+            "success_score": project_data.get("successScore", 75),
+            "leadership_score": project_data.get("leadershipScore", 70),
+            "domain": project_data.get("domain", "General"),
+            "progress": project_data.get("progress", 0),
+        }
+
+        result = sb.table("projects").insert(new_project).execute()
+        return result.data[0]
+    except Exception as e:
+        print(f"Error creating project: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.put("/{employee_id}/projects/{project_id}")
+def update_project(employee_id: str, project_id: str, project_data: dict, sb: Client = Depends(get_supabase)):
+    """Update a project (e.g., status, progress) in Supabase."""
+    # Check project exists and belongs to employee
+    existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    update_data = {}
+    if "status" in project_data:
+        update_data["status"] = project_data["status"]
+    if "progress" in project_data:
+        update_data["progress"] = project_data["progress"]
+
+    if update_data:
+        result = sb.table("projects").update(update_data).eq("id", project_id).execute()
+        return result.data[0]
+
+    return existing.data[0]
+
+
+@router.delete("/{employee_id}/projects/{project_id}")
+def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_supabase)):
+    """Delete a project from Supabase."""
+    # Check project exists and belongs to employee
+    existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    sb.table("projects").delete().eq("id", project_id).execute()
+    return {"message": "Project deleted successfully"}
+
+
+# ─── Tasks ───────────────────────────────────────────────────────
+
+@router.get("/{employee_id}/projects/{project_id}/tasks")
+def get_tasks(employee_id: str, project_id: str, sb: Client = Depends(get_supabase)):
+    """Get all tasks for a project."""
+    result = sb.table("tasks").select("*").eq("project_id", project_id).execute()
+    return result.data or []
+
+
+@router.post("/{employee_id}/projects/{project_id}/tasks")
+def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client = Depends(get_supabase)):
+    """Create a new task for a project."""
+    try:
+        # Check project exists and belongs to employee
+        project = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
+        if not project.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+        new_task = {
+            "id": str(uuid.uuid4()),
+            "project_id": project_id,
+            "employee_id": employee_id,
+            "title": task_data.get("title", "New Task"),
+            "description": task_data.get("description", ""),
+            "status": task_data.get("status", "Pending"),
+            "priority": task_data.get("priority", "Medium"),
+            "due_date": task_data.get("due_date"),
+        }
+
+        result = sb.table("tasks").insert(new_task).execute()
+
+        # Recalculate project progress based on tasks
+        all_tasks = sb.table("tasks").select("*").eq("project_id", project_id).execute()
+        tasks = all_tasks.data or []
+        if tasks:
+            completed_count = sum(1 for t in tasks if t.get("status") in ["Completed", "completed"])
+            progress = int((completed_count / len(tasks)) * 100)
+            sb.table("projects").update({"progress": progress}).eq("id", project_id).execute()
+
+        return result.data[0]
+    except Exception as e:
+        print(f"Error creating task: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.put("/{employee_id}/projects/{project_id}/tasks/{task_id}")
+def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict, sb: Client = Depends(get_supabase)):
+    """Update a task (e.g., status)."""
+    # Check task exists and belongs to project
+    existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    update_data = {}
+    if "status" in task_data:
+        update_data["status"] = task_data["status"]
+    if "title" in task_data:
+        update_data["title"] = task_data["title"]
+    if "description" in task_data:
+        update_data["description"] = task_data["description"]
+    if "priority" in task_data:
+        update_data["priority"] = task_data["priority"]
+    if "due_date" in task_data:
+        update_data["due_date"] = task_data["due_date"]
+
+    if update_data:
+        result = sb.table("tasks").update(update_data).eq("id", task_id).execute()
+
+        # Recalculate project progress based on tasks
+        all_tasks = sb.table("tasks").select("*").eq("project_id", project_id).execute()
+        tasks = all_tasks.data or []
+        if tasks:
+            completed_count = sum(1 for t in tasks if t.get("status") in ["Completed", "completed"])
+            progress = int((completed_count / len(tasks)) * 100)
+            sb.table("projects").update({"progress": progress}).eq("id", project_id).execute()
+
+        return result.data[0]
+
+    return existing.data[0]
+
+
+@router.delete("/{employee_id}/projects/{project_id}/tasks/{task_id}")
+def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = Depends(get_supabase)):
+    """Delete a task."""
+    # Check task exists and belongs to project
+    existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
+    if not existing.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+    sb.table("tasks").delete().eq("id", task_id).execute()
+
+    # Recalculate project progress based on tasks
+    all_tasks = sb.table("tasks").select("*").eq("project_id", project_id).execute()
+    tasks = all_tasks.data or []
+    if tasks:
+        completed_count = sum(1 for t in tasks if t.get("status") in ["Completed", "completed"])
+        progress = int((completed_count / len(tasks)) * 100)
+        sb.table("projects").update({"progress": progress}).eq("id", project_id).execute()
+    else:
+        sb.table("projects").update({"progress": 0}).eq("id", project_id).execute()
+
+    return {"message": "Task deleted successfully"}
+
+
+# ─── AI Readiness ───────────────────────────────────────────────
+
+@router.get("/{employee_id}/ai-readiness")
+def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get AI readiness score and analysis for an employee."""
+    # Check employee exists
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    # Get API key from environment
+    api_key = os.getenv("GOOGLE_API_KEY")
+
+    # Analyze AI readiness
+    result = analyze_ai_readiness(employee_id, sb, api_key)
+
+    return {
+        "overallScore": result.overall_score,
+        "breakdown": [
+            {
+                "category": dim.category,
+                "score": dim.score,
+            }
+            for dim in result.breakdown
+        ],
+        "recommendation": {
+            "action": result.recommendation.action,
+            "message": result.recommendation.message,
+            "impact": result.recommendation.impact,
+        },
+        "analysisSummary": result.analysis_summary,
+    }
+
+
+@router.post("/{employee_id}/ai-chat")
+def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supabase)):
+    """Process a chat message with the AI Twin Assistant using RAG."""
+    # Check employee exists
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    # Get message and conversation history
+    message = message_data.get("message", "")
+    conversation_history = message_data.get("history", [])
+
+    # Convert history to ChatMessage objects
+    chat_history = [
+        ChatMessage(role=msg.get("role"), content=msg.get("content"))
+        for msg in conversation_history
+    ]
+
+    # Get API key from settings
+    api_key = settings.GOOGLE_API_KEY
+    print(f"DEBUG: API key from settings: {api_key[:20] if api_key else 'None'}...")
+
+    # Process chat
+    result = process_chat(employee_id, message, chat_history, sb, api_key)
+
+    return {
+        "response": result.response,
+        "sources": result.sources_used,
+    }
+
+
+@router.get("/{employee_id}/personal-analytics")
+def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get AI-powered personal analytics for an employee."""
+    # Check employee exists
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    # Get API key from settings
+    api_key = settings.GOOGLE_API_KEY
+
+    # Process analytics
+    result = process_analytics(employee_id, sb, api_key)
+
+    return to_dict(result)
 
 
 # ─── Knowledge Sources ────────────────────────────────────────
@@ -240,8 +502,235 @@ def get_employee_projects(employee_id: str):
 def get_knowledge_sources(employee_id: str):
     """Get all knowledge sources for an employee."""
     sb = get_supabase_admin()
-    result = sb.table("knowledge_sources").select("*").eq("employee_id", employee_id).order("last_synced", desc=True).execute()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
     return result.data
+
+
+@router.post("/{employee_id}/knowledge-sources/upload", response_model=UploadResponse)
+async def upload_knowledge_source(
+    employee_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+):
+    """
+    Upload a professional document (CV, certificate, project doc, etc.).
+
+    The file is stored immediately. AI processing runs in the background.
+    Poll GET /knowledge-sources to track progress.
+    """
+    # Verify employee exists
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    # Read file content
+    content = await file.read()
+    filename = file.filename or "uploaded_document"
+
+    # Run pipeline in background (returns immediately)
+    from app.services.knowledge.pipeline import run_pipeline
+
+    # Use a list to capture result from background task
+    pipeline_result_holder: list = []
+
+    def _run():
+        result = run_pipeline(
+            employee_id=employee_id,
+            filename=filename,
+            content=content,
+        )
+        pipeline_result_holder.append(result)
+
+    background_tasks.add_task(_run)
+
+    return UploadResponse(
+        source_id="processing",
+        status="PROCESSING",
+        message=f"'{filename}' received and queued for processing. The AI pipeline will extract skills, projects, and certifications automatically.",
+    )
+
+
+@router.post("/{employee_id}/knowledge-sources/upload-sync", response_model=UploadResponse)
+async def upload_knowledge_source_sync(
+    employee_id: str,
+    file: UploadFile = File(...),
+):
+    """
+    Upload and synchronously process a document.
+    Blocks until the full pipeline completes. Use for testing.
+    For production use the async /upload endpoint.
+    """
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+
+    content = await file.read()
+    filename = file.filename or "uploaded_document"
+
+    from app.services.knowledge.pipeline import run_pipeline
+    result = run_pipeline(
+        employee_id=employee_id,
+        filename=filename,
+        content=content,
+    )
+
+    if not result.success:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=result.error_message or "Document processing failed.",
+        )
+
+    return UploadResponse(
+        source_id=result.source_id,
+        status="COMPLETED",
+        message=f"Document processed successfully.",
+        skills_added=result.skills_added,
+        skills_updated=result.skills_updated,
+        projects_added=result.projects_added,
+        certifications_added=result.certifications_added,
+        conflicts=result.conflicts,
+    )
+
+
+@router.get("/{employee_id}/knowledge-sources/{source_id}")
+def get_knowledge_source(employee_id: str, source_id: str):
+    """Get a single knowledge source with full status details."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("id", source_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge source not found")
+    return result.data[0]
+
+
+@router.post("/{employee_id}/knowledge-sources/{source_id}/reprocess")
+async def reprocess_knowledge_source(
+    employee_id: str,
+    source_id: str,
+    background_tasks: BackgroundTasks,
+):
+    """Reprocess an existing knowledge source (re-runs the full pipeline)."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("id", source_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge source not found")
+
+    source = result.data[0]
+    storage_path = source.get("storage_path")
+    filename = source.get("original_filename") or source.get("name", "document")
+
+    if not storage_path:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No stored file found for this knowledge source. Please re-upload.",
+        )
+
+    from app.config import settings
+    from pathlib import Path
+
+    full_path = Path(settings.UPLOAD_DIR) / storage_path
+    if not full_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Stored file not found. Please re-upload.",
+        )
+
+    content = full_path.read_bytes()
+
+    # Reset status
+    sb.table("knowledge_sources").update({
+        "status": "UPLOADED",
+        "processing_stage": "UPLOADED",
+        "error_code": None,
+        "error_message": None,
+    }).eq("id", source_id).execute()
+
+    from app.services.knowledge.pipeline import run_pipeline
+
+    def _run():
+        run_pipeline(
+            employee_id=employee_id,
+            filename=filename,
+            content=content,
+        )
+
+    background_tasks.add_task(_run)
+    return {"status": "REPROCESSING", "message": "Reprocessing started in background."}
+
+
+@router.delete("/{employee_id}/knowledge-sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_knowledge_source(employee_id: str, source_id: str):
+    """Delete a knowledge source and its stored file."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_sources")
+        .select("*")
+        .eq("id", source_id)
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Knowledge source not found")
+
+    source = result.data[0]
+    storage_path = source.get("storage_path")
+
+    # Delete stored file
+    if storage_path:
+        from app.services.knowledge.file_validator import delete_stored_file
+        delete_stored_file(storage_path)
+
+    # Delete DB record (cascades to extracted_facts + update_events)
+    sb.table("knowledge_sources").delete().eq("id", source_id).execute()
+
+
+@router.get("/{employee_id}/knowledge-sources/{source_id}/changes")
+def get_knowledge_source_changes(employee_id: str, source_id: str):
+    """Get the audit trail of changes made by this knowledge source."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_update_events")
+        .select("*")
+        .eq("source_id", source_id)
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data or []
+
+
+@router.get("/{employee_id}/knowledge/change-history")
+def get_knowledge_change_history(employee_id: str):
+    """Get full knowledge change history for an employee."""
+    sb = get_supabase_admin()
+    result = (
+        sb.table("knowledge_update_events")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .order("created_at", desc=True)
+        .limit(100)
+        .execute()
+    )
+    return result.data or []
 
 
 # ─── Recognitions ─────────────────────────────────────────────
@@ -257,11 +746,10 @@ def get_recognitions(employee_id: str):
 # ─── Certifications ──────────────────────────────────────────
 
 @router.get("/{employee_id}/certifications")
-def get_certifications(employee_id: str):
-    """Get certifications for an employee."""
-    sb = get_supabase_admin()
-    result = sb.table("certifications").select("*").eq("employee_id", employee_id).order("status").order("name").execute()
-    return result.data
+def get_certifications(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get certifications for an employee from Supabase."""
+    result = sb.table("certifications").select("*").eq("employee_id", employee_id).execute()
+    return result.data or []
 
 
 # ─── Personal Analytics ────────────────────────────────────────
@@ -290,30 +778,35 @@ def get_personal_analytics(employee_id: str):
 # ─── Skills Data (Grouped by Category) ───────────────────────
 
 @router.get("/{employee_id}/skills-grouped")
-def get_skills_grouped(employee_id: str):
-    """Get skills grouped by category for the dashboard."""
-    sb = get_supabase_admin()
-    result = sb.table("skills").select("*").eq("employee_id", employee_id).order("category").order("name").execute()
+def get_skills_grouped(employee_id: str, sb: Client = Depends(get_supabase)):
+    """Get skills grouped by category for the dashboard from Supabase."""
+    from app.services.knowledge.skill_normalizer import normalize_skill
 
+    # Fetch skills from Supabase
+    result = sb.table("skills").select("*").eq("employee_id", employee_id).execute()
+    all_skills = result.data or []
+
+    # Group by category
     grouped = {}
-    for skill in result.data:
-        cat = skill.get("category") or "General"
-        if cat not in grouped:
-            grouped[cat] = []
-        last_updated = skill.get("last_updated", "Unknown")
-        if last_updated and last_updated != "Unknown":
-            last_updated = last_updated[:10]  # Extract YYYY-MM-DD
-        grouped[cat].append({
-            "id": skill["id"],
-            "name": skill["name"],
-            "category": skill.get("category"),
+    for skill in all_skills:
+        category = skill.get("category", "General")
+        if category not in grouped:
+            grouped[category] = []
+
+        # Normalize skill name for consistency
+        normalized = normalize_skill(skill.get("name", ""))
+
+        grouped[category].append({
+            "id": skill.get("id"),
+            "name": normalized.canonical_name,
+            "category": category,
             "sub_category": skill.get("sub_category"),
-            "experience": skill.get("years_experience") or 0,
+            "experience": skill.get("years_experience", 0),
             "proficiency": skill.get("proficiency", 0),
-            "aiConfidence": skill.get("ai_confidence") or 0,
+            "aiConfidence": skill.get("ai_confidence", 0),
             "verified": skill.get("verified", False),
-            "source": skill.get("source"),
-            "lastUpdated": last_updated,
+            "source": skill.get("source", "Unknown"),
+            "lastUpdated": skill.get("last_updated", "Unknown"),
         })
 
     return grouped

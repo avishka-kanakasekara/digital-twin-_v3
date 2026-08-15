@@ -7,10 +7,10 @@ import { useDigitalTwin } from '../../hooks/useDigitalTwin';
 interface IdentityProfileProps {
   profile: any;
   onUpdate: (updates: any) => void;
-  twinHealth: number;
+  twinHealth?: number;
 }
 
-export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth }) => {
+export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth = 92 }) => {
   const { gamification } = useDigitalTwin();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(profile);
