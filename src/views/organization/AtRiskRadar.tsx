@@ -163,7 +163,7 @@ export const AtRiskRadar: React.FC = () => {
                   {/* 1. Avatar & Info (Fixed width ensures metrics align perfectly across all rows) */}
                   <div className="flex items-center gap-3.5 w-[160px] lg:w-[220px] shrink-0 pl-2">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[13px] font-bold shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}>
-                      {emp.name.split(' ').map(n=>n[0]).join('')}
+                      {emp.name.split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <div className="flex flex-col">
                       <h4 className="font-semibold text-primary text-sm whitespace-nowrap">{emp.name}</h4>

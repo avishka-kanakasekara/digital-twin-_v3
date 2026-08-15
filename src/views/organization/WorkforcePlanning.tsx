@@ -4,7 +4,7 @@ import { Users, TrendingUp, Layers, Target, Activity, Minus, Plus, Equal, AlertC
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import {
   DEPT_COLORS,
-  mockExperience, EXP_COLORS, mockSkills, mockSkillShortages
+  mockExperience, EXP_COLORS, mockSkills
 } from '../../dummy/organization/workforcePlanningData';
 import api from '../../lib/api';
 

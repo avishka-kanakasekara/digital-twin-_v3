@@ -6,7 +6,6 @@ import {
   ChevronRight, Flag, Bot, Cpu, Layers, Rocket, AlertTriangle, Activity
 } from 'lucide-react';
 
-import { mockAIReadiness, mockCapabilities, mockTransformations } from '../../dummy/organization/contextData';
 import api from '../../lib/api';
 
 export const OrganizationContext: React.FC = () => {
@@ -226,7 +225,7 @@ export const OrganizationContext: React.FC = () => {
                       <div className="flex flex-col flex-1" style={{ gap: '12px' }}>
                         <p style={{ fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8' }}>Key Initiatives</p>
                         <ul className="flex flex-col" style={{ gap: '12px' }}>
-                          {okr.initiatives.map((init, idx) => (
+                          {okr.initiatives.map((init: string, idx: number) => (
                             <li key={idx} className="flex items-start" style={{ gap: '8px' }}>
                               <CheckCircle size={14} style={{ marginTop: '2px', color: okr.progress > 50 ? '#10b981' : '#94a3b8' }} className="shrink-0" />
                               <span style={{ fontSize: '13px', fontWeight: '700', color: '#475569', lineHeight: '1.4' }}>{init}</span>
@@ -536,7 +535,7 @@ export const OrganizationContext: React.FC = () => {
                         <div className="absolute top-4 bottom-4 bg-slate-200 -z-10 rounded-full" style={{ left: '15px', width: '2px' }}></div>
                         
                         <div className="flex flex-col gap-4">
-                          {trans.milestones.map((ms, idx) => (
+                          {trans.milestones.map((ms: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-4 transition-all duration-300 group">
                               <div className="rounded-full flex items-center justify-center shrink-0 shadow-sm border-2 relative z-10 transition-colors bg-white" style={{ 
                                   width: '32px',

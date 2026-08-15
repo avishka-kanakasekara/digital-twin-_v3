@@ -120,7 +120,7 @@ export const TalentMarketplace: React.FC = () => {
                         </p>
                         <div className="flex justify-between items-center mt-6 pt-6 border-t border-slate-100">
                           <div className="flex flex-wrap gap-2.5">
-                            {gig.tags.map((tag, idx) => (
+                            {gig.tags.map((tag: any, idx: number) => (
                               <span key={idx} className="text-[11px] font-black px-3 py-1.5 rounded-full shadow-sm uppercase tracking-widest" style={{
                                 backgroundColor: idx === 0 ? '#eef2ff' : '#f8fafc',
                                 color: idx === 0 ? '#4f46e5' : '#475569',
