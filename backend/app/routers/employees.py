@@ -196,6 +196,14 @@ def add_skill(employee_id: str, data: SkillCreate):
         **data.model_dump(),
     }
     result = sb.table("skills").insert(skill_data).execute()
+
+    # 🎮 Gamification: award XP + check achievements on skill add
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "skill_added")
+    except Exception as gam_err:
+        print(f"[gamification] skill_added event error: {gam_err}")
+
     return result.data[0]
 
 
@@ -587,6 +595,13 @@ async def upload_knowledge_source_sync(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=result.error_message or "Document processing failed.",
         )
+
+    # 🎮 Gamification: award XP for document upload
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "document_uploaded")
+    except Exception as gam_err:
+        print(f"[gamification] document_uploaded event error: {gam_err}")
 
     return UploadResponse(
         source_id=result.source_id,

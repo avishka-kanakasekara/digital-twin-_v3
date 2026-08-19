@@ -356,6 +356,30 @@ export const gamificationAPI = {
     fetchAPI<any>(`/api/gamification/${employeeId}/rewards/${rewardId}/claim`, {
       method: 'POST',
     }),
+    
+  createChallenge: (data: any) =>
+    fetchAPI<any>(`/api/gamification/admin/challenges`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    
+  getChallengeDetail: (employeeId: string, challengeId: string) =>
+    fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/detail`),
+
+  submitStep: (employeeId: string, challengeId: string, stepId: string, content: string) =>
+    fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/steps/${stepId}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    }),
+    
+  getPendingVerifications: () =>
+    fetchAPI<any[]>(`/api/gamification/admin/pending-verifications`),
+    
+  verifyChallenge: (employeeId: string, challengeId: string, approve: boolean) =>
+    fetchAPI<any>(`/api/gamification/admin/verify-challenge`, {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, challenge_id: challengeId, approve }),
+    }),
 };
 
 // ==================== LEARNING ====================

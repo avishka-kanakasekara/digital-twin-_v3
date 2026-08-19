@@ -107,6 +107,16 @@ def update_path_progress(
         update_data["completed_courses"] = data.completed_courses
 
     sb.table("learning_paths").update(update_data).eq("id", path_id).execute()
+
+    # 🎮 Gamification: award XP when a course/path is completed
+    if update_data["progress"] >= 100:
+        try:
+            from app.services.gamification_engine import fire_gamification_event
+            from app.database import get_supabase_admin
+            fire_gamification_event(get_supabase_admin(), employee_id, "course_completed")
+        except Exception as gam_err:
+            print(f"[gamification] course_completed event error: {gam_err}")
+
     return {"status": "updated", "progress": update_data["progress"]}
 
 
@@ -171,6 +181,14 @@ def add_certification(employee_id: str, data: CertificationCreate):
         **data.model_dump(),
     }
     result = sb.table("certifications").insert(cert_data).execute()
+
+    # 🎮 Gamification: award XP + unlock Certified Expert achievement
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "certification_added")
+    except Exception as gam_err:
+        print(f"[gamification] certification_added event error: {gam_err}")
+
     return result.data[0]
 
 
