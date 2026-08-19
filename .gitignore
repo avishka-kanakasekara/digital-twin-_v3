@@ -15,13 +15,16 @@ env.bak/
 venv.bak/
 
 # ==============================
-# Environment Variables
+# Environment Variables / Secrets
 # ==============================
 
 .env
 .env.*
 !.env.example
+
 backend/.env
+backend/.env.*
+!backend/.env.example
 
 # ==============================
 # Node.js
@@ -77,8 +80,11 @@ coverage/
 
 *.tmp
 *.temp
-backend/.env.example
+
+# ==============================
+# Secrets
+# ==============================
+
 secrets/
-.env
 backend/secrets/
-backend/.env
+
