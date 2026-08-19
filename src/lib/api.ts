@@ -491,6 +491,15 @@ export const careerAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+    
+  getAnalysis: (employeeId: string) =>
+    fetchAPI<any>(`/api/career/${employeeId}/analysis`),
+    
+  chat: (employeeId: string, message: string, history: any[] = []) =>
+    fetchAPI<{response: string}>(`/api/career/${employeeId}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
   
   getRoadmap: (employeeId: string) =>
     fetchAPI<RoadmapStep[]>(`/api/career/${employeeId}/roadmap`),

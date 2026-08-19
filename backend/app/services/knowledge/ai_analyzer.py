@@ -125,7 +125,7 @@ PROMPT_VERSION = "1.0"
 MAX_TEXT_CHARS = 12000   # Truncate document before sending to LLM
 MAX_RETRIES = 3
 BASE_RETRY_DELAY = 2.0   # seconds
-MODEL_NAME = "gemini-flash-latest"
+MODEL_NAME = "gemini-3.6-flash"
 
 # ── System Prompt ─────────────────────────────────────────────
 # Enforces strict JSON output and prompt injection protection.

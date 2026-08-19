@@ -309,7 +309,7 @@ Based on this employee data, generate comprehensive personal analytics including
     try:
         # Call Gemini API
         response = client.models.generate_content(
-            model="gemini-flash-latest",
+            model="gemini-3.6-flash",
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,

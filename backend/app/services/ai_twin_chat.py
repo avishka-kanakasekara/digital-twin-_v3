@@ -30,7 +30,7 @@ class ChatResponse:
 
 # ── Constants ─────────────────────────────────────────────────
 
-MODEL_NAME = "gemini-flash-latest"
+MODEL_NAME = "gemini-3.6-flash"
 MAX_CONTEXT_LENGTH = 8000  # Characters
 
 

@@ -45,7 +45,7 @@ class AIReadinessResult:
 
 MAX_RETRIES = 3
 BASE_RETRY_DELAY = 2.0
-MODEL_NAME = "gemini-flash-latest"
+MODEL_NAME = "gemini-3.6-flash"
 
 # The 8 AI readiness dimensions
 AI_DIMENSIONS = [

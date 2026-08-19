@@ -3,7 +3,7 @@ from __future__ import annotations
 Career schemas — goals, roadmaps, skill gaps, market trends.
 """
 
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 from datetime import datetime
@@ -64,3 +64,28 @@ class CareerRecommendationResponse(BaseModel):
     readiness_impact: Optional[str] = None
     description: Optional[str] = None
     is_top_match: bool = False
+
+class CareerStrength(BaseModel):
+    title: str
+    description: str
+
+class CareerAnalysisResponse(BaseModel):
+    readiness_score: int
+    strengths: List[CareerStrength]
+    opportunities: List[CareerStrength]
+    skill_gaps: List[SkillGapResponse]
+    roadmap_steps: List[CareerRoadmapStepResponse]
+    recommendations: List[CareerRecommendationResponse]
+    market_trends: List[MarketTrendResponse]
+    narrative: str
+
+class CareerChatMessage(BaseModel):
+    role: str # "user" or "assistant"
+    content: str
+
+class CareerChatRequest(BaseModel):
+    message: str
+    history: List[CareerChatMessage] = []
+
+class CareerChatResponse(BaseModel):
+    response: str
