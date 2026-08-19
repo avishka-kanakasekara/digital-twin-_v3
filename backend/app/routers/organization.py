@@ -15,7 +15,7 @@ from app.schemas.organization import (
 )
 
 router = APIRouter(
-    prefix="/organization",
+    prefix="/api/organization",
     tags=["Organization"],
 )
 

@@ -34,6 +34,13 @@ async function fetchAPI<T>(
   }
 }
 
+function buildQueryString(params?: Record<string, any>): string {
+  if (!params) return '';
+  const filtered = Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== '');
+  if (filtered.length === 0) return '';
+  return '?' + new URLSearchParams(filtered.map(([k, v]) => [k, String(v)])).toString();
+}
+
 // ==================== AUTH ====================
 
 export interface LoginRequest {
@@ -132,7 +139,7 @@ export interface TwinSummary {
 export const employeeAPI = {
   list: (params?: { skip?: number; limit?: number; department?: string }) =>
     fetchAPI<{ employees: Employee[]; total: number }>(
-      `/api/employees?${new URLSearchParams(params as any).toString()}`
+      `/api/employees${buildQueryString(params)}`
     ),
   
   get: (id: string) =>
@@ -319,13 +326,7 @@ export const gamificationAPI = {
     fetchAPI<GamificationProfile>(`/api/gamification/${employeeId}/profile`),
   
   getLeaderboard: (params?: { department?: string; limit?: number; current_employee_id?: string }) =>
-    fetchAPI<any[]>(
-      `/api/gamification/leaderboard?${new URLSearchParams(
-        Object.fromEntries(
-          Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        )
-      ).toString()}`
-    ),
+    fetchAPI<any[]>(`/api/gamification/leaderboard${buildQueryString(params)}`),
   
   getChallenges: (employeeId: string) =>
     fetchAPI<{ challenges: Challenge[]; progress: ChallengeProgress[] }>(`/api/gamification/${employeeId}/challenges`),
@@ -437,13 +438,7 @@ export const learningAPI = {
     fetchAPI<any[]>(`/api/learning/${employeeId}/feed`),
   
   getCourses: (params?: { search?: string; level?: string; employee_id?: string }) =>
-    fetchAPI<Course[]>(
-      `/api/learning/courses?${new URLSearchParams(
-        Object.fromEntries(
-          Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
-        )
-      ).toString()}`
-    ),
+    fetchAPI<Course[]>(`/api/learning/courses${buildQueryString(params)}`),
   
   enrollCourse: (employeeId: string, courseId: string) =>
     fetchAPI<any>(`/api/learning/${employeeId}/courses/${courseId}/enroll`, {
@@ -616,10 +611,10 @@ export interface TalentMatch {
 
 export const organizationAPI = {
   getHistory: (params?: { limit?: number }) =>
-    fetchAPI<OrganizationMetric[]>(`/api/organization/history?${new URLSearchParams(params as any || {}).toString()}`),
+    fetchAPI<OrganizationMetric[]>(`/api/organization/history${buildQueryString(params)}`),
     
   getScenarios: (params?: { limit?: number }) =>
-    fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios?${new URLSearchParams(params as any || {}).toString()}`),
+    fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios${buildQueryString(params)}`),
     
   // Innovation Hub Endpoints
   getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/ideas'),

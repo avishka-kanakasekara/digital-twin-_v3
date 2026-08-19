@@ -67,7 +67,7 @@ export const useDigitalTwin = () => {
         });
         setUseAPI(true);
         
-        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData, personalAnalyticsData] = await Promise.all([
+        const results = await Promise.allSettled([
           employeeAPI.getProjects(currentEmployee.id),
           employeeAPI.getKnowledgeSources(currentEmployee.id),
           employeeAPI.getSkills(currentEmployee.id),
@@ -82,19 +82,20 @@ export const useDigitalTwin = () => {
           employeeAPI.getCertifications(currentEmployee.id),
           employeeAPI.getPersonalAnalytics(currentEmployee.id),
         ]);
-        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
-        setKnowledge(knowledgeData);
-        setSkills(skillsData);
-        setTwinSummary(twinSum as any);
-        setPersonalAnalytics(analyticsData);
-        setPersonalAnalyticsAI(personalAnalyticsData);
-        setSkillsData(skillsGroupedData);
-        setAIReadiness(aiReadinessData);
-        setTwinMemory(twinMemoryData);
-        setCollaborationIntel(collaborationData);
-        setProjectPrediction(projectPredictionData);
-        setAIRecommendations(aiRecommendationsData);
-        setCertifications(certificationsData);
+
+        if (results[0].status === 'fulfilled') setProjects({ current: results[0].value.current || [], completed: results[0].value.completed || [] });
+        if (results[1].status === 'fulfilled') setKnowledge(results[1].value);
+        if (results[2].status === 'fulfilled') setSkills(results[2].value);
+        if (results[3].status === 'fulfilled') setTwinSummary(results[3].value as any);
+        if (results[4].status === 'fulfilled') setPersonalAnalytics(results[4].value);
+        if (results[5].status === 'fulfilled') setSkillsData(results[5].value);
+        if (results[6].status === 'fulfilled') setAIReadiness(results[6].value);
+        if (results[7].status === 'fulfilled') setTwinMemory(results[7].value);
+        if (results[8].status === 'fulfilled') setCollaborationIntel(results[8].value);
+        if (results[9].status === 'fulfilled') setProjectPrediction(results[9].value);
+        if (results[10].status === 'fulfilled') setAIRecommendations(results[10].value);
+        if (results[11].status === 'fulfilled') setCertifications(results[11].value);
+        if (results[12].status === 'fulfilled') setPersonalAnalyticsAI(results[12].value);
 
         // Load gamification data
         try {
@@ -164,6 +165,31 @@ export const useDigitalTwin = () => {
     loadFromAPI();
   }, [currentEmployee]);
 
+  const refreshAllData = useCallback(async () => {
+    if (!currentEmployee) return;
+    try {
+      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary, newAIReadiness, newPersonalAnalytics] = await Promise.all([
+        employeeAPI.getSkills(currentEmployee.id),
+        employeeAPI.getSkillsGrouped(currentEmployee.id),
+        employeeAPI.getProjects(currentEmployee.id),
+        employeeAPI.getCertifications(currentEmployee.id),
+        employeeAPI.getTwinSummary(currentEmployee.id),
+        employeeAPI.getAIReadiness(currentEmployee.id),
+        employeeAPI.getPersonalAnalytics(currentEmployee.id),
+      ]);
+      setSkills(newSkills);
+      setSkillsData(newSkillsGrouped);
+      setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
+      setCertifications(newCertifications);
+      setTwinSummary(newTwinSummary as any);
+      setAIReadiness(newAIReadiness);
+      setPersonalAnalyticsAI(newPersonalAnalytics);
+      console.log('✅ Digital Twin refreshed after data update');
+    } catch (error) {
+      console.error('Failed to refresh all data:', error);
+    }
+  }, [currentEmployee]);
+
   const updateProfile = useCallback(async (updates: Partial<typeof digitalTwinMockData.employeeProfile>) => {
     if (useAPI && currentEmployee) {
       try {
@@ -180,21 +206,17 @@ export const useDigitalTwin = () => {
       try {
         console.log('Adding project to backend:', projectData);
         await employeeAPI.createProject(currentEmployee.id, projectData);
-        // Refresh projects from backend to get the updated list
-        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
-        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        await refreshAllData();
         return;
       } catch (error) {
         console.error('Failed to add project:', error);
-        // Fallback to local state if backend fails
       }
     }
-    // Fallback for offline mode
     setProjects((prev: any) => ({
       ...prev,
       current: [...(prev.current || []), { ...projectData, id: projectData.id || Date.now().toString() }]
     }));
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   const uploadKnowledgeSource = useCallback(async (name: string, type: string) => {
     // Real upload is handled directly by KnowledgeSources component via knowledgeAPI.upload().
@@ -230,34 +252,6 @@ export const useDigitalTwin = () => {
       setKnowledge(sources);
     } catch (error) {
       console.warn('Could not refresh knowledge sources:', error);
-    }
-  }, [currentEmployee]);
-
-  /**
-   * Called when a knowledge pipeline completes.
-   * Re-fetches ALL derived data that the pipeline may have updated:
-   * skills, projects, certifications, twin summary, AI readiness.
-   */
-  const refreshAllData = useCallback(async () => {
-    if (!currentEmployee) return;
-    try {
-      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary, newAIReadiness] = await Promise.all([
-        employeeAPI.getSkills(currentEmployee.id),
-        employeeAPI.getSkillsGrouped(currentEmployee.id),
-        employeeAPI.getProjects(currentEmployee.id),
-        employeeAPI.getCertifications(currentEmployee.id),
-        employeeAPI.getTwinSummary(currentEmployee.id),
-        employeeAPI.getAIReadiness(currentEmployee.id),
-      ]);
-      setSkills(newSkills);
-      setSkillsData(newSkillsGrouped);
-      setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
-      setCertifications(newCertifications);
-      setTwinSummary(newTwinSummary as any);
-      setAIReadiness(newAIReadiness);
-      console.log('✅ Digital Twin refreshed after pipeline completion');
-    } catch (error) {
-      console.error('Failed to refresh all data:', error);
     }
   }, [currentEmployee]);
 
@@ -351,21 +345,18 @@ export const useDigitalTwin = () => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.deleteProject(currentEmployee.id, projectId);
-        // Refresh projects from backend to get the updated list
-        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
-        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        await refreshAllData();
         return;
       } catch (error) {
         console.error('Failed to delete project:', error);
       }
     }
-    // Fallback for offline mode
     setProjects((prev: any) => ({
       ...prev,
       current: (prev.current || []).filter((p: any) => p.id !== projectId),
       completed: (prev.completed || []).filter((p: any) => p.id !== projectId),
     }));
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   const getProjectTasks = useCallback(async (projectId: string) => {
     if (useAPI && currentEmployee) {
@@ -438,35 +429,23 @@ export const useDigitalTwin = () => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.updateSkill(currentEmployee.id, skillId, skillData);
-        // Refresh skills
-        const [skillsData, skillsGroupedData] = await Promise.all([
-          employeeAPI.getSkills(currentEmployee.id),
-          employeeAPI.getSkillsGrouped(currentEmployee.id),
-        ]);
-        setSkills(skillsData);
-        setSkillsData(skillsGroupedData);
+        await refreshAllData();
       } catch (error) {
         console.error('Failed to update skill:', error);
       }
     }
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   const deleteSkill = useCallback(async (skillId: string) => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.deleteSkill(currentEmployee.id, skillId);
-        // Refresh skills
-        const [skillsData, skillsGroupedData] = await Promise.all([
-          employeeAPI.getSkills(currentEmployee.id),
-          employeeAPI.getSkillsGrouped(currentEmployee.id),
-        ]);
-        setSkills(skillsData);
-        setSkillsData(skillsGroupedData);
+        await refreshAllData();
       } catch (error) {
         console.error('Failed to delete skill:', error);
       }
     }
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   return {
     profile,
