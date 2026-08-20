@@ -9,7 +9,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from supabase import Client
 
-from app.database import get_supabase, get_supabase_admin
+from app.database import get_supabase_admin
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
@@ -119,6 +119,11 @@ def update_employee(employee_id: str, data: EmployeeUpdate):
     update_data["profile_completeness"] = _compute_profile_completeness(emp)
 
     result = sb.table("employees").update(update_data).eq("id", employee_id).execute()
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "profile_updated")
+    except Exception:
+        pass
     return result.data[0]
 
 
@@ -196,6 +201,14 @@ def add_skill(employee_id: str, data: SkillCreate):
         **data.model_dump(),
     }
     result = sb.table("skills").insert(skill_data).execute()
+
+    # 🎮 Gamification: award XP + check achievements on skill add
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "skill_added")
+    except Exception as gam_err:
+        print(f"[gamification] skill_added event error: {gam_err}")
+
     return result.data[0]
 
 
@@ -231,14 +244,42 @@ def delete_skill(employee_id: str, skill_id: str):
 # ─── Projects ───────────────────────────────────────────────
 
 @router.get("/{employee_id}/projects")
-def get_projects(employee_id: str, sb: Client = Depends(get_supabase)):
+def get_projects(employee_id: str, sb: Client = Depends(get_supabase_admin)):
     """Get projects for an employee from Supabase."""
     result = sb.table("projects").select("*").eq("employee_id", employee_id).execute()
     all_projects = result.data or []
 
-    # Separate into current and completed based on status
-    current = [p for p in all_projects if p.get("status") not in ["Completed", "completed"]]
-    completed = [p for p in all_projects if p.get("status") in ["Completed", "completed"]]
+    def _map_project(p: dict) -> dict:
+        techs = p.get("technologies") or []
+        if isinstance(techs, str):
+            techs = [t.strip() for t in techs.split(",") if t.strip()]
+        status = p.get("status") or "On Track"
+        status_map = {
+            "in_progress": "On Track",
+            "active": "On Track",
+            "at_risk": "At Risk",
+            "behind": "Behind",
+            "completed": "Completed",
+        }
+        pretty = status_map.get(str(status).lower(), status)
+        success = p.get("success_score") if p.get("success_score") is not None else p.get("successScore", 0)
+        try:
+            success = int(success or 0)
+        except (TypeError, ValueError):
+            success = 0
+        if 0 < success <= 10:
+            success *= 10
+        return {
+            **p,
+            "status": pretty,
+            "successScore": success,
+            "leadershipScore": p.get("leadership_score") or p.get("leadershipScore") or 0,
+            "technologies": techs,
+            "progress": int(p.get("progress") or 0),
+        }
+
+    current = [_map_project(p) for p in all_projects if str(p.get("status", "")).lower() not in ("completed",)]
+    completed = [_map_project(p) for p in all_projects if str(p.get("status", "")).lower() in ("completed",)]
 
     return {
         "current": current,
@@ -247,7 +288,7 @@ def get_projects(employee_id: str, sb: Client = Depends(get_supabase)):
 
 
 @router.post("/{employee_id}/projects")
-def create_project(employee_id: str, project_data: dict, sb: Client = Depends(get_supabase)):
+def create_project(employee_id: str, project_data: dict, sb: Client = Depends(get_supabase_admin)):
     """Create a new project for an employee in Supabase."""
     try:
         # Check employee exists
@@ -278,7 +319,7 @@ def create_project(employee_id: str, project_data: dict, sb: Client = Depends(ge
 
 
 @router.put("/{employee_id}/projects/{project_id}")
-def update_project(employee_id: str, project_id: str, project_data: dict, sb: Client = Depends(get_supabase)):
+def update_project(employee_id: str, project_id: str, project_data: dict, sb: Client = Depends(get_supabase_admin)):
     """Update a project (e.g., status, progress) in Supabase."""
     # Check project exists and belongs to employee
     existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
@@ -299,7 +340,7 @@ def update_project(employee_id: str, project_id: str, project_data: dict, sb: Cl
 
 
 @router.delete("/{employee_id}/projects/{project_id}")
-def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_supabase)):
+def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_supabase_admin)):
     """Delete a project from Supabase."""
     # Check project exists and belongs to employee
     existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
@@ -313,14 +354,14 @@ def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_s
 # ─── Tasks ───────────────────────────────────────────────────────
 
 @router.get("/{employee_id}/projects/{project_id}/tasks")
-def get_tasks(employee_id: str, project_id: str, sb: Client = Depends(get_supabase)):
+def get_tasks(employee_id: str, project_id: str, sb: Client = Depends(get_supabase_admin)):
     """Get all tasks for a project."""
     result = sb.table("tasks").select("*").eq("project_id", project_id).execute()
     return result.data or []
 
 
 @router.post("/{employee_id}/projects/{project_id}/tasks")
-def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client = Depends(get_supabase)):
+def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client = Depends(get_supabase_admin)):
     """Create a new task for a project."""
     try:
         # Check project exists and belongs to employee
@@ -356,7 +397,7 @@ def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client =
 
 
 @router.put("/{employee_id}/projects/{project_id}/tasks/{task_id}")
-def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict, sb: Client = Depends(get_supabase)):
+def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict, sb: Client = Depends(get_supabase_admin)):
     """Update a task (e.g., status)."""
     # Check task exists and belongs to project
     existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
@@ -392,7 +433,7 @@ def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict
 
 
 @router.delete("/{employee_id}/projects/{project_id}/tasks/{task_id}")
-def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = Depends(get_supabase)):
+def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = Depends(get_supabase_admin)):
     """Delete a task."""
     # Check task exists and belongs to project
     existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
@@ -417,18 +458,15 @@ def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = De
 # ─── AI Readiness ───────────────────────────────────────────────
 
 @router.get("/{employee_id}/ai-readiness")
-def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase)):
+def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase_admin)):
     """Get AI readiness score and analysis for an employee."""
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
-    # Get API key from environment
-    api_key = os.getenv("GOOGLE_API_KEY")
-
     # Analyze AI readiness
-    result = analyze_ai_readiness(employee_id, sb, api_key)
+    result = analyze_ai_readiness(employee_id, sb)
 
     return {
         "overallScore": result.overall_score,
@@ -449,7 +487,7 @@ def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase)):
 
 
 @router.post("/{employee_id}/ai-chat")
-def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supabase)):
+def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supabase_admin)):
     """Process a chat message with the AI Twin Assistant using RAG."""
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
@@ -466,12 +504,8 @@ def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supab
         for msg in conversation_history
     ]
 
-    # Get API key from settings
-    api_key = settings.GOOGLE_API_KEY
-    print(f"DEBUG: API key from settings: {api_key[:20] if api_key else 'None'}...")
-
     # Process chat
-    result = process_chat(employee_id, message, chat_history, sb, api_key)
+    result = process_chat(employee_id, message, chat_history, sb)
 
     return {
         "response": result.response,
@@ -480,18 +514,15 @@ def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supab
 
 
 @router.get("/{employee_id}/personal-analytics")
-def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase)):
+def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase_admin)):
     """Get AI-powered personal analytics for an employee."""
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
 
-    # Get API key from settings
-    api_key = settings.GOOGLE_API_KEY
-
     # Process analytics
-    result = process_analytics(employee_id, sb, api_key)
+    result = process_analytics(employee_id, sb)
 
     return to_dict(result)
 
@@ -587,6 +618,13 @@ async def upload_knowledge_source_sync(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=result.error_message or "Document processing failed.",
         )
+
+    # 🎮 Gamification: award XP for document upload
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "document_uploaded")
+    except Exception as gam_err:
+        print(f"[gamification] document_uploaded event error: {gam_err}")
 
     return UploadResponse(
         source_id=result.source_id,
@@ -746,131 +784,122 @@ def get_recognitions(employee_id: str):
 # ─── Certifications ──────────────────────────────────────────
 
 @router.get("/{employee_id}/certifications")
-def get_certifications(employee_id: str, sb: Client = Depends(get_supabase)):
+def get_certifications(employee_id: str, sb: Client = Depends(get_supabase_admin)):
     """Get certifications for an employee from Supabase."""
     result = sb.table("certifications").select("*").eq("employee_id", employee_id).execute()
     return result.data or []
 
 
-# ─── Personal Analytics ────────────────────────────────────────
+# ─── Personal Analytics (chart series for the dashboard) ───────
 
 @router.get("/{employee_id}/analytics")
-def get_personal_analytics(employee_id: str):
-    """Get personal analytics data (productivity and skill growth trends)."""
-    # TODO: Compute from actual activity data in Phase 6
-    return {
-        "productivity": [
-            {"day": "Mon", "score": 85},
-            {"day": "Tue", "score": 92},
-            {"day": "Wed", "score": 78},
-            {"day": "Thu", "score": 95},
-            {"day": "Fri", "score": 88},
-        ],
-        "skillGrowth": [
-            {"month": "Jan", "ai": 40, "cloud": 85, "leadership": 60},
-            {"month": "Feb", "ai": 45, "cloud": 88, "leadership": 65},
-            {"month": "Mar", "ai": 60, "cloud": 90, "leadership": 70},
-            {"month": "Apr", "ai": 78, "cloud": 95, "leadership": 80},
-        ],
-    }
+def get_personal_analytics_charts(employee_id: str):
+    """Productivity and skill growth series derived from XP + skills — not static mock data."""
+    sb = get_supabase_admin()
+    from datetime import datetime, timezone, timedelta
 
+    since = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+    tx = sb.table("xp_transactions").select("amount, created_at").eq(
+        "employee_id", employee_id
+    ).gte("created_at", since).execute()
 
-# ─── Skills Data (Grouped by Category) ───────────────────────
+    by_day: dict[str, int] = {}
+    for row in tx.data or []:
+        created = row.get("created_at") or ""
+        day = created[:10]
+        if day:
+            by_day[day] = by_day.get(day, 0) + max(0, int(row.get("amount") or 0))
 
-@router.get("/{employee_id}/skills-grouped")
-def get_skills_grouped(employee_id: str, sb: Client = Depends(get_supabase)):
-    """Get skills grouped by category for the dashboard from Supabase."""
-    from app.services.knowledge.skill_normalizer import normalize_skill
+    days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    productivity = []
+    today = datetime.now(timezone.utc)
+    for i in range(6, -1, -1):
+        d = today - timedelta(days=i)
+        key = d.strftime("%Y-%m-%d")
+        xp = by_day.get(key, 0)
+        score = min(100, 55 + min(45, xp // 8))
+        productivity.append({"day": days[d.weekday()], "score": score})
 
-    # Fetch skills from Supabase
-    result = sb.table("skills").select("*").eq("employee_id", employee_id).execute()
-    all_skills = result.data or []
+    skills = sb.table("skills").select("name, proficiency, category").eq("employee_id", employee_id).execute()
+    grouped: dict[str, list[int]] = {}
+    for s in skills.data or []:
+        cat = (s.get("category") or "general").split()[0].lower()[:12]
+        prof = int(s.get("proficiency") or 0)
+        if prof <= 10:
+            prof *= 10
+        grouped.setdefault(cat, []).append(prof)
 
-    # Group by category
-    grouped = {}
-    for skill in all_skills:
-        category = skill.get("category", "General")
-        if category not in grouped:
-            grouped[category] = []
+    top_cats = sorted(grouped.items(), key=lambda kv: -sum(kv[1]) / max(1, len(kv[1])))[:3]
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+    skill_growth = []
+    for idx, month in enumerate(months):
+        point = {"month": month}
+        for cat, vals in top_cats:
+            avg = sum(vals) / max(1, len(vals))
+            # Gentle ramp toward current proficiency
+            point[cat] = int(max(20, avg - (5 - idx) * 4))
+        skill_growth.append(point)
 
-        # Normalize skill name for consistency
-        normalized = normalize_skill(skill.get("name", ""))
-
-        grouped[category].append({
-            "id": skill.get("id"),
-            "name": normalized.canonical_name,
-            "category": category,
-            "sub_category": skill.get("sub_category"),
-            "experience": skill.get("years_experience", 0),
-            "proficiency": skill.get("proficiency", 0),
-            "aiConfidence": skill.get("ai_confidence", 0),
-            "verified": skill.get("verified", False),
-            "source": skill.get("source", "Unknown"),
-            "lastUpdated": skill.get("last_updated", "Unknown"),
-        })
-
-    return grouped
-
-
-# ─── AI Readiness ─────────────────────────────────────────────
-
-@router.get("/{employee_id}/ai-readiness")
-def get_ai_readiness(employee_id: str):
-    """Get AI readiness score and breakdown."""
-    # TODO: Compute from actual AI usage data in Phase 6
-    return {
-        "overallScore": 78,
-        "breakdown": [
-            {"category": "AI Literacy", "score": 85},
-            {"category": "Prompt Engineering", "score": 65},
-            {"category": "LLM Usage", "score": 90},
-            {"category": "Copilot Usage", "score": 95},
-            {"category": "Automation Skills", "score": 80},
-            {"category": "AI Ethics", "score": 70},
-            {"category": "Responsible AI", "score": 75},
-            {"category": "Generative AI", "score": 60},
-        ],
-        "recommendation": {
-            "message": "Your prompt engineering score is moderate.",
-            "action": "Complete Prompt Engineering Level 2.",
-            "impact": "+12 points"
-        }
-    }
+    return {"productivity": productivity, "skillGrowth": skill_growth}
 
 
 # ─── Twin Memory ───────────────────────────────────────────────
 
 @router.get("/{employee_id}/twin-memory")
 def get_twin_memory(employee_id: str):
-    """Get twin memory events."""
-    # TODO: Compute from actual activity logs in Phase 6
-    return [
-        {"date": "Today", "event": "AI Reprocessed Knowledge from GitHub (3 new repos)"},
-        {"date": "Yesterday", "event": "Project Added: AI Talent Marketplace"},
-        {"date": "Last Week", "event": "New Skill Extracted: Prompt Engineering (Level 2)"},
-        {"date": "2 Weeks Ago", "event": "Uploaded Knowledge: Alex_Carter_CV_2026.pdf"},
-        {"date": "1 Month Ago", "event": "Certificate Verified: AWS Solutions Architect"},
-    ]
+    """Activity memory from knowledge, projects, skills, and XP events."""
+    sb = get_supabase_admin()
+    events = []
+
+    sources = sb.table("knowledge_sources").select("name, created_at, type").eq(
+        "employee_id", employee_id
+    ).order("created_at", desc=True).limit(5).execute()
+    for s in sources.data or []:
+        events.append({"date": (s.get("created_at") or "")[:10] or "Recently", "event": f"Knowledge synced: {s.get('name')}"})
+
+    projects = sb.table("projects").select("name, status, created_at").eq(
+        "employee_id", employee_id
+    ).order("created_at", desc=True).limit(4).execute()
+    for p in projects.data or []:
+        events.append({"date": (p.get("created_at") or "")[:10] or "Recently", "event": f"Project {p.get('status', 'updated')}: {p.get('name')}"})
+
+    xp = sb.table("xp_transactions").select("reason, created_at").eq(
+        "employee_id", employee_id
+    ).order("created_at", desc=True).limit(5).execute()
+    for t in xp.data or []:
+        events.append({"date": (t.get("created_at") or "")[:10] or "Recently", "event": t.get("reason") or "XP awarded"})
+
+    events.sort(key=lambda e: e["date"], reverse=True)
+    return events[:10] or [{"date": "Today", "event": "Digital twin initialized. Add skills, projects, or documents to grow memory."}]
 
 
 # ─── Collaboration Intelligence ───────────────────────────────
 
 @router.get("/{employee_id}/collaboration")
 def get_collaboration_intel(employee_id: str):
-    """Get collaboration intelligence data."""
-    # TODO: Compute from actual collaboration data in Phase 6
+    """Collaboration snapshot from profile, projects, and knowledge sources."""
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("*").eq("id", employee_id).execute()
+    employee = emp.data[0] if emp.data else {}
+    projects = sb.table("projects").select("id, name, status").eq("employee_id", employee_id).execute().data or []
+    sources = sb.table("knowledge_sources").select("id").eq("employee_id", employee_id).execute().data or []
+    skills = sb.table("skills").select("name, proficiency").eq("employee_id", employee_id).execute().data or []
+    top = sorted(skills, key=lambda s: s.get("proficiency") or 0, reverse=True)[:3]
+    top_names = ", ".join(s.get("name") for s in top) or employee.get("role") or "your domain"
+
+    active = [p for p in projects if str(p.get("status", "")).lower() in ("active", "in_progress", "in progress")]
     return {
         "stats": {
-            "availability": "Available (Capacity: 15h/week)",
-            "bestCommunication": "Slack (Async)",
-            "reputation": "Top 5% in Cloud Architecture",
-            "knowledgeConfidence": 94
+            "availability": f"{employee.get('employment_status') or 'Active'} · {len(active)} live projects",
+            "bestCommunication": employee.get("location") or "Async (Digital Twin)",
+            "reputation": f"Known for {top_names}",
+            "knowledgeConfidence": min(99, 60 + len(sources) * 6 + len(skills)),
         },
         "questions": [
-            "Can this employee help with Kubernetes?",
-            "Has this employee worked on HR Tech domain?",
-            "Who should contact this employee for mentorship?"
-        ]
+            f"Can this employee help with {top[0]['name']}?" if top else "What are this employee's strongest skills?",
+            f"Has this employee shipped {len(projects)} projects in {employee.get('department') or 'the org'}?",
+            "Who should contact this employee for mentorship?",
+        ],
     }
 
 
@@ -878,17 +907,35 @@ def get_collaboration_intel(employee_id: str):
 
 @router.get("/{employee_id}/project-prediction")
 def get_project_prediction(employee_id: str):
-    """Get project prediction data."""
-    # TODO: Compute using ML model in Phase 6
+    """Heuristic success prediction from skill/project coverage."""
+    sb = get_supabase_admin()
+    skills = sb.table("skills").select("proficiency, name").eq("employee_id", employee_id).execute().data or []
+    projects = sb.table("projects").select("status, name, progress").eq("employee_id", employee_id).execute().data or []
+    completed = [p for p in projects if str(p.get("status", "")).lower() == "completed"]
+    avg_prof = 0
+    if skills:
+        vals = []
+        for s in skills:
+            p = int(s.get("proficiency") or 0)
+            vals.append(p * 10 if p <= 10 else p)
+        avg_prof = sum(vals) / len(vals)
+
+    skill_match = int(min(100, avg_prof or 40))
+    domain_match = int(min(100, 50 + len(completed) * 8))
+    leadership = int(min(100, 45 + len(projects) * 6))
+    success = int(round((skill_match * 0.45 + domain_match * 0.3 + leadership * 0.25)))
+    risk = "Low" if success >= 75 else "Medium" if success >= 55 else "High"
+    flagship = next((p.get("name") for p in projects if p.get("name")), "Upcoming strategic initiative")
+
     return {
-        "hypotheticalProject": "Generative AI Knowledge Base for Sales",
-        "successProbability": 88,
-        "skillMatch": 92,
-        "domainMatch": 60,
-        "leadershipMatch": 85,
-        "riskLevel": "Low",
-        "learningCurve": "Medium (Domain context needed)",
-        "expectedContribution": "High (Architecture & AI Integration)"
+        "hypotheticalProject": flagship,
+        "successProbability": success,
+        "skillMatch": skill_match,
+        "domainMatch": domain_match,
+        "leadershipMatch": leadership,
+        "riskLevel": risk,
+        "learningCurve": "Low" if skill_match >= 80 else "Medium (targeted upskilling needed)",
+        "expectedContribution": "High" if success >= 70 else "Moderate",
     }
 
 
@@ -896,13 +943,94 @@ def get_project_prediction(employee_id: str):
 
 @router.get("/{employee_id}/ai-recommendations")
 def get_ai_recommendations(employee_id: str):
-    """Get AI-powered recommendations."""
-    # TODO: Generate using AI model in Phase 6
-    return [
-        {"id": "r1", "text": "Complete Azure AI certification to boost Domain Match for upcoming projects.", "type": "Certification"},
-        {"id": "r2", "text": "Mentor 2 junior engineers in Kubernetes.", "type": "Leadership"},
-        {"id": "r3", "text": "Contribute to the 'Internal Identity Platform' repository to increase knowledge freshness.", "type": "Project"},
-    ]
+    """Recommendations from skills gaps, incomplete projects, and career goal."""
+    sb = get_supabase_admin()
+    recs = []
+    goal = sb.table("career_goals").select("target_role").eq("employee_id", employee_id).eq("is_active", True).execute()
+    if goal.data:
+        recs.append({
+            "id": "r-goal",
+            "text": f"Stay on the Career Coach roadmap toward {goal.data[0]['target_role']}.",
+            "type": "Career",
+        })
+
+    skills = sb.table("skills").select("name, proficiency, target_level").eq("employee_id", employee_id).execute().data or []
+    for s in skills:
+        target = s.get("target_level") or 0
+        current = s.get("proficiency") or 0
+        if target > current:
+            recs.append({
+                "id": f"r-skill-{s.get('name')}",
+                "text": f"Close the {s.get('name')} gap ({current} → {target}) via Learning Hub paths.",
+                "type": "Skill",
+            })
+            if len(recs) >= 4:
+                break
+
+    projects = sb.table("projects").select("name, progress, status").eq("employee_id", employee_id).execute().data or []
+    for p in projects:
+        if str(p.get("status", "")).lower() not in ("completed",) and int(p.get("progress") or 0) < 100:
+            recs.append({
+                "id": f"r-proj-{p.get('name')}",
+                "text": f"Advance '{p.get('name')}' (currently {p.get('progress') or 0}%) to strengthen delivery proof.",
+                "type": "Project",
+            })
+            break
+
+    certs = sb.table("certifications").select("name, status").eq("employee_id", employee_id).execute().data or []
+    planned = [c for c in certs if str(c.get("status", "")).lower() in ("planned", "in_progress", "in progress")]
+    if planned:
+        recs.append({
+            "id": "r-cert",
+            "text": f"Finish certification: {planned[0].get('name')}.",
+            "type": "Certification",
+        })
+
+    if not recs:
+        recs = [
+            {"id": "r1", "text": "Add skills and a career goal so the twin can produce targeted recommendations.", "type": "Profile"},
+        ]
+    return recs[:5]
+
+
+# ─── Skills Data (Grouped by Category) ───────────────────────
+
+@router.get("/{employee_id}/skills-grouped")
+def get_skills_grouped(employee_id: str, sb: Client = Depends(get_supabase_admin)):
+    """Get skills grouped by category for the dashboard from Supabase."""
+    from app.services.knowledge.skill_normalizer import normalize_skill
+
+    result = sb.table("skills").select("*").eq("employee_id", employee_id).execute()
+    all_skills = result.data or []
+
+    grouped = {}
+    for skill in all_skills:
+        category = skill.get("category") or "General"
+        if category not in grouped:
+            grouped[category] = []
+
+        normalized = normalize_skill(skill.get("name", ""))
+        prof = skill.get("proficiency") or 0
+        try:
+            prof = int(prof)
+        except (TypeError, ValueError):
+            prof = 0
+        if 0 < prof <= 10:
+            prof *= 10
+        grouped[category].append({
+            "id": skill.get("id"),
+            "name": normalized.canonical_name,
+            "category": category,
+            "sub_category": skill.get("sub_category"),
+            "experience": skill.get("years_experience", 0),
+            "proficiency": max(0, min(100, prof)),
+            "aiConfidence": skill.get("ai_confidence", 0),
+            "verified": skill.get("verified", False),
+            "source": skill.get("source", "Unknown"),
+            "lastUpdated": skill.get("last_updated", "Unknown"),
+        })
+
+    return grouped
 
 
 # ─── Helpers ──────────────────────────────────────────────────

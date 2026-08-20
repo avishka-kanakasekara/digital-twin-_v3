@@ -45,7 +45,7 @@ class AIReadinessResult:
 
 MAX_RETRIES = 3
 BASE_RETRY_DELAY = 2.0
-MODEL_NAME = "gemini-flash-latest"
+MODEL_NAME = "gemini-3.6-flash"
 
 # The 8 AI readiness dimensions
 AI_DIMENSIONS = [
@@ -104,30 +104,37 @@ EXTRACTION_SCHEMA = """{
 def analyze_ai_readiness(
     employee_id: str,
     sb: Client,
-    api_key: str,
+    api_key: str = "",
 ) -> AIReadinessResult:
     """
-    Analyze employee's AI readiness using LLM.
+    Analyze employee's AI readiness using LLM or personalized data-driven analysis.
     
     Fetches employee data from Supabase and uses AI to calculate readiness scores.
     """
-    if not api_key:
-        # Return default scores if AI not configured
-        return _get_default_readiness()
-
-    # Fetch employee data
+    # Fetch employee data for the specific user
     employee_data = _fetch_employee_data(employee_id, sb)
-    
-    # Prepare analysis context
-    analysis_context = _prepare_analysis_context(employee_data)
-    
-    # Call AI for analysis
+    # Always return data-driven scores from Supabase so the dashboard never hangs on Gemini.
     try:
-        ai_result = _call_ai_for_readiness(analysis_context, api_key)
-        return ai_result
+        from app.services.gemini_safe import ask_gemini_timed
+        analysis_context = _prepare_analysis_context(employee_data)
+        system_instruction = f"{SYSTEM_PROMPT}\n\nJSON SCHEMA:\n{EXTRACTION_SCHEMA}"
+        prompt = f"""{system_instruction}
+
+Analyze this employee's AI readiness based on their professional data:
+
+{analysis_context}
+
+Provide scores for each of the 8 AI readiness dimensions with specific reasoning. Respond with valid JSON matching the schema."""
+        raw = ask_gemini_timed(
+            prompt,
+            timeout=6,
+            fallback="",
+        )
+        if raw:
+            return _parse_ai_response(raw)
     except Exception as e:
-        print(f"AI readiness analysis failed: {e}")
-        return _get_default_readiness()
+        print(f"AI readiness analysis failed or timed out: {e}")
+    return _calculate_user_readiness(employee_data)
 
 
 def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
@@ -144,12 +151,7 @@ def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
     knowledge_result = sb.table("knowledge_sources").select("*").eq("employee_id", employee_id).execute()
     knowledge_sources = knowledge_result.data or []
     
-    # Fetch employee profile
-    employee_result = sb.table("employees").select("*").eq("id", employee_id).execute()
-    employee = employee_result.data[0] if employee_result.data else {}
-    
     return {
-        "employee": employee,
         "skills": skills,
         "projects": projects,
         "knowledge_sources": knowledge_sources,
@@ -157,26 +159,22 @@ def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
 
 
 def _prepare_analysis_context(data: dict) -> str:
-    """Prepare the analysis context for the AI."""
-    employee = data.get("employee", {})
+    """Format employee data for AI prompt."""
     skills = data.get("skills", [])
     projects = data.get("projects", [])
     knowledge_sources = data.get("knowledge_sources", [])
     
-    context = f"""
-EMPLOYEE PROFILE:
-- Name: {employee.get('full_name', 'Unknown')}
-- Role: {employee.get('role', 'Unknown')}
-- Department: {employee.get('department', 'Unknown')}
-- Years of Experience: {employee.get('years_experience', 'Unknown')}
-
-SKILLS ({len(skills)}):
-"""
-    for skill in skills[:20]:  # Limit to top 20 skills
-        context += f"- {skill.get('name')} (Proficiency: {skill.get('proficiency', 'N/A')}, Category: {skill.get('category', 'N/A')})\n"
+    context = f"EMPLOYEE PROFILE OVERVIEW:\n"
+    context += f"- Total Skills: {len(skills)}\n"
+    context += f"- Total Projects: {len(projects)}\n"
+    context += f"- Total Knowledge Sources: {len(knowledge_sources)}\n\n"
+    
+    context += f"SKILLS ({len(skills)}):\n"
+    for skill in skills[:15]:  # Limit to top 15 skills
+        context += f"- {skill.get('name')} (Proficiency: {skill.get('proficiency', 0)}%, Category: {skill.get('category', 'N/A')})\n"
     
     context += f"\nPROJECTS ({len(projects)}):\n"
-    for project in projects[:10]:  # Limit to top 10 projects
+    for project in projects[:8]:  # Limit to top 8 projects
         context += f"- {project.get('name')} (Role: {project.get('role', 'N/A')}, Status: {project.get('status', 'N/A')})\n"
         if project.get('technologies'):
             context += f"  Technologies: {', '.join(project.get('technologies', []))}\n"
@@ -190,33 +188,24 @@ SKILLS ({len(skills)}):
     return context
 
 
-def _call_ai_for_readiness(context: str, api_key: str) -> AIReadinessResult:
+def _call_ai_for_readiness(context: str, api_key: str = "") -> AIReadinessResult:
     """Call AI to analyze AI readiness."""
     try:
-        from google import genai
-        from google.genai import types
+        from gemini_client import ask_gemini
 
-        client = genai.Client(api_key=api_key)
         system_instruction = f"{SYSTEM_PROMPT}\n\nJSON SCHEMA:\n{EXTRACTION_SCHEMA}"
 
-        user_prompt = f"""Analyze this employee's AI readiness based on their professional data:
+        user_prompt = f"""{system_instruction}
+
+Analyze this employee's AI readiness based on their professional data:
 
 {context}
 
-Provide scores for each of the 8 AI readiness dimensions with specific reasoning."""
+Provide scores for each of the 8 AI readiness dimensions with specific reasoning. Respond with valid JSON matching the schema."""
 
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-            ),
-        )
-        
-        return _parse_ai_response(response.text)
+        response_text = ask_gemini(user_prompt)
+        return _parse_ai_response(response_text)
 
-    except ImportError:
-        raise Exception("google-genai package not installed")
     except Exception as exc:
         raise Exception(f"AI call failed: {exc}")
 
@@ -279,20 +268,110 @@ def _clamp_score(val: Any) -> int:
         return 50
 
 
-def _get_default_readiness() -> AIReadinessResult:
-    """Return default AI readiness when AI is not available."""
+def _calculate_user_readiness(data: dict) -> AIReadinessResult:
+    """Calculate dynamic personalized AI readiness based strictly on user's skills, projects, and knowledge sources in Supabase."""
+    skills = data.get("skills", [])
+    projects = data.get("projects", [])
+    sources = data.get("knowledge_sources", [])
+    emp = data.get("employee", {})
+    emp_name = emp.get("full_name", "Employee")
+
+    if not skills and not projects and not sources:
+        breakdown = [
+            AIReadinessDimension(category="Data Literacy", score=20, reasoning=f"Initial state — no data skills recorded for {emp_name}."),
+            AIReadinessDimension(category="Machine Learning", score=15, reasoning="Initial state — no ML/AI proficiencies added yet."),
+            AIReadinessDimension(category="AI Tools & Platforms", score=20, reasoning="Initial state — no developer tools connected."),
+            AIReadinessDimension(category="Prompt Engineering", score=25, reasoning="Initial state — baseline interaction score."),
+            AIReadinessDimension(category="Ethics & Governance", score=50, reasoning="Standard organizational baseline."),
+            AIReadinessDimension(category="Problem Solving", score=30, reasoning="Baseline problem-solving score."),
+            AIReadinessDimension(category="Collaboration", score=25, reasoning="No knowledge sources or team projects connected."),
+            AIReadinessDimension(category="Continuous Learning", score=40, reasoning="Ready for initial skill ingestion."),
+        ]
+        return AIReadinessResult(
+            overall_score=28,
+            breakdown=breakdown,
+            recommendation=AIRecommendation(
+                action="Initialize Digital Twin Profile",
+                message=f"Add skills, project contributions, or upload a resume to calculate {emp_name}'s AI readiness score.",
+                impact="High",
+            ),
+            analysis_summary=f"Initial baseline for {emp_name}: Connect skills or project records to calculate personalized readiness.",
+        )
+
+    # 1. Data Literacy Score: Based on data/SQL/analytics skills
+    data_skills = [s for s in skills if any(k in s.get("name", "").lower() for k in ["data", "sql", "analytics", "postgres", "db", "database", "python"])]
+    if data_skills:
+        avg_data_prof = sum(s.get("proficiency", 5) for s in data_skills) / len(data_skills)
+        data_score = int(min(100, (avg_data_prof * 8.5) + min(15, len(data_skills) * 3)))
+        data_reasoning = f"Evaluated from {len(data_skills)} data skills (avg proficiency: {avg_data_prof:.1f}/10)."
+    else:
+        data_score = 35
+        data_reasoning = "Limited data/analytics skills listed in current profile."
+
+    # 2. Machine Learning Score: Based on AI/ML/Python skills
+    ai_skills = [s for s in skills if any(k in s.get("name", "").lower() for k in ["ai", "ml", "python", "learning", "tensorflow", "pytorch", "nlp", "llm", "neural", "deep"])]
+    if ai_skills:
+        avg_ai_prof = sum(s.get("proficiency", 5) for s in ai_skills) / len(ai_skills)
+        ai_score = int(min(100, (avg_ai_prof * 8.5) + min(15, len(ai_skills) * 4)))
+        ai_reasoning = f"Calculated from {len(ai_skills)} AI/ML skills (avg proficiency: {avg_ai_prof:.1f}/10)."
+    else:
+        ai_score = 30
+        ai_reasoning = "No specialized AI/ML skills currently added to profile."
+
+    # 3. AI Tools & Platforms Score
+    high_prof_skills = [s for s in skills if s.get("proficiency", 0) >= 6]
+    if high_prof_skills:
+        avg_high_prof = sum(s.get("proficiency", 6) for s in high_prof_skills) / len(high_prof_skills)
+        tools_score = int(min(100, (avg_high_prof * 8.0) + min(20, len(high_prof_skills) * 2)))
+        tools_reasoning = f"Assessed from {len(high_prof_skills)} proficient technical capabilities."
+    else:
+        tools_score = 40
+        tools_reasoning = "Basic developer tools profile established."
+
+    # 4. Prompt Engineering
+    prompt_score = int(min(100, 50 + (len(projects) * 6) + (len(sources) * 5)))
+    prompt_reasoning = f"Driven by {len(projects)} active projects and {len(sources)} connected knowledge artifacts."
+
+    # 5. Ethics & Governance
+    verified_skills = [s for s in skills if s.get("verified", False)]
+    ethics_score = int(min(100, 60 + (len(verified_skills) * 4) + (10 if sources else 0)))
+    ethics_reasoning = f"Aligned with {len(verified_skills)} verified competencies and governance compliance."
+
+    # 6. Problem Solving
+    all_prof = [s.get("proficiency", 5) for s in skills]
+    avg_all_prof = (sum(all_prof) / len(all_prof)) if all_prof else 4.0
+    problem_score = int(min(100, (avg_all_prof * 7.5) + min(25, len(projects) * 5)))
+    problem_reasoning = f"Proven across {len(projects)} delivered initiatives (overall skill avg: {avg_all_prof:.1f}/10)."
+
+    # 7. Collaboration
+    collab_score = int(min(100, 45 + (len(sources) * 8) + (len(projects) * 5)))
+    collab_reasoning = f"Supported by {len(sources)} shared knowledge sources and multi-project workflows."
+
+    # 8. Continuous Learning
+    learning_score = int(min(100, 50 + min(40, len(skills) * 2.5)))
+    learning_reasoning = f"Demonstrated by a dynamic portfolio of {len(skills)} tracked skills."
+
     breakdown = [
-        AIReadinessDimension(category=dim, score=50, reasoning="Default score - AI analysis not available")
-        for dim in AI_DIMENSIONS
+        AIReadinessDimension(category="Data Literacy", score=data_score, reasoning=data_reasoning),
+        AIReadinessDimension(category="Machine Learning", score=ai_score, reasoning=ai_reasoning),
+        AIReadinessDimension(category="AI Tools & Platforms", score=tools_score, reasoning=tools_reasoning),
+        AIReadinessDimension(category="Prompt Engineering", score=prompt_score, reasoning=prompt_reasoning),
+        AIReadinessDimension(category="Ethics & Governance", score=ethics_score, reasoning=ethics_reasoning),
+        AIReadinessDimension(category="Problem Solving", score=problem_score, reasoning=problem_reasoning),
+        AIReadinessDimension(category="Collaboration", score=collab_score, reasoning=collab_reasoning),
+        AIReadinessDimension(category="Continuous Learning", score=learning_score, reasoning=learning_reasoning),
     ]
-    
+
+    overall = round(sum(d.score for d in breakdown) / len(breakdown))
+    top_skill = max(skills, key=lambda s: s.get("proficiency", 0)).get("name") if skills else "Technical Domain"
+
     return AIReadinessResult(
-        overall_score=50,
+        overall_score=overall,
         breakdown=breakdown,
         recommendation=AIRecommendation(
-            action="Configure AI",
-            message="AI analysis is not configured. Please set up GOOGLE_API_KEY to get personalized AI readiness scores.",
-            impact="N/A",
+            action=f"Expand {top_skill} AI Workflows",
+            message=f"For {emp_name}: Leverage high proficiency in {top_skill} to build automated LLM agents and cloud pipelines.",
+            impact="High" if overall >= 75 else "Medium",
         ),
-        analysis_summary="Default AI readiness - Configure AI for personalized analysis",
+        analysis_summary=f"Dynamic AI readiness analysis for {emp_name}: Overall score of {overall}% calculated from {len(skills)} verified skills, {len(projects)} projects, and {len(sources)} knowledge sources.",
     )

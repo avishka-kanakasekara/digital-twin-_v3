@@ -54,6 +54,7 @@ class ChallengeResponse(BaseModel):
     color: Optional[str] = None
     days_left: int = 0
     progress: int = 0
+    completed: bool = False
     participants: int = 0
     is_active: bool = True
 
@@ -62,6 +63,11 @@ class ChallengeResponse(BaseModel):
 
 class ChallengeProgressUpdate(BaseModel):
     progress: int
+
+class ChallengeVerifyRequest(BaseModel):
+    employee_id: str
+    challenge_id: str
+    approve: bool
 
 
 class AchievementResponse(BaseModel):
@@ -122,3 +128,88 @@ class RewardItemResponse(BaseModel):
 
 class RewardClaimRequest(BaseModel):
     reward_id: str
+
+
+# ─── Step / Submission / Evaluation schemas ───────────────────
+
+class ChallengeStepIn(BaseModel):
+    """One step as supplied in the challenge creation payload."""
+    step_order: int = 1
+    title: str
+    instructions: str
+    submission_type: str = "text"   # text | link | code | image | file
+    evaluation_rubric: str
+    xp_value: int = 100
+    reference_url: Optional[str] = None
+
+
+class ChallengeStepResponse(BaseModel):
+    id: str
+    challenge_id: str
+    step_order: int
+    title: str
+    instructions: str
+    submission_type: str
+    evaluation_rubric: str
+    xp_value: int
+    reference_url: Optional[str] = None
+    # Injected per-employee at runtime
+    status: str = "not_started"      # not_started | submitted | evaluating | passed | failed | manual_review
+    latest_score: Optional[int] = None
+    latest_feedback: Optional[str] = None
+    xp_awarded: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class ChallengeDetailResponse(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    difficulty: Optional[str] = None
+    type: Optional[str] = None
+    category: Optional[str] = None
+    color: Optional[str] = None
+    bonus_badge: Optional[str] = None
+    days_left: int = 0
+    total_xp: int = 0
+    progress: int = 0
+    completed: bool = False
+    steps: list[ChallengeStepResponse] = []
+
+    model_config = {"from_attributes": True}
+
+
+class ChallengeCreateWithSteps(BaseModel):
+    title: str
+    description: Optional[str] = None
+    type: str = "weekly"
+    difficulty: str = "Medium"
+    category: str = "Learning"
+    end_date: Optional[str] = None
+    bonus_badge: Optional[str] = "🎯"
+    color: str = "#7c3aed"
+    is_active: bool = True
+    reference_url: Optional[str] = None
+    steps: list[ChallengeStepIn] = []
+
+
+class SubmitStepRequest(BaseModel):
+    content: str           # text / URL / code / extracted file text
+    storage_path: Optional[str] = None  # server-side upload path for image/file evaluation
+
+
+class ManualReviewRequest(BaseModel):
+    submission_id: str
+    approve: bool
+    score: Optional[int] = None
+    feedback: Optional[str] = None
+
+
+class EvaluationResponse(BaseModel):
+    submission_id: str
+    ai_score: int
+    passed: bool
+    feedback: str
+    xp_awarded: int
+    status: str            # evaluated | manual_review

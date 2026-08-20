@@ -30,7 +30,7 @@ class ChatResponse:
 
 # ── Constants ─────────────────────────────────────────────────
 
-MODEL_NAME = "gemini-flash-latest"
+MODEL_NAME = "gemini-3.6-flash"
 MAX_CONTEXT_LENGTH = 8000  # Characters
 
 
@@ -140,19 +140,11 @@ def process_chat(
     message: str,
     conversation_history: list[ChatMessage],
     sb: Client,
-    api_key: str,
+    api_key: str = "",
 ) -> ChatResponse:
     """
     Process a chat message using RAG with employee-specific context.
     """
-    print(f"DEBUG: API key received: {api_key[:20] if api_key else 'None'}...")
-    
-    if not api_key:
-        return ChatResponse(
-            response="AI chat is not configured. Please set GOOGLE_API_KEY to enable the AI Twin Assistant.",
-            sources_used=[],
-        )
-    
     # Build employee context
     employee_context = build_employee_context(employee_id, sb)
     
@@ -166,7 +158,9 @@ def process_chat(
     ])
     
     # Build the prompt
-    user_prompt = f"""EMPLOYEE CONTEXT:
+    user_prompt = f"""{SYSTEM_PROMPT}
+
+EMPLOYEE CONTEXT:
 {relevant_context}
 
 CONVERSATION HISTORY:
@@ -179,20 +173,8 @@ Please provide a helpful response based on the employee's actual data."""
     
     # Call AI
     try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=api_key)
-        
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-            ),
-        )
-        
-        ai_response = response.text.strip()
+        from gemini_client import ask_gemini
+        ai_response = ask_gemini(user_prompt).strip()
         
         # Track sources used
         sources = []
@@ -210,11 +192,6 @@ Please provide a helpful response based on the employee's actual data."""
             sources_used=sources,
         )
         
-    except ImportError:
-        return ChatResponse(
-            response="AI chat is not available. Please install google-genai package.",
-            sources_used=[],
-        )
     except Exception as exc:
         return ChatResponse(
             response=f"Error processing chat: {str(exc)}",

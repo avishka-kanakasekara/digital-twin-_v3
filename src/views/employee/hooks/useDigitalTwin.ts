@@ -33,10 +33,8 @@ export const useDigitalTwin = () => {
   const [personalAnalyticsAI, setPersonalAnalyticsAI] = useState<any>(null);
   const [skillsData, setSkillsData] = useState(digitalTwinMockData.skillsData);
   const [certifications, setCertifications] = useState(digitalTwinMockData.certificationsTimeline);
-  const [aiReadiness, setAIReadiness] = useState(digitalTwinMockData.aiReadiness);
   const [twinMemory, setTwinMemory] = useState(digitalTwinMockData.twinMemory);
   const [collaborationIntel, setCollaborationIntel] = useState(digitalTwinMockData.collaborationIntel);
-  const [projectPrediction, setProjectPrediction] = useState(digitalTwinMockData.projectPrediction);
   const [aiRecommendations, setAIRecommendations] = useState(digitalTwinMockData.aiRecommendations);
   const [loading, setLoading] = useState(false);
   const [useAPI, setUseAPI] = useState(false);
@@ -64,71 +62,95 @@ export const useDigitalTwin = () => {
           phone: empData.phone || '',
           experience: empData.years_experience || 0,
           yearsInCompany: empData.years_in_company || 0,
+          headline: empData.headline || digitalTwinMockData.employeeProfile.headline,
+          biography: empData.biography || '',
         });
         setUseAPI(true);
-        
-        const [projectsData, knowledgeData, skillsData, twinSum, analyticsData, skillsGroupedData, aiReadinessData, twinMemoryData, collaborationData, projectPredictionData, aiRecommendationsData, certificationsData, personalAnalyticsData] = await Promise.all([
+
+        const applyTwinSummary = (raw: any) => {
+          setTwinSummary({
+            aiConfidence: raw.aiConfidence ?? raw.ai_confidence ?? 0,
+            profileCompleteness: raw.profileCompleteness ?? raw.profile_completeness ?? 0,
+            knowledgeFreshness: raw.knowledgeFreshness ?? raw.knowledge_freshness ?? 'Low',
+            lastUpdated: raw.lastUpdated ?? raw.updated_at,
+            representationQuality: raw.representationQuality ?? raw.representation_quality,
+            twinHealth: raw.twinHealth ?? raw.twin_health ?? 0,
+            summaryText: raw.summaryText ?? raw.summary_text ?? '',
+          });
+        };
+
+        const coreResults = await Promise.allSettled([
           employeeAPI.getProjects(currentEmployee.id),
           employeeAPI.getKnowledgeSources(currentEmployee.id),
           employeeAPI.getSkills(currentEmployee.id),
           employeeAPI.getTwinSummary(currentEmployee.id),
           employeeAPI.getAnalytics(currentEmployee.id),
           employeeAPI.getSkillsGrouped(currentEmployee.id),
-          employeeAPI.getAIReadiness(currentEmployee.id),
           employeeAPI.getTwinMemory(currentEmployee.id),
           employeeAPI.getCollaboration(currentEmployee.id),
-          employeeAPI.getProjectPrediction(currentEmployee.id),
           employeeAPI.getAIRecommendations(currentEmployee.id),
           employeeAPI.getCertifications(currentEmployee.id),
+        ]);
+
+        if (coreResults[0].status === 'fulfilled') setProjects({ current: coreResults[0].value.current || [], completed: coreResults[0].value.completed || [] });
+        if (coreResults[1].status === 'fulfilled') setKnowledge(coreResults[1].value);
+        if (coreResults[2].status === 'fulfilled') setSkills(coreResults[2].value);
+        if (coreResults[3].status === 'fulfilled') applyTwinSummary(coreResults[3].value);
+        if (coreResults[4].status === 'fulfilled') setPersonalAnalytics(coreResults[4].value);
+        if (coreResults[5].status === 'fulfilled') setSkillsData(coreResults[5].value);
+        if (coreResults[6].status === 'fulfilled') setTwinMemory(coreResults[6].value);
+        if (coreResults[7].status === 'fulfilled') setCollaborationIntel(coreResults[7].value);
+        if (coreResults[8].status === 'fulfilled') setAIRecommendations(coreResults[8].value);
+        if (coreResults[9].status === 'fulfilled') setCertifications(coreResults[9].value);
+
+        setLoading(false);
+
+        const aiResults = await Promise.allSettled([
           employeeAPI.getPersonalAnalytics(currentEmployee.id),
         ]);
-        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
-        setKnowledge(knowledgeData);
-        setSkills(skillsData);
-        setTwinSummary(twinSum as any);
-        setPersonalAnalytics(analyticsData);
-        setPersonalAnalyticsAI(personalAnalyticsData);
-        setSkillsData(skillsGroupedData);
-        setAIReadiness(aiReadinessData);
-        setTwinMemory(twinMemoryData);
-        setCollaborationIntel(collaborationData);
-        setProjectPrediction(projectPredictionData);
-        setAIRecommendations(aiRecommendationsData);
-        setCertifications(certificationsData);
+        if (aiResults[0].status === 'fulfilled') setPersonalAnalyticsAI(aiResults[0].value);
 
         // Load gamification data
         try {
           const gamProfile = await gamificationAPI.getProfile(currentEmployee.id);
           const gamAchievements = await gamificationAPI.getAchievements(currentEmployee.id);
           const gamStreak = await gamificationAPI.getStreak(currentEmployee.id);
-          
+          const missions = await gamificationAPI.getMissions(currentEmployee.id).catch(() => []);
+          const totalPlayers = gamProfile.total_players || 0;
+          const rankPct = gamProfile.company_rank && totalPlayers
+            ? Math.max(1, Math.round((gamProfile.company_rank / totalPlayers) * 100))
+            : null;
+
           setGamification({
             ...gamificationData.playerProfile,
             level: gamProfile.level,
             xp: gamProfile.xp,
             nextLevelXp: gamProfile.next_level_xp,
             totalXpEarned: gamProfile.total_xp_earned,
-            companyRank: gamProfile.company_rank || gamificationData.playerProfile.companyRank,
-            departmentRank: gamProfile.department_rank || gamificationData.playerProfile.departmentRank,
+            companyRank: gamProfile.company_rank,
+            departmentRank: gamProfile.department_rank,
             streakDays: gamProfile.streak_days,
             title: gamProfile.title,
             streaks: {
-              learning: gamStreak?.streak_days || 14,
-              project: gamStreak?.longest_streak || 7,
+              learning: gamStreak?.streak_days || gamProfile.streak_days || 0,
+              project: gamStreak?.longest_streak || gamProfile.longest_streak || 0,
             },
-            achievements: gamAchievements.map((ach: any) => ({
+            achievements: (gamAchievements || []).map((ach: any) => ({
               id: ach.id,
               name: ach.name,
               description: ach.description,
-              unlocked: !!ach.unlocked_at,
+              emoji: ach.emoji,
+              unlocked: !!ach.unlocked,
             })),
-            missions: [
-              { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
-              { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
-              { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
-            ],
-            aiScore: Math.round(empData.profile_completeness || 92),
-            impactRank: gamProfile.department_rank ? `Top ${Math.round((gamProfile.department_rank / 28) * 100)}%` : 'Top 5%',
+            missions: (missions || []).map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              xp: m.xp,
+              completed: !!m.completed,
+              type: m.type,
+            })),
+            aiScore: Math.round(empData.profile_completeness || 0),
+            impactRank: rankPct ? `Top ${rankPct}%` : (gamProfile.title || 'Newcomer'),
           });
         } catch (gamError) {
           console.log('⚠️ Gamification API not available, using mock data');
@@ -164,10 +186,55 @@ export const useDigitalTwin = () => {
     loadFromAPI();
   }, [currentEmployee]);
 
+  const refreshAllData = useCallback(async () => {
+    if (!currentEmployee) return;
+    try {
+      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary, newPersonalAnalytics] = await Promise.all([
+        employeeAPI.getSkills(currentEmployee.id),
+        employeeAPI.getSkillsGrouped(currentEmployee.id),
+        employeeAPI.getProjects(currentEmployee.id),
+        employeeAPI.getCertifications(currentEmployee.id),
+        employeeAPI.getTwinSummary(currentEmployee.id),
+        employeeAPI.getPersonalAnalytics(currentEmployee.id),
+      ]);
+      setSkills(newSkills);
+      setSkillsData(newSkillsGrouped);
+      setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
+      setCertifications(newCertifications);
+      setTwinSummary(newTwinSummary as any);
+      setPersonalAnalyticsAI(newPersonalAnalytics);
+      console.log('✅ Digital Twin refreshed after data update');
+    } catch (error) {
+      console.error('Failed to refresh all data:', error);
+    }
+  }, [currentEmployee]);
+
   const updateProfile = useCallback(async (updates: Partial<typeof digitalTwinMockData.employeeProfile>) => {
     if (useAPI && currentEmployee) {
       try {
-        await employeeAPI.update(currentEmployee.id, updates);
+        const payload: Record<string, any> = {};
+        const map: Record<string, string> = {
+          fullName: 'full_name',
+          initials: 'initials',
+          department: 'department',
+          role: 'role',
+          team: 'team',
+          manager: 'manager_name',
+          location: 'location',
+          timezone: 'timezone_str',
+          phone: 'phone',
+          headline: 'headline',
+          biography: 'biography',
+          experience: 'years_experience',
+          yearsInCompany: 'years_in_company',
+        };
+        Object.entries(updates).forEach(([key, value]) => {
+          const backendKey = map[key];
+          if (backendKey && value !== undefined) payload[backendKey] = value;
+        });
+        if (Object.keys(payload).length) {
+          await employeeAPI.update(currentEmployee.id, payload);
+        }
       } catch (error) {
         console.error('Failed to update profile:', error);
       }
@@ -180,21 +247,17 @@ export const useDigitalTwin = () => {
       try {
         console.log('Adding project to backend:', projectData);
         await employeeAPI.createProject(currentEmployee.id, projectData);
-        // Refresh projects from backend to get the updated list
-        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
-        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        await refreshAllData();
         return;
       } catch (error) {
         console.error('Failed to add project:', error);
-        // Fallback to local state if backend fails
       }
     }
-    // Fallback for offline mode
     setProjects((prev: any) => ({
       ...prev,
       current: [...(prev.current || []), { ...projectData, id: projectData.id || Date.now().toString() }]
     }));
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   const uploadKnowledgeSource = useCallback(async (name: string, type: string) => {
     // Real upload is handled directly by KnowledgeSources component via knowledgeAPI.upload().
@@ -233,34 +296,6 @@ export const useDigitalTwin = () => {
     }
   }, [currentEmployee]);
 
-  /**
-   * Called when a knowledge pipeline completes.
-   * Re-fetches ALL derived data that the pipeline may have updated:
-   * skills, projects, certifications, twin summary, AI readiness.
-   */
-  const refreshAllData = useCallback(async () => {
-    if (!currentEmployee) return;
-    try {
-      const [newSkills, newSkillsGrouped, newProjects, newCertifications, newTwinSummary, newAIReadiness] = await Promise.all([
-        employeeAPI.getSkills(currentEmployee.id),
-        employeeAPI.getSkillsGrouped(currentEmployee.id),
-        employeeAPI.getProjects(currentEmployee.id),
-        employeeAPI.getCertifications(currentEmployee.id),
-        employeeAPI.getTwinSummary(currentEmployee.id),
-        employeeAPI.getAIReadiness(currentEmployee.id),
-      ]);
-      setSkills(newSkills);
-      setSkillsData(newSkillsGrouped);
-      setProjects({ current: newProjects.current || [], completed: newProjects.completed || [] });
-      setCertifications(newCertifications);
-      setTwinSummary(newTwinSummary as any);
-      setAIReadiness(newAIReadiness);
-      console.log('✅ Digital Twin refreshed after pipeline completion');
-    } catch (error) {
-      console.error('Failed to refresh all data:', error);
-    }
-  }, [currentEmployee]);
-
   const updateGamificationXP = useCallback(async (xpChange: number) => {
     if (useAPI && currentEmployee) {
       try {
@@ -277,37 +312,16 @@ export const useDigitalTwin = () => {
     }));
   }, [useAPI, currentEmployee]);
 
-  const addXp = useCallback((amount: number, reason: string) => {
-    setGamification((prev: any) => {
-      const newXp = (prev.xp || 0) + amount;
-      let newLevel = prev.level || 1;
-      let nextLevelXp = prev.nextLevelXp || 1000;
-      
-      if (newXp >= nextLevelXp) {
-        newLevel += 1;
-        nextLevelXp = nextLevelXp + 1000;
-      }
-      
-      return {
-        ...prev,
-        xp: newXp,
-        level: newLevel,
-        nextLevelXp
-      };
-    });
-    console.log(`Earned ${amount} XP: ${reason}`);
-  }, []);
-
   const completeMission = useCallback((missionIndex: number) => {
     setGamification((prev: any) => {
       const newMissions = [...(prev.missions || [])];
-      if (!newMissions[missionIndex].completed) {
-        newMissions[missionIndex].completed = true;
-        addXp(newMissions[missionIndex].xp, `Mission Completed: ${newMissions[missionIndex].name}`);
+      const mission = newMissions[missionIndex];
+      if (!mission || mission.completed || mission.type === 'challenge') {
+        return prev;
       }
-      return { ...prev, missions: newMissions };
+      return prev;
     });
-  }, [addXp]);
+  }, []);
 
   const updateProjectProgress = useCallback(async (projectId: string, status: string, progress?: number) => {
     if (useAPI && currentEmployee) {
@@ -351,21 +365,18 @@ export const useDigitalTwin = () => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.deleteProject(currentEmployee.id, projectId);
-        // Refresh projects from backend to get the updated list
-        const projectsData = await employeeAPI.getProjects(currentEmployee.id);
-        setProjects({ current: projectsData.current || [], completed: projectsData.completed || [] });
+        await refreshAllData();
         return;
       } catch (error) {
         console.error('Failed to delete project:', error);
       }
     }
-    // Fallback for offline mode
     setProjects((prev: any) => ({
       ...prev,
       current: (prev.current || []).filter((p: any) => p.id !== projectId),
       completed: (prev.completed || []).filter((p: any) => p.id !== projectId),
     }));
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   const getProjectTasks = useCallback(async (projectId: string) => {
     if (useAPI && currentEmployee) {
@@ -423,50 +434,27 @@ export const useDigitalTwin = () => {
     }
   }, [useAPI, currentEmployee]);
 
-  const refreshAIReadiness = useCallback(async () => {
-    if (useAPI && currentEmployee) {
-      try {
-        const aiReadinessData = await employeeAPI.getAIReadiness(currentEmployee.id);
-        setAIReadiness(aiReadinessData);
-      } catch (error) {
-        console.error('Failed to refresh AI readiness:', error);
-      }
-    }
-  }, [useAPI, currentEmployee]);
-
   const updateSkill = useCallback(async (skillId: string, skillData: any) => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.updateSkill(currentEmployee.id, skillId, skillData);
-        // Refresh skills
-        const [skillsData, skillsGroupedData] = await Promise.all([
-          employeeAPI.getSkills(currentEmployee.id),
-          employeeAPI.getSkillsGrouped(currentEmployee.id),
-        ]);
-        setSkills(skillsData);
-        setSkillsData(skillsGroupedData);
+        await refreshAllData();
       } catch (error) {
         console.error('Failed to update skill:', error);
       }
     }
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   const deleteSkill = useCallback(async (skillId: string) => {
     if (useAPI && currentEmployee) {
       try {
         await employeeAPI.deleteSkill(currentEmployee.id, skillId);
-        // Refresh skills
-        const [skillsData, skillsGroupedData] = await Promise.all([
-          employeeAPI.getSkills(currentEmployee.id),
-          employeeAPI.getSkillsGrouped(currentEmployee.id),
-        ]);
-        setSkills(skillsData);
-        setSkillsData(skillsGroupedData);
+        await refreshAllData();
       } catch (error) {
         console.error('Failed to delete skill:', error);
       }
     }
-  }, [useAPI, currentEmployee]);
+  }, [useAPI, currentEmployee, refreshAllData]);
 
   return {
     profile,
@@ -485,7 +473,6 @@ export const useDigitalTwin = () => {
     uploadKnowledgeSource,
     refreshKnowledge,
     refreshAllData,
-    refreshAIReadiness,
 
     gamification,
     completeMission,
@@ -504,10 +491,8 @@ export const useDigitalTwin = () => {
     
     // Dynamic data from backend
     certifications,
-    aiReadiness,
     twinMemory,
     collaborationIntel,
-    projectPrediction,
     personalAnalytics,
     aiRecommendations
   };

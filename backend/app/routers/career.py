@@ -1,282 +1,307 @@
 from __future__ import annotations
-"""
-Career Coach router — goals, roadmaps, readiness, market trends.
-Uses Supabase as the database backend.
-"""
 
 import uuid
-from fastapi import APIRouter, HTTPException
+from typing import Any
+
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
 from app.database import get_supabase_admin
 from app.schemas.career import (
+    CareerAnalysisResponse,
+    CareerChatRequest,
+    CareerChatResponse,
     CareerGoalCreate,
     CareerGoalResponse,
+    CareerGoalVisibilityUpdate,
     CareerRoadmapStepResponse,
-    SkillGapResponse,
-    MarketTrendResponse,
-    CareerRecommendationResponse,
+    CareerRoadmapStepUpdate,
+    EvidenceSubmissionResponse,
+    InternalRoleMatchResponse,
+    MentorIntroRequestResponse,
+    MentorMatchResponse,
+    StallFlagResponse,
+    StallScanResponse,
 )
+from app.services.career_coach import (
+    analysis_response_from_state,
+    award_career_xp,
+    build_grounded_chat_response,
+    compute_career_state,
+    goal_has_ai_plan,
+    persist_career_snapshot,
+    scan_for_stalled_goals,
+)
+from app.services.career_evidence_upload import save_career_evidence
+
+def _persist_state(sb, employee_id: str, state: dict[str, Any]) -> None:
+    try:
+        persist_career_snapshot(
+            sb,
+            employee_id,
+            state["goal_id"],
+            state["readiness_components"],
+            state["skill_gaps"],
+            state["roadmap"],
+            state["internal_roles"],
+            state["mentors"],
+            ai_cache=state.get("ai_cache"),
+        )
+        sb.table("career_goals").update({"readiness_score": state["readiness_score"]}).eq("id", state["goal_id"]).execute()
+    except Exception as exc:
+        print(f"[career] Could not persist career state: {exc}")
+
 
 router = APIRouter(prefix="/api/career", tags=["Career Coach"])
 
 
-# ─── Career Goals ──────────────────────────────────────────────
+def _require_active_goal(employee_id: str, sb):
+    goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
+    if not goal_rows:
+        raise HTTPException(status_code=404, detail="No active career goal")
+    return goal_rows[0]
+
 
 @router.get("/{employee_id}/goal", response_model=CareerGoalResponse | None)
-def get_active_career_goal(employee_id: str):
-    """Get the current active career goal for an employee."""
+def get_active_goal(employee_id: str):
     sb = get_supabase_admin()
-
-    result = sb.table("career_goals").select("*").eq(
-        "employee_id", employee_id
-    ).eq("is_active", True).execute()
-
-    if not result.data:
+    goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
+    if not goal_rows:
         return None
-    goal = result.data[0]
-
-    # Load roadmap steps
-    steps_result = sb.table("career_roadmap_steps").select("*").eq(
-        "career_goal_id", goal["id"]
-    ).order("step_order").execute()
-
-    goal_response = CareerGoalResponse(
+    goal = goal_rows[0]
+    state = compute_career_state(employee_id, sb, refresh_ai=False)
+    return CareerGoalResponse(
         id=goal["id"],
+        employee_id=goal["employee_id"],
         target_role=goal["target_role"],
         timeline=goal.get("timeline"),
         focus_area=goal.get("focus_area"),
         target_industry=goal.get("target_industry"),
-        readiness_score=goal.get("readiness_score", 0),
-        is_active=goal.get("is_active", True),
+        readiness_score=goal.get("readiness_score", state["readiness_score"]),
+        visible_to_manager=bool(goal.get("visible_to_manager", False)),
+        is_active=bool(goal.get("is_active", True)),
+        created_at=goal.get("created_at"),
+        updated_at=goal.get("updated_at"),
+        roadmap_steps=analysis_response_from_state(employee_id, sb, state).roadmap_steps,
     )
-    goal_response.roadmap_steps = [
-        CareerRoadmapStepResponse(
-            id=s["id"],
-            step_order=s["step_order"],
-            title=s["title"],
-            status="completed" if s.get("status") == "achieved" else s.get("status", "upcoming"),
-            description=s.get("description"),
-        )
-        for s in (steps_result.data or [])
-    ]
-    return goal_response
-
-
-@router.get("/{employee_id}/roadmap", response_model=list[CareerRoadmapStepResponse])
-def get_career_roadmap(employee_id: str):
-    """Get roadmap steps for the active career goal."""
-    sb = get_supabase_admin()
-
-    goal_result = sb.table("career_goals").select("id").eq(
-        "employee_id", employee_id
-    ).eq("is_active", True).execute()
-    if not goal_result.data:
-        return []
-
-    goal_id = goal_result.data[0]["id"]
-    steps_result = sb.table("career_roadmap_steps").select("*").eq(
-        "career_goal_id", goal_id
-    ).order("step_order").execute()
-
-    return [
-        CareerRoadmapStepResponse(
-            id=s["id"],
-            step_order=s["step_order"],
-            title=s["title"],
-            status="completed" if s.get("status") == "achieved" else s.get("status", "upcoming"),
-            description=s.get("description"),
-        )
-        for s in (steps_result.data or [])
-    ]
 
 
 @router.post("/{employee_id}/goal", response_model=CareerGoalResponse, status_code=201)
-def set_career_goal(employee_id: str, data: CareerGoalCreate):
-    """Create or update the active career goal."""
+def set_or_update_goal(employee_id: str, data: CareerGoalCreate):
     sb = get_supabase_admin()
+    existing_rows = sb.table("career_goals").select("id").eq("employee_id", employee_id).eq("is_active", True).execute().data or []
+    for row in existing_rows:
+        sb.table("career_goals").update({"is_active": False, "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}).eq("id", row["id"]).execute()
 
-    # Deactivate any existing active goals
-    existing = sb.table("career_goals").select("id").eq(
-        "employee_id", employee_id
-    ).eq("is_active", True).execute()
-    for old in existing.data or []:
-        sb.table("career_goals").update({"is_active": False}).eq("id", old["id"]).execute()
-
-    # Create new goal
     goal_id = str(uuid.uuid4())
-    goal_data = {
+    sb.table("career_goals").insert({
         "id": goal_id,
         "employee_id": employee_id,
         "target_role": data.target_role,
         "timeline": data.timeline,
         "focus_area": data.focus_area,
         "target_industry": data.target_industry,
-        "readiness_score": 65,  # Placeholder — ML model in Phase 4
-    }
-    sb.table("career_goals").insert(goal_data).execute()
+        "visible_to_manager": data.visible_to_manager,
+        "is_active": True,
+    }).execute()
 
-    # Auto-generate roadmap steps
-    steps = _generate_roadmap_steps(data.target_role)
-    for i, step_data in enumerate(steps):
-        sb.table("career_roadmap_steps").insert({
-            "id": str(uuid.uuid4()),
-            "career_goal_id": goal_id,
-            "step_order": i + 1,
-            "title": step_data["title"],
-            "status": step_data["status"],
-            "description": step_data.get("description"),
-        }).execute()
-
+    state = compute_career_state(employee_id, sb, data.target_role, data.timeline, data.focus_area, refresh_ai=True)
+    if state.get("ai_cache"):
+        _persist_state(sb, employee_id, state)
+    goal_rows = sb.table("career_goals").select("*").eq("id", goal_id).limit(1).execute().data or []
+    goal = goal_rows[0]
     return CareerGoalResponse(
-        id=goal_id,
-        target_role=data.target_role,
-        timeline=data.timeline,
-        focus_area=data.focus_area,
-        target_industry=data.target_industry,
-        readiness_score=65,
-        is_active=True,
+        id=goal["id"],
+        employee_id=goal["employee_id"],
+        target_role=goal["target_role"],
+        timeline=goal.get("timeline"),
+        focus_area=goal.get("focus_area"),
+        target_industry=goal.get("target_industry"),
+        readiness_score=state["readiness_score"],
+        visible_to_manager=bool(goal.get("visible_to_manager", False)),
+        is_active=bool(goal.get("is_active", True)),
+        created_at=goal.get("created_at"),
+        updated_at=goal.get("updated_at"),
+        roadmap_steps=[CareerRoadmapStepResponse(**row) for row in state["roadmap"]],
     )
 
 
-# ─── Skill Gaps (Career-specific) ─────────────────────────────
-
-@router.get("/{employee_id}/skill-gaps", response_model=list[SkillGapResponse])
-def get_career_skill_gaps(employee_id: str):
-    """Skill gap analysis relative to the active career goal."""
+@router.get("/{employee_id}/analysis", response_model=CareerAnalysisResponse)
+def get_analysis(employee_id: str, refresh: bool = Query(default=False)):
     sb = get_supabase_admin()
+    goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
+    if not goal_rows:
+        default_goal = CareerGoalCreate(target_role="Senior Software Engineer", timeline="12 months", focus_area="Engineering")
+        set_or_update_goal(employee_id, default_goal)
+        goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
 
-    # Get target role
-    goal_result = sb.table("career_goals").select("target_role").eq(
-        "employee_id", employee_id
-    ).eq("is_active", True).execute()
-    active_goal = goal_result.data[0] if goal_result.data else None
-
-    # Get employee skills
-    skills_result = sb.table("skills").select("name, proficiency").eq(
-        "employee_id", employee_id
-    ).execute()
-    skill_map = {s["name"]: s for s in (skills_result.data or [])}
-
-    # Define required skills per role
-    target_role = active_goal["target_role"] if active_goal else "Cloud Architect"
-    required_skills = _get_role_requirements(target_role)
-
-    gaps = []
-    for req in required_skills:
-        current = skill_map.get(req["name"])
-        current_level = current["proficiency"] if current else 0
-        target_level = req["target"]
-        gap = max(0, target_level - current_level)
-        if gap > 0:
-            gaps.append(SkillGapResponse(
-                skill=req["name"],
-                current_level=current_level,
-                target_level=target_level,
-                gap=gap,
-                priority="Critical" if gap >= 40 else "High" if gap >= 25 else "Medium",
-                category=req.get("category", "General"),
-                color=req.get("color", "#7c3aed"),
-            ))
-
-    gaps.sort(key=lambda x: x.gap, reverse=True)
-    return gaps
+    goal = goal_rows[0]
+    refresh_ai = refresh or not goal_has_ai_plan(sb, goal["id"])
+    state = compute_career_state(employee_id, sb, refresh_ai=refresh_ai)
+    if state.get("ai_cache"):
+        _persist_state(sb, employee_id, state)
+    return analysis_response_from_state(employee_id, sb, state)
 
 
-# ─── Career Recommendations ───────────────────────────────────
+@router.patch("/roadmap/{step_id}")
+def update_roadmap_step(step_id: str, data: CareerRoadmapStepUpdate):
+    sb = get_supabase_admin()
+    step_rows = sb.table("career_roadmap_steps").select("*").eq("id", step_id).limit(1).execute().data or []
+    if not step_rows:
+        raise HTTPException(status_code=404, detail="Roadmap step not found")
+    step = step_rows[0]
+    goal_rows = sb.table("career_goals").select("*").eq("id", step["career_goal_id"]).limit(1).execute().data or []
+    if not goal_rows:
+        raise HTTPException(status_code=404, detail="Career goal not found")
+    goal = goal_rows[0]
 
-@router.get("/{employee_id}/recommendations", response_model=list[CareerRecommendationResponse])
-def get_career_recommendations(employee_id: str):
-    """AI-recommended learning for career goal. (Placeholder — ML model in Phase 4)."""
-    return [
-        CareerRecommendationResponse(
-            id="cr1", title="Advanced EKS Architecture",
-            provider="Coursera", duration="12 hours",
-            readiness_impact="+15% Readiness",
-            description="Directly closes your AWS EKS skill gap. 85% of Cloud Architects have completed this.",
-            is_top_match=True,
-        ),
-        CareerRecommendationResponse(
-            id="cr2", title="Enterprise System Design",
-            provider="Internal Academy", duration="8 hours",
-            readiness_impact="+20% Readiness",
-            description="Required knowledge for Architect transitions. Covers high-availability microservices.",
-            is_top_match=False,
-        ),
-    ]
+    new_status = "achieved" if data.status in {"achieved", "completed"} else "in_progress" if data.status == "in_progress" else "upcoming"
+    if step.get("requires_evidence") and new_status == "achieved":
+        if not data.evidence_id:
+            raise HTTPException(status_code=400, detail="Evidence is required for this roadmap step.")
+        evidence_rows = sb.table("evidence_submissions").select("*").eq("id", data.evidence_id).limit(1).execute().data or []
+        if not evidence_rows:
+            raise HTTPException(status_code=404, detail="Evidence submission not found")
+        evidence = evidence_rows[0]
+        if evidence.get("status") not in {"approved", "submitted"}:
+            raise HTTPException(status_code=400, detail="Evidence is not approved yet.")
 
+    update_payload = {"status": new_status}
+    if new_status == "achieved":
+        update_payload["completed_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+    sb.table("career_roadmap_steps").update(update_payload).eq("id", step_id).execute()
 
-# ─── Readiness Score ───────────────────────────────────────────
+    if new_status == "achieved" and step.get("status") != "achieved":
+        award_career_xp(sb, goal["employee_id"], int(step.get("xp_reward") or 100), f"Career roadmap step completed: {step['title']}", "roadmap_step", step_id)
 
-@router.post("/{employee_id}/readiness")
-def compute_readiness(employee_id: str):
-    """Compute career readiness score. (Placeholder — ML model in Phase 4)."""
-    # TODO: Replace with trained XGBoost model
-    return {"readiness_score": 65, "model": "placeholder", "note": "ML model coming in Phase 4"}
-
-
-# ─── Market Trends ─────────────────────────────────────────────
-
-@router.get("/market-trends", response_model=list[MarketTrendResponse])
-def get_market_trends():
-    """Get market demand trends for skills."""
-    return [
-        MarketTrendResponse(skill="Kubernetes", category="Platform Eng.", trend="+14%", color="#059669"),
-        MarketTrendResponse(skill="GenAI Architecture", category="Data / Cloud Eng.", trend="+45%", color="#059669"),
-        MarketTrendResponse(skill="React & Next.js", category="Frontend", trend="Stable", color="#64748b"),
-    ]
+    state = compute_career_state(goal["employee_id"], sb, refresh_ai=False)
+    return {"id": step_id, "status": new_status, "analysis": analysis_response_from_state(goal["employee_id"], sb, state).model_dump()}
 
 
-# ─── Helpers ───────────────────────────────────────────────────
+@router.post("/{employee_id}/evidence", response_model=EvidenceSubmissionResponse)
+async def submit_evidence(
+    employee_id: str,
+    skill_gap_id: str | None = Form(default=None),
+    roadmap_step_id: str | None = Form(default=None),
+    evidence_type: str = Form(...),
+    description: str | None = Form(default=None),
+    file: UploadFile | None = File(default=None),
+):
+    sb = get_supabase_admin()
+    _require_active_goal(employee_id, sb)
 
-def _generate_roadmap_steps(target_role: str) -> list[dict]:
-    """Generate roadmap steps for a target role. (Hardcoded templates — ML in Phase 4)."""
-    templates = {
-        "Cloud Architect": [
-            {"title": "Senior Cloud Engineer", "status": "achieved"},
-            {"title": "Lead Cloud Projects", "status": "in_progress"},
-            {"title": "System Design Mastery", "status": "upcoming"},
-            {"title": "Cloud Architect", "status": "goal"},
-        ],
-        "Engineering Manager": [
-            {"title": "Senior Engineer", "status": "achieved"},
-            {"title": "Tech Lead", "status": "in_progress"},
-            {"title": "People Management", "status": "upcoming"},
-            {"title": "Engineering Manager", "status": "goal"},
-        ],
-        "Principal Engineer": [
-            {"title": "Senior Engineer", "status": "achieved"},
-            {"title": "Staff Engineer", "status": "in_progress"},
-            {"title": "Company-wide Impact", "status": "upcoming"},
-            {"title": "Principal Engineer", "status": "goal"},
-        ],
+    if not skill_gap_id and not roadmap_step_id:
+        raise HTTPException(status_code=400, detail="Evidence must be attached to a skill gap or roadmap step.")
+
+    file_ref = None
+    content_preview = description or ""
+    if file:
+        uploaded = save_career_evidence(employee_id, file.filename or "evidence", await file.read())
+        file_ref = uploaded["file_ref"]
+        content_preview = f"{description or ''}\n{uploaded['content_preview']}".strip()
+
+    status = "pending_approval" if evidence_type == "manager_signoff" else "approved"
+    verified_by = "system" if status == "approved" else None
+    verified_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat() if status == "approved" else None
+    xp_awarded = 60 if status == "approved" else 0
+    evidence_id = str(uuid.uuid4())
+    row = {
+        "id": evidence_id,
+        "skill_gap_id": skill_gap_id,
+        "roadmap_step_id": roadmap_step_id,
+        "employee_id": employee_id,
+        "evidence_type": evidence_type,
+        "file_ref": file_ref,
+        "description": content_preview,
+        "status": status,
+        "verified_by": verified_by,
+        "verified_at": verified_at,
+        "xp_awarded": xp_awarded,
     }
-    return templates.get(target_role, [
-        {"title": "Current Role", "status": "achieved"},
-        {"title": "Build Key Skills", "status": "in_progress"},
-        {"title": "Gain Experience", "status": "upcoming"},
-        {"title": target_role, "status": "goal"},
-    ])
+    sb.table("evidence_submissions").insert(row).execute()
+
+    if status == "approved":
+        award_career_xp(sb, employee_id, xp_awarded, f"Career evidence approved: {evidence_type}", "evidence", evidence_id)
+        if skill_gap_id:
+            sb.table("skill_gaps").update({"status": "in_progress"}).eq("id", skill_gap_id).execute()
+
+    return EvidenceSubmissionResponse(
+        id=evidence_id,
+        employee_id=employee_id,
+        skill_gap_id=skill_gap_id,
+        roadmap_step_id=roadmap_step_id,
+        evidence_type=evidence_type,
+        description=content_preview,
+        file_ref=file_ref,
+        status=status,
+        verified_by=verified_by,
+        verified_at=verified_at,
+        xp_awarded=xp_awarded,
+    )
 
 
-def _get_role_requirements(role: str) -> list[dict]:
-    """Get required skills for a role. (Hardcoded — ML model in Phase 4)."""
-    requirements = {
-        "Cloud Architect": [
-            {"name": "AWS Architecture", "target": 95, "category": "Cloud", "color": "#f59e0b"},
-            {"name": "Enterprise System Design", "target": 90, "category": "Engineering", "color": "#06b6d4"},
-            {"name": "Kubernetes", "target": 85, "category": "Technical", "color": "#7c3aed"},
-            {"name": "Terraform", "target": 90, "category": "Technical", "color": "#10b981"},
-            {"name": "Cloud Security", "target": 85, "category": "Cloud", "color": "#f59e0b"},
+@router.get("/{employee_id}/internal-roles", response_model=list[InternalRoleMatchResponse])
+def get_internal_roles(employee_id: str):
+    sb = get_supabase_admin()
+    state = compute_career_state(employee_id, sb)
+    return [InternalRoleMatchResponse(**row) for row in state["internal_roles"]]
+
+
+@router.get("/{employee_id}/mentors", response_model=list[MentorMatchResponse])
+def get_mentors(employee_id: str):
+    sb = get_supabase_admin()
+    state = compute_career_state(employee_id, sb)
+    return [MentorMatchResponse(**row) for row in state["mentors"]]
+
+
+@router.post("/{employee_id}/mentors/{mentor_id}/request-intro", response_model=MentorIntroRequestResponse)
+def request_mentor_intro(employee_id: str, mentor_id: str):
+    sb = get_supabase_admin()
+    existing = sb.table("mentor_matches").select("*").eq("employee_id", employee_id).eq("mentor_employee_id", mentor_id).limit(1).execute().data or []
+    if not existing:
+        state = compute_career_state(employee_id, sb)
+        mentor_rows = [row for row in state["mentors"] if row["mentor_employee_id"] == mentor_id]
+        if not mentor_rows:
+            raise HTTPException(status_code=404, detail="Mentor match not found")
+        sb.table("mentor_matches").insert(mentor_rows[0]).execute()
+        existing = [mentor_rows[0]]
+    sb.table("mentor_matches").update({"intro_requested": True}).eq("id", existing[0]["id"]).execute()
+    updated = {**existing[0], "intro_requested": True}
+    return MentorIntroRequestResponse(status="requested", mentor_match=MentorMatchResponse(**updated))
+
+
+@router.post("/{employee_id}/chat", response_model=CareerChatResponse)
+def grounded_chat(employee_id: str, request: CareerChatRequest):
+    sb = get_supabase_admin()
+    response, grounding = build_grounded_chat_response(employee_id, request.message, request.history, sb)
+    return CareerChatResponse(response=response, grounding_points=grounding)
+
+
+@router.patch("/{employee_id}/visibility", response_model=CareerGoalResponse)
+def update_visibility(employee_id: str, data: CareerGoalVisibilityUpdate):
+    sb = get_supabase_admin()
+    goal = _require_active_goal(employee_id, sb)
+    sb.table("career_goals").update({"visible_to_manager": data.visible_to_manager}).eq("id", goal["id"]).execute()
+    return get_active_goal(employee_id)
+
+
+@router.post("/stall-flags/scan", response_model=StallScanResponse)
+def scan_stall_flags(days: int = 14):
+    sb = get_supabase_admin()
+    result = scan_for_stalled_goals(sb, days)
+    return StallScanResponse(
+        scanned_goals=result["scanned_goals"],
+        flagged_goals=result["flagged_goals"],
+        resolved_goals=result["resolved_goals"],
+        flags=[
+            StallFlagResponse(
+                id=row["id"],
+                employee_id=row["employee_id"],
+                goal_id=row["goal_id"],
+                last_progress_at=row["last_progress_at"],
+                flagged_at=row["flagged_at"],
+                resolved=bool(row.get("resolved", False)),
+                message="You have not logged career progress recently. Pick one small step this week to keep momentum.",
+            )
+            for row in result["flags"]
         ],
-        "Principal AI Engineer": [
-            {"name": "LLM Fine-tuning", "target": 90, "category": "AI", "color": "#7c3aed"},
-            {"name": "Kubernetes", "target": 85, "category": "Technical", "color": "#06b6d4"},
-            {"name": "Strategic Planning", "target": 80, "category": "Leadership", "color": "#f59e0b"},
-            {"name": "Vector Databases", "target": 80, "category": "AI", "color": "#7c3aed"},
-            {"name": "System Design", "target": 90, "category": "Engineering", "color": "#06b6d4"},
-        ],
-    }
-    return requirements.get(role, [
-        {"name": "Communication", "target": 80, "category": "Soft", "color": "#10b981"},
-        {"name": "Problem Solving", "target": 80, "category": "Soft", "color": "#06b6d4"},
-    ])
+    )

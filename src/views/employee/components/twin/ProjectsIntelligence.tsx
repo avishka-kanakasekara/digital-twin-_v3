@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Briefcase, Plus, TrendingUp, CheckCircle2, AlertTriangle, Sparkles, Trash2, Check } from 'lucide-react';
+import { Plus, TrendingUp, CheckCircle2, AlertTriangle, Sparkles, Trash2, Check } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
 
 interface ProjectsIntelligenceProps {
@@ -115,26 +115,8 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
   };
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.8)',
-      border: '1px solid rgba(226, 232, 240, 0.8)',
-      borderRadius: '24px',
-      padding: '1.75rem',
-      backdropFilter: 'blur(20px)',
-    }}>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h3 style={{
-            fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-            letterSpacing: '0.1em', color: '#64748b',
-            display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px',
-          }}>
-            <Briefcase size={14} style={{ color: '#7c3aed' }} /> Project Intelligence
-          </h3>
-          <p style={{ fontSize: '11px', color: '#475569' }}>Impact and success prediction for your logged initiatives</p>
-        </div>
-
+    <div className="relative">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 mb-5">
         <div className="flex gap-2 w-full sm:w-auto">
           <input
             type="text"
@@ -142,14 +124,14 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
             value={newProjectName}
             onChange={e => setNewProjectName(e.target.value)}
             onKeyDown={handleKeyDown}
+            className="pd-input w-full sm:w-48"
             style={{
-              height: '36px', padding: '0 12px',
-              borderRadius: '10px', fontSize: '12px', fontWeight: 600,
-              background: 'rgba(248, 250, 252, 0.8)',
-              border: '1px solid rgba(226, 232, 240, 0.8)',
+              height: '36px', padding: '0 12px', borderRadius: '10px',
+              fontSize: '12px', fontWeight: 600,
+              background: 'rgba(248,250,252,0.95)',
+              border: '1px solid rgba(226,232,240,0.9)',
               color: '#0f172a', outline: 'none', width: '100%',
             }}
-            className="sm:w-48"
           />
           <button
             type="button"
@@ -158,9 +140,9 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
               display: 'flex', alignItems: 'center', gap: '6px',
               padding: '0 14px', borderRadius: '10px', height: '36px',
               fontSize: '12px', fontWeight: 700,
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+              background: 'linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)',
               color: 'white', border: 'none', cursor: 'pointer',
-              boxShadow: '0 0 15px rgba(59,130,246,0.25)',
+              boxShadow: '0 4px 14px rgba(37,99,235,0.25)',
               flexShrink: 0,
             }}
           >
@@ -184,7 +166,7 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
 
         <TabsContent value="current" className="m-0 space-y-4">
           {projects.current.map((project: any) => {
-            const statusStyle = STATUS_STYLES[project.status] || STATUS_STYLES['Behind'];
+            const statusStyle = STATUS_STYLES[project.status] || STATUS_STYLES['On Track'];
             return (
               <div
                 key={project.id}
@@ -203,9 +185,9 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                     <div style={{
                       width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: project.status === 'At Risk' ? 'rgba(239,68,68,0.15)' : project.successScore > 85 ? 'rgba(16,185,129,0.15)' : 'rgba(124,58,237,0.15)',
-                      color: project.status === 'At Risk' ? '#ef4444' : project.successScore > 85 ? '#10b981' : '#a78bfa',
-                      border: `1px solid ${project.status === 'At Risk' ? 'rgba(239,68,68,0.25)' : project.successScore > 85 ? 'rgba(16,185,129,0.25)' : 'rgba(124,58,237,0.25)'}`,
+                      background: statusStyle.bg,
+                      color: statusStyle.color,
+                      border: `1px solid ${statusStyle.border}`,
                     }}>
                       {project.status === 'At Risk' ? <AlertTriangle size={15} /> : <TrendingUp size={15} />}
                     </div>
@@ -240,14 +222,6 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                           {project.role}
                         </span>
                       </div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>
-                      {project.successScore}%
-                    </div>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '2px' }}>
-                      Predicted Success
                     </div>
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   UploadCloud, CheckCircle2, XCircle, RefreshCw, Trash2,
   ChevronDown, ChevronUp, AlertTriangle, Sparkles,
-  Shield, Clock, FilePlus, Database, History,
+  Shield, Clock, FilePlus, History,
 } from 'lucide-react';
 import { knowledgeAPI } from '../../../../lib/api';
 import type { KnowledgeSource, KnowledgeChangeEvent } from '../../../../lib/api';
@@ -281,44 +281,22 @@ export const KnowledgeSources: React.FC<KnowledgeSourcesProps> = ({ sources: pro
   const processingCount = sources.filter(s => isProcessing(s.status)).length;
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.85)',
-      border: '1px solid rgba(226,232,240,0.8)',
-      borderRadius: '20px',
-      backdropFilter: 'blur(20px)',
-      overflow: 'hidden',
-    }}>
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div style={{ padding: '1.5rem 1.5rem 0' }}>
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 style={{
-              fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-              letterSpacing: '0.1em', color: '#64748b',
-              display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px',
-            }}>
-              <Database size={14} style={{ color: '#3b82f6' }} />
-              Knowledge Intelligence
-            </h3>
-            <p style={{ fontSize: '11px', color: '#475569' }}>
-              Upload documents to enrich your Digital Twin with AI-extracted intelligence
-            </p>
-          </div>
-          {processingCount > 0 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '4px 10px', borderRadius: '20px',
-              background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
-            }}>
-              <RefreshCw size={11} style={{ color: '#3b82f6', animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#3b82f6' }}>
-                {processingCount} processing
-              </span>
-            </div>
-          )}
+    <div className="overflow-hidden">
+      {processingCount > 0 && (
+        <div className="flex justify-end mb-3">
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '4px 10px', borderRadius: '8px',
+            background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)',
+            fontSize: '10px', fontWeight: 700, color: '#2563eb',
+          }}>
+            <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} />
+            {processingCount} processing
+          </span>
         </div>
+      )}
 
-        {/* ── Drop Zone ───────────────────────────────────── */}
+      {/* ── Drop Zone ───────────────────────────────────── */}
         <div
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
@@ -399,10 +377,9 @@ export const KnowledgeSources: React.FC<KnowledgeSourcesProps> = ({ sources: pro
             ))}
           </div>
         )}
-      </div>
 
       {/* ── Source List ─────────────────────────────────────── */}
-      <div style={{ padding: '0 1.5rem 1.5rem' }}>
+      <div>
         {sources.length === 0 && localUploads.length === 0 && (
           <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
             <FilePlus size={32} style={{ color: '#cbd5e1', margin: '0 auto 12px' }} />

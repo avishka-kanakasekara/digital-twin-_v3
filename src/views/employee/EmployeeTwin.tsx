@@ -1,135 +1,257 @@
-import React from 'react';
-import { Bot, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import {
+  Bot, Network, Briefcase, Database, BarChart3, Sparkles,
+  Users, Trophy,
+} from 'lucide-react';
 import { useDigitalTwin } from './hooks/useDigitalTwin';
 import { EmployeeSelector } from '../../components/EmployeeSelector';
+import { Card } from '../../components/Card';
+import './PersonalDashboard.css';
 
-// Components
 import { IdentityProfile } from './components/twin/IdentityProfile';
 import { SkillsIntelligence } from './components/twin/SkillsIntelligence';
-import { AIReadiness } from './components/twin/AIReadiness';
 import { KnowledgeSources } from './components/twin/KnowledgeSources';
 import { ProjectsIntelligence } from './components/twin/ProjectsIntelligence';
 import { PersonalAnalytics } from './components/twin/PersonalAnalytics';
 import { GamificationBoard } from './components/twin/GamificationBoard';
+import { TwinSummary } from './components/twin/TwinSummary';
+import { CollaborationIntelligence } from './components/twin/CollaborationIntelligence';
+import { AIRecommendations } from './components/twin/AIRecommendations';
 
+type TabId = 'overview' | 'skills' | 'projects' | 'knowledge' | 'progress';
+
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'overview', label: 'Overview', icon: <Bot size={14} /> },
+  { id: 'skills', label: 'Skills', icon: <Network size={14} /> },
+  { id: 'projects', label: 'Projects', icon: <Briefcase size={14} /> },
+  { id: 'knowledge', label: 'Knowledge', icon: <Database size={14} /> },
+  { id: 'progress', label: 'Progress', icon: <BarChart3 size={14} /> },
+];
+
+const SectionHead: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}> = ({ icon, title, subtitle, action }) => (
+  <div className="pd-section__head">
+    <div className="pd-section__title-row">
+      <div className="pd-section__icon">{icon}</div>
+      <div>
+        <h2 className="pd-section__title">{title}</h2>
+        {subtitle ? <p className="pd-section__sub">{subtitle}</p> : null}
+      </div>
+    </div>
+    {action}
+  </div>
+);
 
 const EmployeeTwin: React.FC = () => {
-  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
 
-  
   const {
     profile, updateProfile,
     projects, addProject, updateProjectProgress, deleteProject,
     getProjectTasks, addTask, updateTask, deleteTask,
-    knowledge, uploadKnowledgeSource, refreshAllData, refreshAIReadiness,
+    knowledge, uploadKnowledgeSource, refreshAllData,
     gamification, completeMission,
     updateSkill, deleteSkill,
-    skillsData, aiReadiness,
-    personalAnalytics, personalAnalyticsAI
+    skillsData, twinSummary,
+    personalAnalytics, personalAnalyticsAI,
+    collaborationIntel, aiRecommendations,
   } = useDigitalTwin();
 
+  const twinHealth =
+    (twinSummary as any)?.twinHealth ||
+    (twinSummary as any)?.twin_health ||
+    Math.round((twinSummary as any)?.aiConfidence || 0);
+
   return (
-    <div
-      className="min-h-screen font-sans overflow-x-hidden"
-      style={{
-        background: '#f8fafc',
-        color: '#0f172a',
-      }}
-    >
-      {/* Ambient Background Orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div style={{
-          position: 'absolute', top: '-20%', right: '-10%',
-          width: '600px', height: '600px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, rgba(139,92,246,0.04) 50%, transparent 100%)',
-          filter: 'blur(40px)',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '-20%', left: '-10%',
-          width: '500px', height: '500px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(16,185,129,0.06) 0%, rgba(14,165,233,0.03) 50%, transparent 100%)',
-          filter: 'blur(40px)',
-        }} />
-        <div style={{
-          position: 'absolute', top: '40%', left: '40%',
-          width: '400px', height: '400px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(244,114,182,0.04) 0%, transparent 100%)',
-          filter: 'blur(60px)',
-        }} />
-      </div>
-
-      {/* Top Navigation */}
-      <nav
-        className="sticky top-0 z-50 px-4 md:px-8 py-3"
-        style={{
-          background: 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(226, 232, 240, 0.8)',
-          boxShadow: '0 4px 30px rgba(0,0,0,0.05)',
-        }}
-      >
-        <div className="max-w-[1440px] mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div style={{
-              width: '32px', height: '32px', borderRadius: '10px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(59,130,246,0.3)',
-            }}>
-              <Bot size={18} style={{ color: 'white' }} />
-            </div>
-            <div>
-              <h1 className="font-bold text-lg" style={{ color: '#0f172a' }}>Digital Twin</h1>
-              <p className="text-xs" style={{ color: '#64748b' }}>Employee Intelligence Platform</p>
+    <div className="personal-dashboard">
+      <header className="pd-page-head">
+        <div>
+          <h1 className="pd-page-head__title">Personal Dashboard</h1>
+          <p className="pd-page-head__sub">
+            Your live digital twin — identity, skills, projects, and AI insights in one place.
+          </p>
+        </div>
+        <div className="pd-head-right">
+          <div className="pd-tabs-wrap">
+            <div className="pd-tabs" role="tablist">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`pd-tab ${activeTab === tab.id ? 'pd-tab--active' : ''}`}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
+          <div className="pd-employee-select">
             <EmployeeSelector />
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg hover:bg-gray-100 transition-colors"
-              style={{ color: '#64748b' }}
-            >
-              <LogOut size={16} />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
-      </nav>
+      </header>
 
-      {/* Main Content */}
-      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8 space-y-6">
+      <IdentityProfile
+        profile={profile}
+        onUpdate={updateProfile}
+        twinHealth={twinHealth}
+        gamification={gamification}
+      />
 
-        {/* Row 1: Hero Profile */}
-        <IdentityProfile profile={profile} onUpdate={updateProfile} />
+      {activeTab === 'overview' && (
+        <div className="pd-overview-grid">
+          <div className="pd-stack">
+            <Card glass={false} className="glass-panel pd-section">
+              <SectionHead
+                icon={<Sparkles size={20} />}
+                title="Twin status"
+                subtitle="How complete and current your digital twin is"
+              />
+              <TwinSummary summary={twinSummary} />
+            </Card>
 
-        {/* Row 2: Asymmetric Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-          {/* Left Column — Main Content (8 cols) */}
-          <div className="lg:col-span-8 space-y-6">
-            <SkillsIntelligence skillsData={skillsData} updateSkill={updateSkill} deleteSkill={deleteSkill} />
-            <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} onDeleteProject={deleteProject} getProjectTasks={getProjectTasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />
-            <GamificationBoard gamification={gamification} onCompleteMission={completeMission} />
-            <PersonalAnalytics analytics={personalAnalytics} personalAnalyticsAI={personalAnalyticsAI} />
+            <Card glass={false} className="glass-panel pd-section">
+              <SectionHead
+                icon={<Sparkles size={20} />}
+                title="AI recommendations"
+                subtitle="Next actions based on your twin profile"
+                action={
+                  <button type="button" className="pd-link-btn" onClick={() => setActiveTab('skills')}>
+                    View skills
+                  </button>
+                }
+              />
+              <AIRecommendations recommendations={aiRecommendations || []} />
+            </Card>
           </div>
 
-          {/* Right Column — Sidebar (4 cols) */}
-          <div className="lg:col-span-4 space-y-6">
-            <AIReadiness data={aiReadiness} onRefresh={refreshAIReadiness} />
-            <KnowledgeSources
-              sources={knowledge}
-              onUpload={uploadKnowledgeSource}
-              onPipelineComplete={refreshAllData}
+          <div className="pd-stack">
+            <Card glass={false} className="glass-panel pd-section">
+              <SectionHead
+                icon={<Users size={20} />}
+                title="Collaboration"
+                subtitle="How colleagues experience your twin"
+              />
+              <CollaborationIntelligence intel={collaborationIntel} />
+            </Card>
+
+            <Card glass={false} className="glass-panel pd-section">
+              <SectionHead
+                icon={<Database size={20} />}
+                title="Knowledge sources"
+                subtitle="Documents feeding your twin"
+                action={
+                  <button type="button" className="pd-link-btn" onClick={() => setActiveTab('knowledge')}>
+                    Manage
+                  </button>
+                }
+              />
+              {(knowledge || []).length === 0 ? (
+                <div className="pd-empty">
+                  No documents yet. Upload a CV or project file to enrich your twin.
+                </div>
+              ) : (
+                <div className="pd-rec-list">
+                  {(knowledge || []).slice(0, 4).map((src: any) => (
+                    <div key={src.id} className="pd-rec-item">
+                      <div
+                        className="pd-rec-item__icon"
+                        style={{
+                          background: 'rgba(37,99,235,0.1)',
+                          borderColor: 'rgba(37,99,235,0.25)',
+                          color: '#2563eb',
+                        }}
+                      >
+                        <Database size={15} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="pd-rec-item__text truncate">{src.name || src.filename || 'Document'}</p>
+                        <span className="text-[10px] font-bold text-secondary uppercase tracking-wide">
+                          {src.status || src.source_type || 'Uploaded'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'skills' && (
+        <Card glass={false} className="glass-panel pd-section">
+          <SectionHead
+            icon={<Network size={20} />}
+            title="Skill DNA"
+            subtitle="Competencies mapped from your twin and knowledge sources"
+          />
+          <SkillsIntelligence skillsData={skillsData} updateSkill={updateSkill} deleteSkill={deleteSkill} />
+        </Card>
+      )}
+
+      {activeTab === 'projects' && (
+        <Card glass={false} className="glass-panel pd-section">
+          <SectionHead
+            icon={<Briefcase size={20} />}
+            title="Projects"
+            subtitle="Active work, progress, and task tracking"
+          />
+          <ProjectsIntelligence
+            projects={projects}
+            onAddProject={addProject}
+            onUpdateStatus={updateProjectProgress}
+            onDeleteProject={deleteProject}
+            getProjectTasks={getProjectTasks}
+            addTask={addTask}
+            updateTask={updateTask}
+            deleteTask={deleteTask}
+          />
+        </Card>
+      )}
+
+      {activeTab === 'knowledge' && (
+        <Card glass={false} className="glass-panel pd-section">
+          <SectionHead
+            icon={<Database size={20} />}
+            title="Knowledge intelligence"
+            subtitle="Upload documents to enrich your digital twin"
+          />
+          <KnowledgeSources
+            sources={knowledge}
+            onUpload={uploadKnowledgeSource}
+            onPipelineComplete={refreshAllData}
+          />
+        </Card>
+      )}
+
+      {activeTab === 'progress' && (
+        <div className="pd-stack">
+          <Card glass={false} className="glass-panel pd-section">
+            <SectionHead
+              icon={<Trophy size={20} />}
+              title="Gamification"
+              subtitle="XP, missions, and achievements"
             />
-          </div>
-
+            <GamificationBoard gamification={gamification} onCompleteMission={completeMission} />
+          </Card>
+          <Card glass={false} className="glass-panel pd-section">
+            <SectionHead
+              icon={<BarChart3 size={20} />}
+              title="Personal analytics"
+              subtitle="Productivity trends and AI insights"
+            />
+            <PersonalAnalytics analytics={personalAnalytics} personalAnalyticsAI={personalAnalyticsAI} />
+          </Card>
         </div>
-      </div>
-
-
+      )}
     </div>
   );
 };

@@ -1,19 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Briefcase, Activity, Clock, Edit, CheckCircle2, Sparkles, Shield, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../../components/ui/Dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
-import { useDigitalTwin } from '../../hooks/useDigitalTwin';
+import '../../PersonalDashboard.css';
 
 interface IdentityProfileProps {
   profile: any;
   onUpdate: (updates: any) => void;
   twinHealth?: number;
+  gamification?: any;
 }
 
-export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth = 92 }) => {
-  const { gamification } = useDigitalTwin();
+export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth = 0, gamification = {} }) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(profile);
+
+  useEffect(() => {
+    setEditForm(profile);
+  }, [profile, isEditOpen]);
 
   const handleSave = () => {
     onUpdate(editForm);
@@ -28,170 +32,48 @@ export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpd
 
   return (
     <>
-      <div
-        className="relative overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(255,255,255,0.9) 40%, rgba(139,92,246,0.06) 100%)',
-          border: '1px solid rgba(226, 232, 240, 0.8)',
-          borderRadius: '24px',
-          padding: '2rem 2.5rem',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.08), 0 0 40px rgba(59,130,246,0.08)',
-        }}
-      >
-        {/* Background Glow Accents */}
-        <div style={{
-          position: 'absolute', top: '-60px', right: '-60px',
-          width: '300px', height: '300px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute', bottom: '-40px', left: '200px',
-          width: '200px', height: '200px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-
-        <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
-
-          {/* Avatar */}
-          <div className="relative shrink-0">
-            {/* Glow Ring */}
-            <div style={{
-              position: 'absolute', inset: '-4px', borderRadius: '28px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #10b981 100%)',
-              padding: '3px',
-              filter: 'blur(0px)',
-              boxShadow: '0 0 25px rgba(59,130,246,0.2)',
-            }} />
-            <div style={{
-              position: 'relative',
-              width: '100px', height: '100px',
-              borderRadius: '24px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-              border: '3px solid white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '2.5rem', fontWeight: 900, color: 'white',
-              boxShadow: '0 8px 30px rgba(59,130,246,0.2)',
-            }}>
-              <div style={{
-                position: 'absolute', inset: 0, borderRadius: '21px',
-                background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(99,102,241,0.1) 100%)',
-              }} />
-              <span style={{ position: 'relative', zIndex: 1 }}>{profile.initials}</span>
-            </div>
-            {/* Online Indicator */}
-            <div style={{
-              position: 'absolute', bottom: '-4px', right: '-4px',
-              width: '22px', height: '22px', borderRadius: '50%',
-              background: '#10b981',
-              border: '3px solid white',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 10px rgba(16,185,129,0.4)',
-            }}>
-              <div style={{
-                width: '6px', height: '6px', borderRadius: '50%',
-                background: 'white', animation: 'pulse 2s infinite',
-              }} />
-            </div>
+      <div className="pd-hero">
+        <div className="pd-hero__glow pd-hero__glow--tr" />
+        <div className="pd-hero__glow pd-hero__glow--bl" />
+        <div className="pd-hero__inner">
+          <div className="pd-avatar">
+            <div className="pd-avatar__ring" />
+            <div className="pd-avatar__core">{profile.initials}</div>
+            <div className="pd-avatar__live" />
           </div>
 
-          {/* Identity Info */}
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <span style={{
-                padding: '2px 10px', borderRadius: '99px', fontSize: '10px',
-                fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
-                background: 'rgba(59,130,246,0.12)',
-                border: '1px solid rgba(59,130,246,0.3)',
-                color: '#3b82f6',
-              }}>
-                ✦ Verified Digital Twin
-              </span>
-            </div>
-
-            <h2 style={{
-              fontSize: 'clamp(1.5rem, 3vw, 2.5rem)',
-              fontWeight: 900,
-              letterSpacing: '-0.03em',
-              lineHeight: 1.1,
-              background: 'linear-gradient(90deg, #0f172a 0%, #334155 60%, #3b82f6 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-              marginBottom: '8px',
-            }}>
-              {profile.fullName}
-            </h2>
-
-            <p style={{ fontSize: '14px', color: '#64748b', fontWeight: 600, marginBottom: '16px', maxWidth: '480px' }}>
-              {profile.headline}
-            </p>
-
-            <div className="flex flex-wrap gap-2">
+          <div className="pd-hero__main">
+            <span className="pd-hero__kicker"><Sparkles size={12} /> Verified digital twin</span>
+            <h2 className="pd-hero__name">{profile.fullName}</h2>
+            <p className="pd-hero__headline">{profile.headline}</p>
+            <div className="pd-meta-row">
               {[
                 { icon: <Briefcase size={12} />, label: profile.role },
                 { icon: <Activity size={12} />, label: profile.department },
                 { icon: <MapPin size={12} />, label: profile.location },
                 { icon: <Clock size={12} />, label: profile.timezone },
               ].map((item, i) => (
-                <span key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 700,
-                  background: 'rgba(255,255,255,0.7)',
-                  border: '1px solid rgba(226, 232, 240, 0.8)',
-                  color: '#475569',
-                }}>
-                  <span style={{ color: '#3b82f6' }}>{item.icon}</span>
-                  {item.label}
+                <span key={i} className="pd-meta-chip">
+                  {item.icon} {item.label}
                 </span>
               ))}
             </div>
           </div>
 
-          {/* Stats + Actions */}
           <div className="flex flex-col gap-3 shrink-0 w-full md:w-auto">
-            {/* Stat Pills */}
-            <div className="flex md:flex-col gap-3">
-              {stats.map((stat, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '10px 14px', borderRadius: '14px', flex: 1,
-                  background: 'rgba(255,255,255,0.7)',
-                  border: `1px solid ${stat.color}40`,
-                  boxShadow: `0 0 15px ${stat.color}20`,
-                }}>
-                  <div style={{
-                    width: '30px', height: '30px', borderRadius: '8px',
-                    background: `${stat.color}20`, color: stat.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {stat.icon}
-                  </div>
+            <div className="pd-stat-grid">
+              {stats.map((stat) => (
+                <div key={stat.label} className="pd-stat">
+                  <div className="pd-stat__icon" style={{ background: `${stat.color}20`, color: stat.color }}>{stat.icon}</div>
                   <div>
-                    <p style={{ fontSize: '9px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      {stat.label}
-                    </p>
-                    <p style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>
-                      {stat.value}
-                    </p>
+                    <p className="pd-stat__label">{stat.label}</p>
+                    <p className="pd-stat__value">{stat.value}</p>
                   </div>
                 </div>
               ))}
             </div>
-
-            {/* Edit Button */}
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="flex items-center justify-center gap-2 w-full"
-              style={{
-                padding: '8px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: 700,
-                background: 'rgba(255,255,255,0.8)',
-                border: '1px solid rgba(226, 232, 240, 0.8)',
-                color: '#64748b', cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              <Edit size={13} />
-              Edit Profile
+            <button type="button" onClick={() => setIsEditOpen(true)} className="pd-edit-btn">
+              <Edit size={13} /> Edit profile
             </button>
           </div>
         </div>

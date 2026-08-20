@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Target, Award, Flame, Crown, CheckCircle2 } from 'lucide-react';
+import { Target, Award, Flame, Crown, CheckCircle2 } from 'lucide-react';
 
 interface GamificationBoardProps {
   gamification: any;
@@ -16,46 +16,19 @@ const ACHIEVEMENT_COLORS = [
 ];
 
 export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamification, onCompleteMission }) => {
-  const progressPercent = (gamification.xp / gamification.nextLevelXp) * 100;
-
+  const xp = Number(gamification?.xp || 0);
+  const next = Number(gamification?.nextLevelXp || gamification?.next_level_xp || 1000) || 1000;
+  const progressPercent = Math.min(100, (xp / next) * 100);
+  const missions = gamification?.missions || [];
+  const achievements = gamification?.achievements || [];
   const streaks = [
-    { label: 'Learning', value: `${gamification.streaks.learning}d`, icon: <Flame size={13} />, color: '#f97316' },
-    { label: 'Project', value: `${gamification.streaks.project}d`, icon: <Flame size={13} />, color: '#06b6d4' },
-    { label: 'Rank', value: 'Top 5%', icon: <Crown size={13} />, color: '#f59e0b' },
+    { label: 'Learning', value: `${gamification?.streaks?.learning ?? gamification?.streakDays ?? 0}d`, icon: <Flame size={13} />, color: '#f97316' },
+    { label: 'Project', value: `${gamification?.streaks?.project ?? 0}d`, icon: <Flame size={13} />, color: '#06b6d4' },
+    { label: 'Rank', value: gamification?.impactRank || 'Unranked', icon: <Crown size={13} />, color: '#f59e0b' },
   ];
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.8)',
-      border: '1px solid rgba(226, 232, 240, 0.8)',
-      borderRadius: '24px',
-      padding: '1.75rem',
-      backdropFilter: 'blur(20px)',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      {/* Ambient accent */}
-      <div style={{
-        position: 'absolute', top: '-60px', right: '-40px',
-        width: '200px', height: '200px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 style={{
-            fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-            letterSpacing: '0.1em', color: '#64748b',
-            display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px',
-          }}>
-            <Trophy size={14} style={{ color: '#f59e0b' }} /> Gamification Board
-          </h3>
-          <p style={{ fontSize: '11px', color: '#475569' }}>Level up your AI Identity and unlock rewards</p>
-        </div>
-      </div>
-
+    <div className="relative overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* XP & Level Section */}
@@ -70,7 +43,7 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
               flexShrink: 0,
             }}>
               <span style={{ fontWeight: 900, fontSize: '28px', color: 'white', lineHeight: 1 }}>
-                {gamification.level}
+                {gamification?.level ?? 1}
               </span>
             </div>
             <div>
@@ -78,10 +51,10 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
                 Current Level
               </p>
               <p style={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', lineHeight: 1.1 }}>
-                {gamification.xp.toLocaleString()} <span style={{ fontSize: '13px', color: '#64748b' }}>XP</span>
+                {xp.toLocaleString()} <span style={{ fontSize: '13px', color: '#64748b' }}>XP</span>
               </p>
               <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
-                Next: {gamification.nextLevelXp.toLocaleString()} XP
+                Next: {next.toLocaleString()} XP
               </p>
             </div>
           </div>
@@ -99,7 +72,7 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
               }} />
             </div>
             <div style={{ textAlign: 'right', marginTop: '6px', fontSize: '10px', fontWeight: 700, color: '#64748b' }}>
-              {Math.floor(gamification.nextLevelXp - gamification.xp).toLocaleString()} XP to next level
+              {Math.max(0, Math.floor(next - xp)).toLocaleString()} XP to next level
             </div>
           </div>
 
@@ -128,12 +101,15 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
             letterSpacing: '0.1em', color: '#64748b',
             display: 'flex', alignItems: 'center', gap: '6px',
           }}>
-            <Target size={12} style={{ color: '#7c3aed' }} /> Daily Missions
+            <Target size={12} style={{ color: '#7c3aed' }} />             Daily Missions
           </h4>
           <div className="space-y-2">
-            {gamification.missions.map((mission: any, idx: number) => (
+            {missions.length === 0 && (
+              <p style={{ fontSize: '12px', color: '#64748b' }}>No active missions yet. Open the Gamification Hub to start a challenge.</p>
+            )}
+            {missions.map((mission: any, idx: number) => (
               <div
-                key={idx}
+                key={mission.id || idx}
                 onClick={() => !mission.completed && onCompleteMission(idx)}
                 style={{
                   padding: '12px 14px', borderRadius: '14px',
@@ -187,7 +163,7 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
           <Award size={12} style={{ color: '#f59e0b' }} /> Unlocked Achievements
         </h4>
         <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }}>
-          {gamification.achievements.map((ach: any, i: number) => {
+          {achievements.map((ach: any, i: number) => {
             const c = ACHIEVEMENT_COLORS[i % ACHIEVEMENT_COLORS.length];
             return (
               <div
@@ -209,7 +185,7 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
                   boxShadow: ach.unlocked ? `0 0 16px ${c.glow}` : 'none',
                   fontSize: '1.5rem',
                 }}>
-                  ⭐
+                  {ach.emoji || '⭐'}
                 </div>
                 <span style={{ fontSize: '9px', fontWeight: 700, textAlign: 'center', lineHeight: 1.3, color: ach.unlocked ? '#0f172a' : '#64748b' }}>
                   {ach.name}

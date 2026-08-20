@@ -4,8 +4,12 @@ Application configuration — loads from .env file or environment variables.
 Connects to Supabase (hosted PostgreSQL) as the database backend.
 """
 
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import List
+
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
 
 
 class Settings(BaseSettings):
@@ -22,8 +26,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
-    # Google Gemini
-    GOOGLE_API_KEY: str = ""
+    # Google Gemini / Vertex AI
+    GOOGLE_APPLICATION_CREDENTIALS: str = ""
+    GCP_PROJECT_ID: str = ""
+    GCP_LOCATION: str = ""
 
     # App
     APP_NAME: str = "Digital Twin v3"
@@ -40,7 +46,7 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
     model_config = {
-        "env_file": ".env",
+        "env_file": str(BACKEND_DIR / ".env"),
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }

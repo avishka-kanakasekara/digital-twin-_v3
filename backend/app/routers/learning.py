@@ -14,6 +14,7 @@ from app.schemas.learning import (
     LearningPathResponse,
     LearningPathProgressUpdate,
     CourseResponse,
+    CourseProgressUpdate,
     CertificationCreate,
     CertificationResponse,
     LearningFeedItem,
@@ -22,8 +23,19 @@ from app.schemas.learning import (
     SkillGapsResponse,
     SkillGapItem,
 )
+from app.services.learning_engine import compute_learning_hours, build_learning_feed, ensure_learning_paths
 
 router = APIRouter(prefix="/api/learning", tags=["Learning"])
+
+
+def _as_percent(value) -> int:
+    try:
+        n = int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+    if n <= 10:
+        return n * 10
+    return max(0, min(100, n))
 
 
 # ─── Learner Profile ──────────────────────────────────────────
@@ -62,15 +74,18 @@ def get_learner_profile(employee_id: str):
     ).eq("is_active", True).execute()
     active_goal = goal_result.data[0] if goal_result.data else None
 
+    hours_month, hours_year, _ = compute_learning_hours(sb, employee_id)
+    learning_score = min(100, completed * 12 + in_progress * 5 + min(20, hours_year // 8))
+
     return LearnerProfileResponse(
         name=employee["full_name"],
-        hours_this_month=24,  # TODO: compute from actual learning time tracking
-        hours_this_year=187,
+        hours_this_month=hours_month,
+        hours_this_year=hours_year,
         courses_completed=completed,
         courses_in_progress=in_progress,
         current_streak=gam_profile.get("streak_days", 0),
         longest_streak=gam_profile.get("longest_streak", 0),
-        learning_score=min(100, completed * 6 + in_progress * 3),
+        learning_score=learning_score,
         target_role=active_goal["target_role"] if active_goal else None,
     )
 
@@ -81,10 +96,10 @@ def get_learner_profile(employee_id: str):
 def get_learning_paths(employee_id: str):
     """Get all learning paths for an employee."""
     sb = get_supabase_admin()
-    result = sb.table("learning_paths").select("*").eq(
-        "employee_id", employee_id
-    ).order("is_ai_recommended", desc=True).order("title").execute()
-    return result.data
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return ensure_learning_paths(sb, employee_id)
 
 
 @router.post("/{employee_id}/paths/{path_id}/progress")
@@ -107,6 +122,16 @@ def update_path_progress(
         update_data["completed_courses"] = data.completed_courses
 
     sb.table("learning_paths").update(update_data).eq("id", path_id).execute()
+
+    # 🎮 Gamification: award XP when a course/path is completed
+    if update_data["progress"] >= 100:
+        try:
+            from app.services.gamification_engine import fire_gamification_event
+            from app.database import get_supabase_admin
+            fire_gamification_event(get_supabase_admin(), employee_id, "course_completed")
+        except Exception as gam_err:
+            print(f"[gamification] course_completed event error: {gam_err}")
+
     return {"status": "updated", "progress": update_data["progress"]}
 
 
@@ -128,14 +153,16 @@ def get_skill_gaps(employee_id: str):
 
     gaps = []
     for skill in skills_result.data or []:
-        gap = max(0, skill["target_level"] - skill["proficiency"])
+        current = _as_percent(skill.get("proficiency"))
+        target = _as_percent(skill.get("target_level"))
+        gap = max(0, target - current)
         if gap > 0:
             priority = "Critical" if gap >= 40 else "High" if gap >= 25 else "Medium"
             cat = skill.get("category") or "General"
             gaps.append(SkillGapItem(
                 skill=skill["name"],
-                current_level=skill["proficiency"],
-                target_level=skill["target_level"],
+                current_level=current,
+                target_level=target,
                 gap=gap,
                 priority=priority,
                 category=cat,
@@ -171,6 +198,14 @@ def add_certification(employee_id: str, data: CertificationCreate):
         **data.model_dump(),
     }
     result = sb.table("certifications").insert(cert_data).execute()
+
+    # 🎮 Gamification: award XP + unlock Certified Expert achievement
+    try:
+        from app.services.gamification_engine import fire_gamification_event
+        fire_gamification_event(sb, employee_id, "certification_added")
+    except Exception as gam_err:
+        print(f"[gamification] certification_added event error: {gam_err}")
+
     return result.data[0]
 
 
@@ -225,7 +260,7 @@ def enroll_in_course(employee_id: str, course_id: str):
         "employee_id", employee_id
     ).eq("course_id", course_id).execute()
     if existing.data:
-        raise HTTPException(status_code=409, detail="Already enrolled")
+        return {"status": "already_enrolled", "course_id": course_id}
 
     sb.table("employee_courses").insert({
         "id": str(uuid.uuid4()),
@@ -248,7 +283,7 @@ def enroll_in_course(employee_id: str, course_id: str):
 def update_course_progress(
     employee_id: str,
     course_id: str,
-    progress: int,
+    data: CourseProgressUpdate,
 ):
     """Update course progress for an employee."""
     sb = get_supabase_admin()
@@ -260,15 +295,43 @@ def update_course_progress(
         raise HTTPException(status_code=404, detail="Not enrolled in this course")
 
     ec = ec_result.data[0]
-    new_progress = min(100, progress)
+    new_progress = min(100, max(0, data.progress))
     update_data = {"progress": new_progress}
 
+    newly_completed = False
     if new_progress >= 100 and ec.get("status") != "completed":
         update_data["status"] = "completed"
         update_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        newly_completed = True
 
     sb.table("employee_courses").update(update_data).eq("id", ec["id"]).execute()
-    return {"status": "updated", "progress": new_progress}
+
+    if newly_completed:
+        try:
+            from app.services.gamification_engine import fire_gamification_event
+            fire_gamification_event(sb, employee_id, "course_completed")
+        except Exception as gam_err:
+            print(f"[gamification] course_completed event error: {gam_err}")
+
+        _bump_related_paths(sb, employee_id)
+
+    return {"status": "updated", "progress": new_progress, "completed": newly_completed or ec.get("status") == "completed"}
+
+
+def _bump_related_paths(sb, employee_id: str):
+    paths = sb.table("learning_paths").select("*").eq("employee_id", employee_id).execute()
+    completed = sb.table("employee_courses").select("id", count="exact").eq(
+        "employee_id", employee_id
+    ).eq("status", "completed").execute()
+    done = completed.count or 0
+    for path in paths.data or []:
+        total = max(1, path.get("total_courses") or 1)
+        completed_courses = min(total, done)
+        progress = int((completed_courses / total) * 100)
+        sb.table("learning_paths").update({
+            "completed_courses": completed_courses,
+            "progress": progress,
+        }).eq("id", path["id"]).execute()
 
 
 # ─── Weekly Schedule ───────────────────────────────────────────
@@ -287,33 +350,27 @@ def get_weekly_schedule(employee_id: str):
 
 @router.get("/{employee_id}/hours", response_model=list[MonthlyHoursResponse])
 def get_monthly_hours(employee_id: str):
-    """Get monthly learning hours (placeholder — returns static data until time tracking is implemented)."""
-    # TODO: compute from actual learning activity tracking
-    return [
-        MonthlyHoursResponse(month="Feb", hours=18),
-        MonthlyHoursResponse(month="Mar", hours=26),
-        MonthlyHoursResponse(month="Apr", hours=21),
-        MonthlyHoursResponse(month="May", hours=32),
-        MonthlyHoursResponse(month="Jun", hours=28),
-        MonthlyHoursResponse(month="Jul", hours=24),
-    ]
+    """Get monthly learning hours derived from course progress."""
+    sb = get_supabase_admin()
+    _, _, months = compute_learning_hours(sb, employee_id)
+    return [MonthlyHoursResponse(**m) for m in months]
 
 
 # ─── AI Learning Feed ─────────────────────────────────────────
 
 @router.get("/{employee_id}/feed", response_model=list[LearningFeedItem])
 def get_learning_feed(employee_id: str):
-    """AI-curated learning feed based on skill gaps. 
-    (Placeholder — will be replaced by ML model in Phase 6)."""
-    # TODO: Replace with content recommender model
-    return [
-        LearningFeedItem(id="lf1", type="article", title="RAG vs Fine-tuning: When to Use Each for Production LLMs",
-                         source="Towards Data Science", read_time="8 min", relevance=98,
-                         tags=["LLM", "AI Engineering"], emoji="📰", color="#7c3aed", published="2 hours ago"),
-        LearningFeedItem(id="lf2", type="video", title="Advanced Kubernetes Patterns for ML Workloads",
-                         source="KubeCon 2024", read_time="32 min", relevance=91,
-                         tags=["Kubernetes", "MLOps"], emoji="🎬", color="#06b6d4", published="1 day ago"),
-        LearningFeedItem(id="lf3", type="course", title="Vector Embeddings & Semantic Search Fundamentals",
-                         source="DeepLearning.AI", read_time="4 hours", relevance=96,
-                         tags=["Vector DB", "Embeddings"], emoji="🎓", color="#10b981", published="3 days ago"),
-    ]
+    """AI-curated learning feed based on skill gaps and catalog courses."""
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    return build_learning_feed(sb, employee_id)
+
+
+@router.post("/{employee_id}/paths/generate", response_model=list[LearningPathResponse])
+def regenerate_learning_paths(employee_id: str):
+    """Rebuild recommended paths from current career goal and skill gaps."""
+    sb = get_supabase_admin()
+    sb.table("learning_paths").delete().eq("employee_id", employee_id).eq("is_ai_recommended", True).execute()
+    return ensure_learning_paths(sb, employee_id)

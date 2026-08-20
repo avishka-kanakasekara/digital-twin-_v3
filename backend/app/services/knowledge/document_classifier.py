@@ -154,14 +154,11 @@ def _classify_by_content(text: str) -> Classification | None:
 
 # ── AI Classification ──────────────────────────────────────────
 
-def _classify_with_ai(text: str, api_key: str) -> Classification | None:
+def _classify_with_ai(text: str, api_key: str = "") -> Classification | None:
     """Use Gemini to classify the document when deterministic signals are insufficient."""
     try:
-        from google import genai
-        from google.genai import types
+        from gemini_client import ask_gemini
         import json as json_mod
-
-        client = genai.Client(api_key=api_key)
 
         # Truncate to keep prompt cost low
         truncated = text[:3000].replace("\n", " ")
@@ -192,11 +189,7 @@ Respond ONLY with valid JSON in this exact format:
   "reason": "Brief one-sentence reason."
 }}"""
 
-        response = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=prompt,
-        )
-        raw = response.text.strip()
+        raw = ask_gemini(prompt).strip()
 
         # Extract JSON from response
         if "```" in raw:

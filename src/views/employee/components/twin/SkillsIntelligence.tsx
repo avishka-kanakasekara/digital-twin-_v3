@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Network, Search, ShieldCheck, Sparkles, Cpu, Award, Zap, Flame, X, Edit2, Trash2 } from 'lucide-react';
+import { Search, ShieldCheck, Sparkles, Cpu, Award, Zap, Flame, X, Edit2, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface SkillsIntelligenceProps {
@@ -14,14 +14,19 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
   const [editingSkill, setEditingSkill] = useState<any>(null);
   const [editForm, setEditForm] = useState({ proficiency: 0, experience: 0, category: '' });
 
-  const allSkills = Object.values(skillsData).flat() as any[];
-  const categories = ['All', ...Object.keys(skillsData)];
+  const allSkills = Object.values(skillsData || {}).flat() as any[];
+  const categories = ['All', ...Object.keys(skillsData || {})];
 
-  const filteredSkills = allSkills.filter((s: any) =>
-    (selectedCategory === 'All' || s.category === selectedCategory) &&
-    (s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.category.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const categorySkills = selectedCategory === 'All'
+    ? allSkills
+    : ((skillsData || {})[selectedCategory] || []);
+
+  const filteredSkills = categorySkills.filter((s: any) => {
+    const q = searchQuery.toLowerCase();
+    const name = String(s.name || '').toLowerCase();
+    const cat = String(s.category || selectedCategory || '').toLowerCase();
+    return !q || name.includes(q) || cat.includes(q);
+  });
 
   const totalSkills = allSkills.length;
   const expertCount = allSkills.filter((s: any) => s.proficiency >= 90).length;
@@ -122,117 +127,66 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
 
   return (
     <div
-      className="rounded-3xl relative overflow-hidden"
+      className="relative overflow-hidden flex flex-col min-h-0"
       style={{
-        background: 'rgba(255,255,255,0.8)',
-        border: '1px solid rgba(226, 232, 240, 0.8)',
-        padding: '1.75rem',
-        backdropFilter: 'blur(20px)',
-        maxHeight: '700px',
-        display: 'flex',
-        flexDirection: 'column',
+        maxHeight: '620px',
       }}
     >
-      {/* Ambient Orbs */}
-      <div style={{
-        position: 'absolute', top: '-80px', right: '-80px',
-        width: '300px', height: '300px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)',
-        pointerEvents: 'none', filter: 'blur(30px)',
-      }} />
-      <div style={{
-        position: 'absolute', bottom: '-60px', left: '-60px',
-        width: '250px', height: '250px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)',
-        pointerEvents: 'none', filter: 'blur(30px)',
-      }} />
 
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-7 relative z-10">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-between gap-3 mb-5 relative z-10">
+        <div className="flex flex-wrap items-center gap-3">
           <div style={{
-            width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #d946ef 100%)',
-            boxShadow: '0 0 20px rgba(59,130,246,0.25)',
-          }}>
-            <Network size={22} style={{ color: 'white' }} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>
-                Skill DNA Matrix
-              </h3>
-              <span style={{
-                padding: '2px 10px', borderRadius: '99px', fontSize: '9px', fontWeight: 800,
-                textTransform: 'uppercase', letterSpacing: '0.1em',
-                background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-                color: 'white',
-              }}>
-                AI Verified
-              </span>
-            </div>
-            <p style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-              Real-time neural competency mapping & expert proficiencies
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Quick Stats */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '14px',
-            padding: '10px 16px', borderRadius: '14px',
-            background: 'rgba(255,255,255,0.7)',
-            border: '1px solid rgba(226, 232, 240, 0.8)',
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '8px 14px', borderRadius: '12px',
+            background: 'rgba(248,250,252,0.95)',
+            border: '1px solid rgba(226,232,240,0.9)',
           }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
-              <Cpu size={14} style={{ color: '#7c3aed' }} /> {totalSkills} <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>Skills</span>
+              <Cpu size={14} style={{ color: '#2563eb' }} /> {totalSkills} <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>Skills</span>
             </span>
-            <div style={{ width: '1px', height: '16px', background: 'rgba(226, 232, 240, 0.8)' }} />
+            <div style={{ width: 1, height: 14, background: 'rgba(226,232,240,0.9)' }} />
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
-              <Award size={14} style={{ color: '#f59e0b' }} /> {expertCount} <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>Experts</span>
+              <Award size={14} style={{ color: '#d97706' }} /> {expertCount} <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>Experts</span>
             </span>
-            <div style={{ width: '1px', height: '16px', background: 'rgba(226, 232, 240, 0.8)' }} />
+            <div style={{ width: 1, height: 14, background: 'rgba(226,232,240,0.9)' }} />
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: '#0f172a' }}>
               <Zap size={14} style={{ color: '#10b981' }} /> {avgProficiency}% <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b' }}>Avg</span>
             </span>
           </div>
-
-          {/* Search */}
-          <div style={{ position: 'relative', width: '100%', maxWidth: '240px' }}>
-            <Search size={14} style={{
-              position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
-              color: '#7c3aed',
-            }} />
-            <input
-              type="text"
-              placeholder="Search Skill DNA..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+        </div>
+        <div style={{ position: 'relative', width: '100%', maxWidth: '240px' }}>
+          <Search size={14} style={{
+            position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+            color: '#2563eb',
+          }} />
+          <input
+            type="text"
+            placeholder="Search skills..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%', height: '38px',
+              paddingLeft: '36px', paddingRight: searchQuery ? '36px' : '12px',
+              borderRadius: '12px', fontSize: '12px', fontWeight: 600,
+              background: 'rgba(248, 250, 252, 0.95)',
+              border: '1px solid rgba(226, 232, 240, 0.9)',
+              color: '#0f172a', outline: 'none',
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
               style={{
-                width: '100%', height: '38px',
-                paddingLeft: '36px', paddingRight: searchQuery ? '36px' : '12px',
-                borderRadius: '12px', fontSize: '12px', fontWeight: 600,
-                background: 'rgba(248, 250, 252, 0.8)',
-                border: '1px solid rgba(226, 232, 240, 0.8)',
-                color: '#0f172a', outline: 'none',
+                position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                background: 'transparent', border: 'none', borderRadius: '50%',
+                width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: '#94a3b8',
               }}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                style={{
-                  position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
-                  width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: '#94a3b8',
-                }}
-              >
-                <X size={11} />
-              </button>
-            )}
-          </div>
+            >
+              <X size={11} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -264,7 +218,7 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
       {/* Skill Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10" style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
         <AnimatePresence>
-          {filteredSkills.map((skill, index) => {
+          {filteredSkills.map((skill: any, index: number) => {
             const style = getCategoryStyles(skill.category);
             const isExpert = skill.proficiency >= 90;
             return (
