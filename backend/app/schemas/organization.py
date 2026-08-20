@@ -163,3 +163,162 @@ class OrgOKRBase(BaseModel):
 class OrgOKRRead(OrgOKRBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
+
+# ==================== STRATEGY & CONTEXT ====================
+
+class OrgStrategyVisionResponse(BaseModel):
+    id: str
+    vision_text: str
+    tech_app_features: List[str]
+    tech_team_goals: List[str]
+    habits: List[str]
+    created_at: Optional[datetime] = None
+
+class OrgAIReadinessResponse(BaseModel):
+    id: str
+    overall_score: int
+    literacy_score: int
+    adoption_score: int
+    automation_opportunities: List[Dict[str, Any]]
+    dept_projects: List[Dict[str, Any]]
+    created_at: Optional[datetime] = None
+
+class OrgCapabilityResponse(BaseModel):
+    id: str
+    name: str
+    type: str
+    maturity: int
+    gap: int
+    created_at: Optional[datetime] = None
+
+class OrgTransformationResponse(BaseModel):
+    id: str
+    name: str
+    owner: str
+    progress: int
+    status: str
+    milestones: List[Dict[str, Any]]
+    created_at: Optional[datetime] = None
+
+class OrganizationMetricUpdate(BaseModel):
+    month: Optional[str] = None
+    date: Optional[str] = None
+    total_headcount: Optional[int] = None
+    voluntary_attrition_rate: Optional[float] = None
+    involuntary_attrition_rate: Optional[float] = None
+    new_hires: Optional[int] = None
+    open_positions: Optional[int] = None
+    enps: Optional[int] = None
+    training_hours_per_employee: Optional[float] = None
+    absenteeism_rate: Optional[float] = None
+    revenue: Optional[float] = None
+    operating_cost: Optional[float] = None
+    ebitda: Optional[float] = None
+    net_profit: Optional[float] = None
+    marketing_spend: Optional[float] = None
+    rd_spend: Optional[float] = None
+    overall_productivity_score: Optional[int] = None
+    csat: Optional[float] = None
+    nps: Optional[int] = None
+    market_share_percentage: Optional[float] = None
+    project_completion_rate: Optional[float] = None
+    carbon_footprint_tons: Optional[int] = None
+    energy_consumption_kwh: Optional[int] = None
+    compliance_score: Optional[int] = None
+    security_incidents: Optional[int] = None
+    anomaly_flag: Optional[str] = None
+
+class OrganizationScenarioUpdate(BaseModel):
+    scenario_name: Optional[str] = None
+    target_metric: Optional[str] = None
+    confidence_level: Optional[int] = None
+    predicted_impact_percentage: Optional[float] = None
+    predicted_roi: Optional[float] = None
+    time_to_impact_months: Optional[int] = None
+    ai_recommendation: Optional[str] = None
+
+class OrgInnovationIdeaCreate(OrgInnovationIdeaBase):
+    pass
+
+class OrgInnovationIdeaUpdate(BaseModel):
+    title: Optional[str] = None
+    author_initials: Optional[str] = None
+    author_bg: Optional[str] = None
+    description: Optional[str] = None
+    full_description: Optional[str] = None
+    roi: Optional[str] = None
+    timeline: Optional[str] = None
+    budget: Optional[str] = None
+    risks: Optional[str] = None
+    team_required: Optional[str] = None
+    impact_score: Optional[int] = None
+    feasibility: Optional[str] = None
+    status: Optional[str] = None
+    patent_pending: Optional[bool] = None
+
+class OrgInnovationCommunityCreate(OrgInnovationCommunityBase):
+    pass
+
+class OrgInnovationCommunityUpdate(BaseModel):
+    name: Optional[str] = None
+    members: Optional[int] = None
+    joined: Optional[bool] = None
+    icon: Optional[str] = None
+    bg_class: Optional[str] = None
+
+class OrgAtRiskEmployeeCreate(OrgAtRiskEmployeeBase):
+    pass
+
+class OrgAtRiskEmployeeUpdate(BaseModel):
+    employee_id: Optional[str] = None
+    risk_level: Optional[str] = None
+    risk_score: Optional[float] = None
+    primary_factor: Optional[str] = None
+    burnout_probability: Optional[float] = None
+    compensation_satisfaction: Optional[float] = None
+    career_stagnation_score: Optional[float] = None
+    last_1_on_1: Optional[str] = None
+    ai_retention_suggestion: Optional[str] = None
+
+class OrgTalentGigCreate(OrgTalentGigBase):
+    pass
+
+class OrgTalentGigUpdate(BaseModel):
+    role_title: Optional[str] = None
+    department: Optional[str] = None
+    required_skills: Optional[List[str]] = None
+    matched_employees: Optional[List[Dict[str, Any]]] = None
+    urgency: Optional[str] = None
+
+class OrgTalentMentorCreate(OrgTalentMentorBase):
+    pass
+
+class OrgTalentMentorUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[str] = None
+    description: Optional[str] = None
+    match_score: Optional[int] = None
+    initials: Optional[str] = None
+    icon_bg: Optional[str] = None
+
+class OrgTeamBuilderOptionCreate(OrgTeamBuilderOptionBase):
+    pass
+
+class OrgTeamBuilderOptionUpdate(BaseModel):
+    name: Optional[str] = None
+    success_rate: Optional[int] = None
+    compatibility_score: Optional[int] = None
+    skill_balance: Optional[int] = None
+    performance_prediction: Optional[int] = None
+    rationale: Optional[str] = None
+    members: Optional[List[Dict[str, Any]]] = None
+
+class OrgOKRCreate(OrgOKRBase):
+    pass
+
+class OrgOKRUpdate(BaseModel):
+    title: Optional[str] = None
+    owner: Optional[str] = None
+    progress: Optional[int] = None
+    status: Optional[str] = None
+    initiatives: Optional[List[Dict[str, Any]]] = None
