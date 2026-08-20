@@ -16,21 +16,37 @@ const TYPE_ICONS: Record<string, string> = {
 
 // ─── Learner Stats Hero ───────────────────────────────────────
 const LearnerHero: React.FC = () => {
-  const { currentEmployee } = useEmployee();
+  const { currentEmployee, loading: employeeLoading } = useEmployee();
   const [learnerProfile, setLearnerProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentEmployee) return;
-    learningAPI.getProfile(currentEmployee.id).then(profileData => {
-      setLearnerProfile({ ...profileData, name: currentEmployee.full_name });
+    if (employeeLoading) return;
+    if (!currentEmployee) {
       setLoading(false);
-    });
-  }, [currentEmployee]);
+      return;
+    }
+    learningAPI.getProfile(currentEmployee.id)
+      .then(profileData => {
+        setLearnerProfile({ ...profileData, name: currentEmployee.full_name });
+      })
+      .catch(() => setLearnerProfile({
+        name: currentEmployee.full_name,
+        hours_this_month: 0,
+        hours_this_year: 0,
+        courses_completed: 0,
+        courses_in_progress: 0,
+        current_streak: 0,
+        learning_score: 0,
+        target_role: null,
+      }))
+      .finally(() => setLoading(false));
+  }, [currentEmployee, employeeLoading]);
 
-  if (loading || !learnerProfile) return <Card className="glass-panel p-6 flex justify-center"><Loader2 className="animate-spin text-primary" /></Card>;
+  if (employeeLoading || loading) return <Card className="glass-panel p-6 flex justify-center"><Loader2 className="animate-spin text-primary" /></Card>;
+  if (!learnerProfile) return <Card className="glass-panel p-6 text-sm text-slate-500">No learner profile yet. Select an employee after the list loads.</Card>;
 
-  const pct = Math.round((learnerProfile.courses_completed / (learnerProfile.courses_completed + learnerProfile.courses_in_progress + 3)) * 100);
+  const pct = Math.round((learnerProfile.courses_completed / Math.max(1, learnerProfile.courses_completed + learnerProfile.courses_in_progress)) * 100);
   const heroStats = [
     { label: 'Hours This Month', value: `${learnerProfile.hours_this_month}h`, icon: <Clock size={14} />, color: '#0ea5e9' },
     { label: 'Hours This Year',  value: `${learnerProfile.hours_this_year}h`, icon: <BarChart3 size={14} />, color: '#64748b' },
@@ -87,7 +103,7 @@ const LearnerHero: React.FC = () => {
               {learnerProfile.name}
             </h2>
             <div className="text-right">
-              <span className="text-[10px] font-bold text-slate-500">{learnerProfile.courses_completed} of {learnerProfile.courses_completed + learnerProfile.courses_in_progress + 3} goals</span>
+              <span className="text-[10px] font-bold text-slate-500">{learnerProfile.courses_completed} of {learnerProfile.courses_completed + learnerProfile.courses_in_progress} courses</span>
             </div>
           </div>
           
@@ -122,11 +138,45 @@ const LearnerHero: React.FC = () => {
 const LearningPaths: React.FC = () => {
   const { currentEmployee } = useEmployee();
   const [learningPaths, setLearningPaths] = useState<any[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = () => {
     if (!currentEmployee) return;
-    learningAPI.getPaths(currentEmployee.id).then(paths => setLearningPaths(paths || []));
-  }, [currentEmployee]);
+    learningAPI.getPaths(currentEmployee.id).then(paths => setLearningPaths(paths || [])).catch(() => setLearningPaths([]));
+  };
+
+  useEffect(() => { load(); }, [currentEmployee]);
+
+  const advancePath = async (path: any) => {
+    if (!currentEmployee || path.progress >= 100) return;
+    setBusyId(path.id);
+    try {
+      const next = Math.min(100, (path.progress || 0) + 25);
+      await learningAPI.updatePathProgress(currentEmployee.id, path.id, next);
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!learningPaths.length) {
+    return (
+      <div className="text-sm text-slate-500 py-6 text-center">
+        No learning paths yet. Set a career goal, then generate a path from your skill gaps.
+        {currentEmployee && (
+          <button
+            className="mt-3 block mx-auto px-4 py-2 rounded-lg text-xs font-bold bg-primary text-white"
+            onClick={async () => {
+              await learningAPI.generatePaths(currentEmployee.id);
+              load();
+            }}
+          >
+            Generate AI Path
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -172,6 +222,13 @@ const LearningPaths: React.FC = () => {
                 style={{ width: `${path.progress}%` }} 
               />
             </div>
+            <button
+              onClick={() => advancePath(path)}
+              disabled={busyId === path.id || path.progress >= 100}
+              className="mt-3 w-full py-2 rounded-lg text-xs font-bold bg-slate-50 border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 disabled:opacity-50"
+            >
+              {path.progress >= 100 ? 'Completed' : busyId === path.id ? 'Updating…' : 'Log progress (+25%)'}
+            </button>
           </div>
         </div>
       ))}
@@ -183,17 +240,31 @@ const LearningPaths: React.FC = () => {
 const LearningFeed: React.FC = () => {
   const { currentEmployee } = useEmployee();
   const [learningFeed, setLearningFeed] = useState<any[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentEmployee) return;
-    learningAPI.getFeed(currentEmployee.id).then(feed => setLearningFeed(feed || []));
+    learningAPI.getFeed(currentEmployee.id).then(feed => setLearningFeed(feed || [])).catch(() => setLearningFeed([]));
   }, [currentEmployee]);
+
+  const openItem = async (item: any) => {
+    if (!currentEmployee || item.type !== 'course' || busyId) return;
+    setBusyId(item.id);
+    try {
+      await learningAPI.enrollCourse(currentEmployee.id, item.id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3">
       {learningFeed.map((item) => (
         <div 
-          key={item.id} 
+          key={item.id}
+          onClick={() => openItem(item)}
           className="flex items-center gap-4 p-4 bg-white rounded-xl border border-[var(--border-subtle)] shadow-sm hover:shadow-md hover:border-primary transition-all cursor-pointer group"
         >
           <div className="w-10 h-10 rounded-lg bg-[var(--bg-main)] border border-[var(--border-subtle)] flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
@@ -231,11 +302,34 @@ const CourseLibrary: React.FC = () => {
   const { currentEmployee } = useEmployee();
   const [search, setSearch] = useState('');
   const [courseLibrary, setCourseLibrary] = useState<any[]>([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const loadCourses = () => {
+    if (!currentEmployee) return;
+    learningAPI.getCourses({ employee_id: currentEmployee.id }).then(courses => setCourseLibrary(courses || [])).catch(() => setCourseLibrary([]));
+  };
 
   useEffect(() => {
-    if (!currentEmployee) return;
-    learningAPI.getCourses({ employee_id: currentEmployee.id }).then(courses => setCourseLibrary(courses || []));
+    loadCourses();
   }, [currentEmployee]);
+
+  const handleCourseAction = async (course: any) => {
+    if (!currentEmployee || course.status === 'completed') return;
+    setBusyId(course.id);
+    try {
+      if (course.status === 'available' || !course.status) {
+        await learningAPI.enrollCourse(currentEmployee.id, course.id);
+      } else if (course.status === 'in_progress') {
+        const next = Math.min(100, (course.progress || 0) + 25);
+        await learningAPI.updateCourseProgress(currentEmployee.id, course.id, next);
+      }
+      loadCourses();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const filtered = courseLibrary.filter(c =>
     c.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -293,8 +387,12 @@ const CourseLibrary: React.FC = () => {
                   <span className="px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest bg-[var(--bg-main)] text-tertiary border border-[var(--border-subtle)]">{course.level}</span>
                   <span className="px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-widest bg-[var(--bg-main)] text-tertiary border border-[var(--border-subtle)]">⏱ {course.hours}h</span>
                 </div>
-                <button className="w-full py-2 mt-auto rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer bg-[var(--bg-main)] text-primary border border-[var(--border-subtle)] hover:bg-primary hover:text-white hover:border-primary">
-                  <PlayCircle size={14} /> Start Course
+                <button
+                  onClick={() => handleCourseAction(course)}
+                  disabled={busyId === course.id}
+                  className="w-full py-2 mt-auto rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer bg-[var(--bg-main)] text-primary border border-[var(--border-subtle)] hover:bg-primary hover:text-white hover:border-primary"
+                >
+                  <PlayCircle size={14} /> {busyId === course.id ? 'Starting…' : 'Start Course'}
                 </button>
               </div>
             ))}
@@ -338,6 +436,8 @@ const CourseLibrary: React.FC = () => {
             )}
 
             <button 
+              onClick={() => handleCourseAction(course)}
+              disabled={busyId === course.id || course.status === 'completed'}
               className={`w-full py-2 mt-auto rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 course.status === 'completed' ? 'bg-success/10 text-success border border-success/20' : 
                 course.status === 'in_progress' ? 'bg-warning/10 text-warning border border-warning/20 hover:bg-warning hover:text-white' : 
@@ -345,7 +445,7 @@ const CourseLibrary: React.FC = () => {
               }`}
             >
               {course.status !== 'completed' && <PlayCircle size={14} />} 
-              {course.status === 'completed' ? '✓ Done' : course.status === 'in_progress' ? 'Continue' : 'Enroll'}
+              {busyId === course.id ? 'Saving…' : course.status === 'completed' ? '✓ Done' : course.status === 'in_progress' ? 'Continue (+25%)' : 'Enroll'}
             </button>
           </div>
         ))}
@@ -452,8 +552,8 @@ export const LearningHub: React.FC = () => {
 
       {/* Main Content Areas */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 flex flex-col gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 flex flex-col gap-6">
             <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
                 <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><TrendingUp size={20} /></div>
@@ -471,7 +571,7 @@ export const LearningHub: React.FC = () => {
             </Card>
           </div>
           
-          <div className="col-span-1 flex flex-col gap-6">
+          <div className="lg:col-span-1 flex flex-col gap-6">
             <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
                 <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Brain size={20} /></div>

@@ -6,7 +6,7 @@ Uses Supabase as the database backend and gamification_engine for all business l
 
 import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from typing import Optional
 
 from app.database import get_supabase_admin
@@ -27,12 +27,15 @@ from app.schemas.gamification import (
     ChallengeStepResponse,
     SubmitStepRequest,
     EvaluationResponse,
+    ManualReviewRequest,
 )
 from app.services.gamification_engine import (
     award_xp,
     check_achievement_unlocks,
     _recalculate_ranks,
     fire_gamification_event,
+    ensure_profile,
+    _award_daily_activity_xp,
 )
 
 router = APIRouter(prefix="/api/gamification", tags=["Gamification"])
@@ -61,10 +64,16 @@ def get_gamification_profile(employee_id: str):
     """Get gamification profile for an employee."""
     sb = get_supabase_admin()
 
-    result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gamification profile not found")
-    profile = result.data[0]
+    profile = ensure_profile(sb, employee_id)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    try:
+        _award_daily_activity_xp(sb, employee_id)
+        refreshed = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
+        if refreshed.data:
+            profile = refreshed.data[0]
+    except Exception:
+        pass
 
     emp_result = sb.table("employees").select("full_name, initials, department").eq("id", employee_id).execute()
     emp = emp_result.data[0] if emp_result.data else {}
@@ -200,6 +209,19 @@ def get_challenges(employee_id: str):
             delta = end_date - _utc_now()
             days_left = max(0, delta.days)
 
+        steps_count_res = sb.table("challenge_steps").select("id", count="exact").eq(
+            "challenge_id", ch["id"]
+        ).execute()
+        has_steps = (steps_count_res.count or 0) > 0
+
+        if has_steps:
+            step_progress, step_completed = _compute_challenge_progress(sb, employee_id, ch["id"])
+            progress = step_progress
+            completed = step_completed
+        else:
+            progress = prog["progress"] if prog else 0
+            completed = prog.get("completed", False) if prog else False
+
         result_list.append(ChallengeResponse(
             id=ch["id"],
             title=ch["title"],
@@ -211,8 +233,8 @@ def get_challenges(employee_id: str):
             category=ch.get("category"),
             color=ch.get("color"),
             days_left=days_left,
-            progress=prog["progress"] if prog else 0,
-            completed=prog.get("completed", False) if prog else False,
+            progress=progress,
+            completed=completed,
             participants=part_count,
             is_active=ch.get("is_active", True),
         ))
@@ -303,11 +325,99 @@ def verify_challenge(data: ChallengeVerifyRequest):
     }).eq("id", prog["id"]).execute()
 
     ch_result = sb.table("challenges").select("xp_reward, title").eq("id", data.challenge_id).execute()
-    if ch_result.data:
+    steps_count = sb.table("challenge_steps").select("id", count="exact").eq(
+        "challenge_id", data.challenge_id
+    ).execute()
+    has_steps = (steps_count.count or 0) > 0
+    if ch_result.data and not has_steps:
         challenge = ch_result.data[0]
         award_xp(sb, data.employee_id, challenge["xp_reward"], f"Challenge Verified: {challenge['title']}", "challenge", "🎯")
 
     return {"status": "approved", "completed": True}
+
+
+@router.get("/admin/pending-reviews")
+def get_pending_reviews():
+    """Submissions flagged for manual review awaiting admin grading."""
+    sb = get_supabase_admin()
+    subs = sb.table("submissions").select(
+        "id, employee_id, challenge_id, step_id, content, submitted_at, status, "
+        "employees!submissions_employee_id_fkey(full_name), "
+        "challenge_steps(title, xp_value), "
+        "challenges(title)"
+    ).eq("status", "manual_review").order("submitted_at", desc=True).execute()
+    return subs.data or []
+
+
+@router.post("/admin/review-submission")
+def review_submission(data: ManualReviewRequest):
+    """Admin grades a manual-review submission."""
+    from app.services.challenge_evaluator import _compute_xp
+
+    sb = get_supabase_admin()
+    sub_res = sb.table("submissions").select("*").eq("id", data.submission_id).execute()
+    if not sub_res.data:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    sub = sub_res.data[0]
+
+    step_res = sb.table("challenge_steps").select("*").eq("id", sub["step_id"]).execute()
+    if not step_res.data:
+        raise HTTPException(status_code=404, detail="Step not found")
+    step = step_res.data[0]
+
+    if not data.approve:
+        score, passed, feedback, xp_awarded = 0, False, data.feedback or "Submission rejected by admin.", 0
+        final_status = "failed"
+    else:
+        score = max(0, min(100, int(data.score or 80)))
+        passed = score >= 70
+        feedback = data.feedback or ("Approved by admin." if passed else "Did not meet requirements.")
+        xp_awarded = _compute_xp(score, step["xp_value"]) if passed else 0
+        final_status = "evaluated"
+
+    eval_id = str(uuid.uuid4())
+    sb.table("evaluations").insert({
+        "id": eval_id,
+        "submission_id": sub["id"],
+        "ai_score": score,
+        "pass": passed,
+        "feedback": feedback,
+        "xp_awarded": xp_awarded,
+        "raw_model_response": "manual_review",
+    }).execute()
+    sb.table("submissions").update({"status": final_status}).eq("id", sub["id"]).execute()
+
+    if passed and xp_awarded > 0:
+        award_xp(sb, sub["employee_id"], xp_awarded, f"Step '{step['title']}' passed (admin review)", "challenge", "🎯")
+
+    progress, all_done = _compute_challenge_progress(sb, sub["employee_id"], sub["challenge_id"])
+    prog_res = sb.table("challenge_progress").select("id, completed").eq(
+        "employee_id", sub["employee_id"]
+    ).eq("challenge_id", sub["challenge_id"]).execute()
+    if prog_res.data:
+        update_data: dict = {"progress": progress}
+        if all_done and not prog_res.data[0].get("completed"):
+            update_data["completed"] = True
+            update_data["completed_at"] = _utc_now().isoformat()
+        sb.table("challenge_progress").update(update_data).eq("id", prog_res.data[0]["id"]).execute()
+    else:
+        sb.table("challenge_progress").insert({
+            "id": str(uuid.uuid4()),
+            "employee_id": sub["employee_id"],
+            "challenge_id": sub["challenge_id"],
+            "progress": progress,
+            "completed": all_done,
+            "completed_at": _utc_now().isoformat() if all_done else None,
+        }).execute()
+
+    return {
+        "status": "reviewed",
+        "passed": passed,
+        "ai_score": score,
+        "feedback": feedback,
+        "xp_awarded": xp_awarded,
+        "progress": progress,
+    }
 
 
 # ─── Achievements ──────────────────────────────────────────────
@@ -451,6 +561,53 @@ def get_streak_calendar(employee_id: str, days: int = 42):
     )
 
 
+@router.get("/{employee_id}/missions")
+def get_daily_missions(employee_id: str):
+    """Daily missions derived from live challenges and today's activity — not fake checkboxes."""
+    sb = get_supabase_admin()
+    ensure_profile(sb, employee_id)
+
+    today_start = datetime.combine(_utc_now().date(), datetime.min.time()).replace(tzinfo=timezone.utc).isoformat()
+    today_tx = sb.table("xp_transactions").select("category").eq(
+        "employee_id", employee_id
+    ).gte("created_at", today_start).execute()
+    cats = {tx.get("category") for tx in (today_tx.data or [])}
+
+    challenges = sb.table("challenges").select("*").eq("is_active", True).order("end_date").limit(3).execute()
+    missions = []
+    for ch in challenges.data or []:
+        prog = sb.table("challenge_progress").select("progress, completed").eq(
+            "employee_id", employee_id
+        ).eq("challenge_id", ch["id"]).execute()
+        p = prog.data[0] if prog.data else {}
+        missions.append({
+            "id": ch["id"],
+            "name": ch["title"],
+            "xp": ch.get("xp_reward", 0),
+            "completed": bool(p.get("completed")),
+            "progress": p.get("progress", 0),
+            "type": "challenge",
+        })
+
+    missions.append({
+        "id": "daily_login",
+        "name": "Daily check-in bonus",
+        "xp": 25,
+        "completed": "daily_login" in cats,
+        "progress": 100 if "daily_login" in cats else 0,
+        "type": "daily",
+    })
+    missions.append({
+        "id": "learning_today",
+        "name": "Complete a learning activity",
+        "xp": 150,
+        "completed": "course_completed" in cats or "certification_added" in cats,
+        "progress": 100 if ("course_completed" in cats or "certification_added" in cats) else 0,
+        "type": "learning",
+    })
+    return missions[:5]
+
+
 # ─── Reward Store ──────────────────────────────────────────────
 
 @router.get("/rewards", response_model=list[RewardItemResponse])
@@ -459,6 +616,13 @@ def get_rewards():
     sb = get_supabase_admin()
     result = sb.table("reward_items").select("*").order("cost").execute()
     return result.data
+
+
+@router.get("/{employee_id}/reward-claims")
+def get_reward_claims(employee_id: str):
+    sb = get_supabase_admin()
+    result = sb.table("reward_claims").select("reward_id").eq("employee_id", employee_id).execute()
+    return [row["reward_id"] for row in (result.data or [])]
 
 
 @router.post("/{employee_id}/rewards/{reward_id}/claim")
@@ -471,9 +635,9 @@ def claim_reward(employee_id: str, reward_id: str):
 
     # Atomic re-fetch profile (prevents double-spend on concurrent requests)
     gam_result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
-    if not gam_result.data:
+    profile = ensure_profile(sb, employee_id)
+    if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    profile = gam_result.data[0]
 
     rew_result = sb.table("reward_items").select("*").eq("id", reward_id).execute()
     if not rew_result.data:
@@ -536,25 +700,44 @@ def claim_reward(employee_id: str, reward_id: str):
 # ─── Admin Endpoints ──────────────────────────────────────────
 
 @router.post("/admin/challenges", status_code=201)
-def admin_create_challenge(data: dict):
-    """Admin: create a new challenge."""
+def admin_create_challenge(data: ChallengeCreateWithSteps):
+    """Create a challenge, optionally with ordered AI-evaluated steps."""
     sb = get_supabase_admin()
+    total_xp = sum(s.xp_value for s in data.steps) if data.steps else data.model_dump().get("xp_reward", 0) or 0
+    if not data.steps:
+        total_xp = 500
+
+    challenge_id = str(uuid.uuid4())
     payload = {
-        "id": str(uuid.uuid4()),
-        "title": data["title"],
-        "description": data.get("description"),
-        "xp_reward": data.get("xp_reward", 500),
-        "bonus_badge": data.get("bonus_badge"),
-        "difficulty": data.get("difficulty", "Medium"),
-        "type": data.get("type", "weekly"),
-        "category": data.get("category", "General"),
-        "color": data.get("color", "#4f46e5"),
-        "start_date": data.get("start_date", _utc_now().isoformat()),
-        "end_date": data.get("end_date"),
-        "is_active": data.get("is_active", True),
+        "id": challenge_id,
+        "title": data.title,
+        "description": data.description,
+        "xp_reward": total_xp,
+        "bonus_badge": data.bonus_badge,
+        "difficulty": data.difficulty,
+        "type": data.type,
+        "category": data.category,
+        "color": data.color,
+        "start_date": _utc_now().isoformat(),
+        "end_date": data.end_date,
+        "is_active": data.is_active,
     }
-    result = sb.table("challenges").insert(payload).execute()
-    return result.data[0] if result.data else payload
+    sb.table("challenges").insert(payload).execute()
+
+    for i, step in enumerate(data.steps):
+        sb.table("challenge_steps").insert({
+            "id": str(uuid.uuid4()),
+            "challenge_id": challenge_id,
+            "step_order": step.step_order if step.step_order else i + 1,
+            "title": step.title,
+            "instructions": step.instructions,
+            "submission_type": step.submission_type,
+            "evaluation_rubric": step.evaluation_rubric,
+            "xp_value": step.xp_value,
+            "reference_url": step.reference_url,
+        }).execute()
+
+    return {"id": challenge_id, "total_xp": total_xp, "steps_created": len(data.steps), **payload}
 
 
 @router.patch("/admin/challenges/{challenge_id}")
@@ -650,12 +833,37 @@ def admin_fire_event(employee_id: str, data: dict):
 
 # ─── Challenge Steps & AI Evaluation ──────────────────────────
 
+@router.post("/{employee_id}/submissions/upload")
+async def upload_submission_file(employee_id: str, file: UploadFile = File(...)):
+    """Upload a file for a challenge step submission. Returns extracted content + storage path."""
+    sb = get_supabase_admin()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=404, detail="Employee not found")
+
+    from app.services.challenge_upload import save_submission_file
+
+    content = await file.read()
+    try:
+        result = save_submission_file(employee_id, file.filename or "upload", content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return result
+
+
 def _compute_challenge_progress(sb, employee_id: str, challenge_id: str) -> tuple[int, bool]:
     """Return (progress_percent, all_completed) based on passing evaluations."""
     steps_res = sb.table("challenge_steps").select("id").eq("challenge_id", challenge_id).execute()
     all_steps = steps_res.data or []
     total = len(all_steps)
     if total == 0:
+        prog_res = sb.table("challenge_progress").select("progress, completed").eq(
+            "employee_id", employee_id
+        ).eq("challenge_id", challenge_id).execute()
+        if prog_res.data:
+            row = prog_res.data[0]
+            return int(row.get("progress") or 0), bool(row.get("completed"))
         return 0, False
 
     passed = 0
@@ -678,46 +886,7 @@ def _compute_challenge_progress(sb, employee_id: str, challenge_id: str) -> tupl
     return progress, (passed == total)
 
 
-@router.post("/admin/challenges", tags=["Gamification"])
-def create_challenge_with_steps(data: ChallengeCreateWithSteps):
-    """Create a challenge together with its ordered steps."""
-    sb = get_supabase_admin()
-
-    # Compute total XP from steps
-    total_xp = sum(s.xp_value for s in data.steps) if data.steps else 0
-
-    challenge_id = str(uuid.uuid4())
-    ch_row = {
-        "id": challenge_id,
-        "title": data.title,
-        "description": data.description,
-        "type": data.type,
-        "difficulty": data.difficulty,
-        "category": data.category,
-        "end_date": data.end_date,
-        "bonus_badge": data.bonus_badge,
-        "color": data.color,
-        "is_active": data.is_active,
-        "xp_reward": total_xp,
-        "start_date": _utc_now().isoformat(),
-    }
-    sb.table("challenges").insert(ch_row).execute()
-
-    for i, step in enumerate(data.steps):
-        sb.table("challenge_steps").insert({
-            "id": str(uuid.uuid4()),
-            "challenge_id": challenge_id,
-            "step_order": step.step_order if step.step_order else i + 1,
-            "title": step.title,
-            "instructions": step.instructions,
-            "submission_type": step.submission_type,
-            "evaluation_rubric": step.evaluation_rubric,
-            "xp_value": step.xp_value,
-            "reference_url": step.reference_url,
-        }).execute()
-
-    return {"id": challenge_id, "total_xp": total_xp, "steps_created": len(data.steps)}
-
+# ─── Challenge Steps & AI Evaluation ──────────────────────────
 
 @router.get("/{employee_id}/challenges/{challenge_id}/detail", response_model=ChallengeDetailResponse)
 def get_challenge_detail(employee_id: str, challenge_id: str):
@@ -852,6 +1021,7 @@ def submit_step(employee_id: str, challenge_id: str, step_id: str, data: SubmitS
         content=data.content,
         max_xp=step["xp_value"],
         reference_url=step.get("reference_url"),
+        storage_path=data.storage_path,
     )
 
     final_status = "manual_review" if result.raw.startswith("ERROR") or result.raw == "NO_API_KEY" else "evaluated"

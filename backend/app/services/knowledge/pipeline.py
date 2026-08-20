@@ -158,7 +158,6 @@ def run_pipeline(
             filename=filename,
             extracted_text=extracted_text,
             use_ai=True,
-            api_key=settings.GOOGLE_API_KEY,
         )
         _store_source_type(sb, source_id, classification.document_type.value)
 
@@ -167,7 +166,6 @@ def run_pipeline(
         analysis = analyze_document(
             extracted_text=extracted_text,
             document_type=classification.document_type.value,
-            api_key=settings.GOOGLE_API_KEY,
         )
 
         if not analysis.success or not analysis.extraction:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { BarChart3, TrendingUp, Brain, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -10,33 +10,25 @@ interface PersonalAnalyticsProps {
 
 const TOOLTIP_STYLE = {
   borderRadius: '12px',
-  border: '1px solid rgba(255,255,255,0.1)',
-  background: 'rgba(15,23,42,0.96)',
-  boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+  border: '1px solid rgba(226,232,240,0.9)',
+  background: '#ffffff',
+  boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
   fontSize: '12px',
   fontWeight: 700,
 };
 
 export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics, personalAnalyticsAI }) => {
-  const [loading, setLoading] = useState(!personalAnalyticsAI);
-  const [aiData, setAiData] = useState(personalAnalyticsAI);
+  const aiData = personalAnalyticsAI;
+  const loading = !aiData && !analytics;
 
-  useEffect(() => {
-    if (personalAnalyticsAI) {
-      setAiData(personalAnalyticsAI);
-      setLoading(false);
-    }
-  }, [personalAnalyticsAI]);
-
-  // Transform AI data for charts
   const productivityData = aiData?.productivity_trends?.map((t: any) => ({
     day: t.period,
     score: t.score,
   })) || analytics?.productivity || [];
 
   const insights = aiData?.insights || [];
-  const recommendations = aiData?.recommendations || [];
-  const overallScore = aiData?.overall_score || 0;
+  const recommendations = Array.isArray(aiData?.recommendations) ? aiData.recommendations : [];
+  const overallScore = aiData?.overall_score || analytics?.overall_score || 0;
 
   const getImpactColor = (impact: string) => {
     switch (impact.toLowerCase()) {
@@ -88,11 +80,10 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
 
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.04)',
-      border: '1px solid rgba(255,255,255,0.08)',
+      background: 'rgba(255,255,255,0.9)',
+      border: '1px solid rgba(226, 232, 240, 0.9)',
       borderRadius: '24px',
       padding: '1.75rem',
-      backdropFilter: 'blur(20px)',
     }}>
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
@@ -123,7 +114,7 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
         <div className="mb-6">
           <h4 style={{
             fontSize: '12px', fontWeight: 900, textTransform: 'uppercase',
-            letterSpacing: '0.12em', color: '#e2e8f0', marginBottom: '16px',
+            letterSpacing: '0.12em', color: '#0f172a', marginBottom: '16px',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <div style={{
@@ -211,7 +202,7 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
         <div className="mb-6">
           <h4 style={{
             fontSize: '12px', fontWeight: 900, textTransform: 'uppercase',
-            letterSpacing: '0.12em', color: '#e2e8f0', marginBottom: '16px',
+            letterSpacing: '0.12em', color: '#0f172a', marginBottom: '16px',
             display: 'flex', alignItems: 'center', gap: '8px',
           }}>
             <div style={{
@@ -297,18 +288,17 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
             <AreaChart data={productivityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="prodGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.5} />
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.35} />
                   <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-              <XAxis dataKey="day" tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#475569', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.25)" />
+              <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#64748b', fontSize: 10, fontWeight: 700 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                itemStyle={{ color: '#a78bfa', fontWeight: 900 }}
-                labelStyle={{ color: '#e2e8f0' }}
-                cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }}
+                itemStyle={{ color: '#7c3aed', fontWeight: 900 }}
+                labelStyle={{ color: '#0f172a' }}
               />
               <Area
                 type="monotone"
@@ -334,7 +324,10 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
           }}
         >
           <div className="flex flex-col gap-4">
-            {aiData?.skill_growth?.map((skill: any, idx: number) => (
+            {aiData?.skill_growth?.map((skill: any, idx: number) => {
+              const currentPct = skill.current_level <= 10 ? skill.current_level * 10 : skill.current_level;
+              const targetPct = skill.target_level <= 10 ? skill.target_level * 10 : skill.target_level;
+              return (
               <div
                 key={skill.skill_name}
                 style={{
@@ -375,7 +368,7 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
                       {skill.trajectory}
                     </span>
                     <span style={{ fontSize: '24px', fontWeight: 900, color: '#1e293b' }}>
-                      {skill.current_level}%
+                      {currentPct}%
                     </span>
                   </div>
                 </div>
@@ -390,20 +383,18 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
                     position: 'relative',
                     border: '2px solid #cbd5e1',
                   }}>
-                    {/* Target Level Indicator */}
                     <div style={{
                       position: 'absolute',
                       top: 0,
                       bottom: 0,
                       width: '3px',
                       background: '#1e293b',
-                      left: `${skill.target_level}%`,
+                      left: `${targetPct}%`,
                       zIndex: 2,
                     }} />
-                    {/* Current Level Bar */}
                     <div style={{
                       height: '100%',
-                      width: `${skill.current_level}%`,
+                      width: `${currentPct}%`,
                       background: ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'][idx % 6],
                       borderRadius: '8px',
                       transition: 'width 0.5s ease',
@@ -414,7 +405,7 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-6">
                     <div style={{ fontSize: '12px', color: '#475569', fontWeight: 600 }}>
-                      Target: <span style={{ color: '#1e293b', fontWeight: 800 }}>{skill.target_level}%</span>
+                      Target: <span style={{ color: '#1e293b', fontWeight: 800 }}>{targetPct}%</span>
                     </div>
                     <div style={{ fontSize: '12px', color: '#475569', fontWeight: 600 }}>
                       Growth: <span style={{ color: skill.growth_rate > 0 ? '#10b981' : '#ef4444', fontWeight: 800 }}>{skill.growth_rate > 0 ? '+' : ''}{skill.growth_rate}%</span>
@@ -427,7 +418,8 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         </TabsContent>
       </Tabs>

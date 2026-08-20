@@ -1,24 +1,11 @@
 from __future__ import annotations
 """
 Challenge Evaluator Service — AI-powered step submission grading.
-
-Uses Google Gemini to evaluate employee submissions against a step's
-evaluation rubric. Returns a structured score, pass/fail, feedback,
-and XP awarded.
-
-Scoring tiers (applied server-side):
-  score >= 80  → full xp_value
-  50 <= score < 80 → half xp_value
-  score < 50   → 0 XP
-
-The AI model pass threshold is 70 (consistent across all prompts).
 """
 
 import json
-import os
 import re
 
-# ─── Prompt Template ──────────────────────────────────────────
 EVAL_PROMPT_TEMPLATE = """\
 You are a fair, rigorous, and specific evaluator for an employee learning challenge.
 Your job is to assess whether the employee's submission genuinely meets the requirements.
@@ -42,6 +29,19 @@ Your response MUST be valid JSON only — no markdown fences, no extra text, not
 {{"score": <integer 0-100>, "pass": <true if score >= 70 else false>, "feedback": "<2-4 sentences — be specific about what was good and what was missing>", "suggested_xp": <integer proportional to score, max {max_xp}>}}
 """
 
+IMAGE_EVAL_PROMPT_TEMPLATE = """\
+You are evaluating an employee's image submission for a learning challenge.
+
+STEP TITLE: {step_title}
+TASK INSTRUCTIONS: {instructions}
+EVALUATION RUBRIC: {evaluation_rubric}
+{reference_section}
+The employee uploaded an image. Examine it carefully against the rubric.
+
+Your response MUST be valid JSON only:
+{{"score": <integer 0-100>, "pass": <true if score >= 70 else false>, "feedback": "<2-4 sentences>", "suggested_xp": <integer max {max_xp}>}}
+"""
+
 MANUAL_REVIEW_FEEDBACK = (
     "Your submission has been flagged for manual review because the AI evaluator encountered "
     "a temporary error. An admin will review and grade your work shortly. No action required from you."
@@ -62,21 +62,6 @@ def _compute_xp(score: int, max_xp: int) -> int:
     return 0
 
 
-def _call_gemini(prompt: str, api_key: str) -> str:
-    from google import genai
-    from google.genai import types
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-3.6-flash",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.2,
-        )
-    )
-    return response.text.strip() if response.text else "{}"
-
-
 def _parse_json_response(raw: str) -> dict:
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip().strip("`").strip()
     return json.loads(cleaned)
@@ -91,6 +76,32 @@ class EvaluationResult:
         self.raw = raw
 
 
+def _call_gemini_text(prompt: str) -> str:
+    from app.services.gemini_safe import ask_gemini_timed
+    result = ask_gemini_timed(prompt, timeout=25.0, fallback="")
+    if not result:
+        raise RuntimeError("Gemini returned empty response")
+    return result
+
+
+def _call_gemini_image(prompt: str, image_bytes: bytes, mime_type: str) -> str:
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _run():
+        from gemini_client import ask_gemini_with_image
+        return ask_gemini_with_image(prompt, image_bytes, mime_type)
+
+    pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gemini-img")
+    future = pool.submit(_run)
+    try:
+        text = future.result(timeout=30.0)
+        if not text:
+            raise RuntimeError("Gemini image eval returned empty response")
+        return text.strip()
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+
+
 def evaluate_submission(
     step_title: str,
     instructions: str,
@@ -99,28 +110,50 @@ def evaluate_submission(
     content: str,
     max_xp: int,
     reference_url: str | None = None,
+    storage_path: str | None = None,
 ) -> EvaluationResult:
     """Evaluate an employee submission using Gemini. Retries once on failure."""
-    from app.config import settings
-    api_key = settings.GOOGLE_API_KEY or os.environ.get("GOOGLE_API_KEY", "")
-    if not api_key:
-        return EvaluationResult(score=0, passed=False, feedback=MANUAL_REVIEW_FEEDBACK, xp_awarded=0, raw="NO_API_KEY")
-
-    prompt = EVAL_PROMPT_TEMPLATE.format(
-        step_title=step_title,
-        instructions=instructions,
-        evaluation_rubric=evaluation_rubric,
-        submission_type=submission_type,
-        content=content[:4000],
-        max_xp=max_xp,
-        reference_section=_build_reference_section(reference_url),
-    )
-
+    reference_section = _build_reference_section(reference_url)
     raw = ""
     last_error = None
+
     for attempt in range(2):
         try:
-            raw = _call_gemini(prompt, api_key)
+            if storage_path and submission_type in ("image", "file"):
+                from app.services.challenge_upload import read_submission_file
+                file_bytes, mime_type = read_submission_file(storage_path)
+                if mime_type.startswith("image/"):
+                    prompt = IMAGE_EVAL_PROMPT_TEMPLATE.format(
+                        step_title=step_title,
+                        instructions=instructions,
+                        evaluation_rubric=evaluation_rubric,
+                        reference_section=reference_section,
+                        max_xp=max_xp,
+                    )
+                    raw = _call_gemini_image(prompt, file_bytes, mime_type)
+                else:
+                    prompt = EVAL_PROMPT_TEMPLATE.format(
+                        step_title=step_title,
+                        instructions=instructions,
+                        evaluation_rubric=evaluation_rubric,
+                        submission_type=submission_type,
+                        content=content[:4000],
+                        max_xp=max_xp,
+                        reference_section=reference_section,
+                    )
+                    raw = _call_gemini_text(prompt)
+            else:
+                prompt = EVAL_PROMPT_TEMPLATE.format(
+                    step_title=step_title,
+                    instructions=instructions,
+                    evaluation_rubric=evaluation_rubric,
+                    submission_type=submission_type,
+                    content=content[:4000],
+                    max_xp=max_xp,
+                    reference_section=reference_section,
+                )
+                raw = _call_gemini_text(prompt)
+
             data = _parse_json_response(raw)
             score = max(0, min(100, int(data.get("score", 0))))
             passed = bool(data.get("pass", False))
@@ -131,4 +164,7 @@ def evaluate_submission(
             last_error = e
             continue
 
+    err_msg = str(last_error) if last_error else "unknown error"
+    if "NO_API_KEY" in err_msg:
+        return EvaluationResult(score=0, passed=False, feedback=MANUAL_REVIEW_FEEDBACK, xp_awarded=0, raw="NO_API_KEY")
     return EvaluationResult(score=0, passed=False, feedback=MANUAL_REVIEW_FEEDBACK, xp_awarded=0, raw=f"ERROR: {last_error}")

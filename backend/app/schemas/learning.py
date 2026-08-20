@@ -41,6 +41,10 @@ class LearningPathResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CourseProgressUpdate(BaseModel):
+    progress: int
+
+
 class LearningPathProgressUpdate(BaseModel):
     progress: int
     completed_courses: Optional[int] = None

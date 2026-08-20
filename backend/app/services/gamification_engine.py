@@ -42,6 +42,33 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def ensure_profile(sb: Client, employee_id: str) -> dict:
+    """Create a gamification profile if the employee does not have one yet."""
+    result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
+    if result.data:
+        return result.data[0]
+
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        return {}
+
+    now = _utc_now().isoformat()
+    row = {
+        "id": str(uuid.uuid4()),
+        "employee_id": employee_id,
+        "level": 1,
+        "xp": 0,
+        "next_level_xp": _xp_for_level(2),
+        "total_xp_earned": 0,
+        "streak_days": 0,
+        "longest_streak": 0,
+        "title": _title_for_level(1),
+        "updated_at": now,
+    }
+    sb.table("gamification_profiles").insert(row).execute()
+    return row
+
+
 # ─── Core XP award ────────────────────────────────────────────
 
 def award_xp(
@@ -72,11 +99,10 @@ def award_xp(
         "emoji": emoji,
     }).execute()
 
-    # 2. Fetch current profile
-    result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
-    if not result.data:
+    # 2. Fetch current profile (auto-create so new employees can earn XP)
+    profile = ensure_profile(sb, employee_id)
+    if not profile:
         return {}
-    profile = result.data[0]
 
     now = _utc_now()
     new_xp = profile["xp"] + amount
@@ -264,11 +290,11 @@ def _fetch_context_value(sb: Client, employee_id: str, criteria_type: str):
             return 0
 
         elif criteria_type == "ai_readiness_score":
-            r = sb.table("ai_readiness_results").select("readiness_score").eq(
-                "employee_id", employee_id
-            ).order("created_at", desc=True).limit(1).execute()
+            # We do not persist a separate ai_readiness_results table.
+            # Use the employee profile confidence as the stable proxy for unlock rules.
+            r = sb.table("employees").select("ai_confidence").eq("id", employee_id).execute()
             if r.data:
-                return r.data[0].get("readiness_score", 0) or 0
+                return r.data[0].get("ai_confidence", 0) or 0
             return 0
 
         elif criteria_type == "profile_complete":

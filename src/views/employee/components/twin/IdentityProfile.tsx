@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Briefcase, Activity, Clock, Edit, CheckCircle2, Sparkles, Shield, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../../../components/ui/Dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
-import { useDigitalTwin } from '../../hooks/useDigitalTwin';
 
 interface IdentityProfileProps {
   profile: any;
   onUpdate: (updates: any) => void;
   twinHealth?: number;
+  gamification?: any;
 }
 
-export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth = 92 }) => {
-  const { gamification } = useDigitalTwin();
+export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpdate, twinHealth = 0, gamification = {} }) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState(profile);
+
+  useEffect(() => {
+    setEditForm(profile);
+  }, [profile, isEditOpen]);
 
   const handleSave = () => {
     onUpdate(editForm);

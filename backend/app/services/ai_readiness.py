@@ -104,7 +104,7 @@ EXTRACTION_SCHEMA = """{
 def analyze_ai_readiness(
     employee_id: str,
     sb: Client,
-    api_key: str,
+    api_key: str = "",
 ) -> AIReadinessResult:
     """
     Analyze employee's AI readiness using LLM or personalized data-driven analysis.
@@ -113,20 +113,28 @@ def analyze_ai_readiness(
     """
     # Fetch employee data for the specific user
     employee_data = _fetch_employee_data(employee_id, sb)
-
-    if not api_key:
-        return _calculate_user_readiness(employee_data)
-
-    # Prepare analysis context
-    analysis_context = _prepare_analysis_context(employee_data)
-    
-    # Call AI for analysis
+    # Always return data-driven scores from Supabase so the dashboard never hangs on Gemini.
     try:
-        ai_result = _call_ai_for_readiness(analysis_context, api_key)
-        return ai_result
+        from app.services.gemini_safe import ask_gemini_timed
+        analysis_context = _prepare_analysis_context(employee_data)
+        system_instruction = f"{SYSTEM_PROMPT}\n\nJSON SCHEMA:\n{EXTRACTION_SCHEMA}"
+        prompt = f"""{system_instruction}
+
+Analyze this employee's AI readiness based on their professional data:
+
+{analysis_context}
+
+Provide scores for each of the 8 AI readiness dimensions with specific reasoning. Respond with valid JSON matching the schema."""
+        raw = ask_gemini_timed(
+            prompt,
+            timeout=6,
+            fallback="",
+        )
+        if raw:
+            return _parse_ai_response(raw)
     except Exception as e:
-        print(f"AI readiness analysis failed: {e}")
-        return _calculate_user_readiness(employee_data)
+        print(f"AI readiness analysis failed or timed out: {e}")
+    return _calculate_user_readiness(employee_data)
 
 
 def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
@@ -143,12 +151,7 @@ def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
     knowledge_result = sb.table("knowledge_sources").select("*").eq("employee_id", employee_id).execute()
     knowledge_sources = knowledge_result.data or []
     
-    # Fetch employee profile
-    employee_result = sb.table("employees").select("*").eq("id", employee_id).execute()
-    employee = employee_result.data[0] if employee_result.data else {}
-    
     return {
-        "employee": employee,
         "skills": skills,
         "projects": projects,
         "knowledge_sources": knowledge_sources,
@@ -156,26 +159,22 @@ def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
 
 
 def _prepare_analysis_context(data: dict) -> str:
-    """Prepare the analysis context for the AI."""
-    employee = data.get("employee", {})
+    """Format employee data for AI prompt."""
     skills = data.get("skills", [])
     projects = data.get("projects", [])
     knowledge_sources = data.get("knowledge_sources", [])
     
-    context = f"""
-EMPLOYEE PROFILE:
-- Name: {employee.get('full_name', 'Unknown')}
-- Role: {employee.get('role', 'Unknown')}
-- Department: {employee.get('department', 'Unknown')}
-- Years of Experience: {employee.get('years_experience', 'Unknown')}
-
-SKILLS ({len(skills)}):
-"""
-    for skill in skills[:20]:  # Limit to top 20 skills
-        context += f"- {skill.get('name')} (Proficiency: {skill.get('proficiency', 'N/A')}, Category: {skill.get('category', 'N/A')})\n"
+    context = f"EMPLOYEE PROFILE OVERVIEW:\n"
+    context += f"- Total Skills: {len(skills)}\n"
+    context += f"- Total Projects: {len(projects)}\n"
+    context += f"- Total Knowledge Sources: {len(knowledge_sources)}\n\n"
+    
+    context += f"SKILLS ({len(skills)}):\n"
+    for skill in skills[:15]:  # Limit to top 15 skills
+        context += f"- {skill.get('name')} (Proficiency: {skill.get('proficiency', 0)}%, Category: {skill.get('category', 'N/A')})\n"
     
     context += f"\nPROJECTS ({len(projects)}):\n"
-    for project in projects[:10]:  # Limit to top 10 projects
+    for project in projects[:8]:  # Limit to top 8 projects
         context += f"- {project.get('name')} (Role: {project.get('role', 'N/A')}, Status: {project.get('status', 'N/A')})\n"
         if project.get('technologies'):
             context += f"  Technologies: {', '.join(project.get('technologies', []))}\n"
@@ -189,33 +188,24 @@ SKILLS ({len(skills)}):
     return context
 
 
-def _call_ai_for_readiness(context: str, api_key: str) -> AIReadinessResult:
+def _call_ai_for_readiness(context: str, api_key: str = "") -> AIReadinessResult:
     """Call AI to analyze AI readiness."""
     try:
-        from google import genai
-        from google.genai import types
+        from gemini_client import ask_gemini
 
-        client = genai.Client(api_key=api_key)
         system_instruction = f"{SYSTEM_PROMPT}\n\nJSON SCHEMA:\n{EXTRACTION_SCHEMA}"
 
-        user_prompt = f"""Analyze this employee's AI readiness based on their professional data:
+        user_prompt = f"""{system_instruction}
+
+Analyze this employee's AI readiness based on their professional data:
 
 {context}
 
-Provide scores for each of the 8 AI readiness dimensions with specific reasoning."""
+Provide scores for each of the 8 AI readiness dimensions with specific reasoning. Respond with valid JSON matching the schema."""
 
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-            ),
-        )
-        
-        return _parse_ai_response(response.text)
+        response_text = ask_gemini(user_prompt)
+        return _parse_ai_response(response_text)
 
-    except ImportError:
-        raise Exception("google-genai package not installed")
     except Exception as exc:
         raise Exception(f"AI call failed: {exc}")
 

@@ -4,33 +4,48 @@
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const CAREER_AI_TIMEOUT_MS = 120000;
 
 // Generic fetch wrapper with error handling
 async function fetchAPI<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { timeoutMs?: number } = {}
 ): Promise<T> {
+  const { timeoutMs = 15000, ...fetchOptions } = options;
   const url = `${API_BASE_URL}${endpoint}`;
   const token = localStorage.getItem('auth_token');
+  const isFormData = fetchOptions.body instanceof FormData;
 
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+    ...fetchOptions.headers,
   };
 
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const response = await fetch(url, { ...options, headers });
-    
+    const response = await fetch(url, { ...fetchOptions, headers, signal: controller.signal });
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(error.detail || `HTTP ${response.status}`);
+      const detail = error.detail;
+      const message = Array.isArray(detail)
+        ? detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ')
+        : (typeof detail === 'string' ? detail : `HTTP ${response.status}`);
+      throw new Error(message);
     }
 
     return response.json();
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Request timed out. The server may still be processing — refresh in a moment.');
+    }
     console.error(`API Error [${endpoint}]:`, error);
     throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
@@ -276,6 +291,8 @@ export interface GamificationProfile {
   total_xp_earned: number;
   company_rank?: number;
   department_rank?: number;
+  total_players?: number;
+  department_players?: number;
   streak_days: number;
   longest_streak: number;
   last_activity?: string;
@@ -329,7 +346,7 @@ export const gamificationAPI = {
     fetchAPI<any[]>(`/api/gamification/leaderboard${buildQueryString(params)}`),
   
   getChallenges: (employeeId: string) =>
-    fetchAPI<{ challenges: Challenge[]; progress: ChallengeProgress[] }>(`/api/gamification/${employeeId}/challenges`),
+    fetchAPI<Challenge[]>(`/api/gamification/${employeeId}/challenges`),
   
   updateChallengeProgress: (employeeId: string, challengeId: string, progress: number) =>
     fetchAPI<ChallengeProgress>(`/api/gamification/${employeeId}/challenges/${challengeId}/progress`, {
@@ -351,6 +368,12 @@ export const gamificationAPI = {
   
   getRewards: () =>
     fetchAPI<any[]>(`/api/gamification/rewards`),
+
+  getRewardClaims: (employeeId: string) =>
+    fetchAPI<string[]>(`/api/gamification/${employeeId}/reward-claims`),
+
+  getMissions: (employeeId: string) =>
+    fetchAPI<any[]>(`/api/gamification/${employeeId}/missions`),
   
   claimReward: (employeeId: string, rewardId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/rewards/${rewardId}/claim`, {
@@ -366,14 +389,33 @@ export const gamificationAPI = {
   getChallengeDetail: (employeeId: string, challengeId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/detail`),
 
-  submitStep: (employeeId: string, challengeId: string, stepId: string, content: string) =>
+  uploadSubmission: (employeeId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetchAPI<{ content: string; filename: string; storage_path: string; mime_type: string; is_image: boolean }>(
+      `/api/gamification/${employeeId}/submissions/upload`,
+      { method: 'POST', body: form, timeoutMs: 60000 }
+    );
+  },
+
+  submitStep: (employeeId: string, challengeId: string, stepId: string, content: string, storagePath?: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/steps/${stepId}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, storage_path: storagePath || null }),
+      timeoutMs: 90000,
     }),
     
   getPendingVerifications: () =>
     fetchAPI<any[]>(`/api/gamification/admin/pending-verifications`),
+
+  getPendingReviews: () =>
+    fetchAPI<any[]>(`/api/gamification/admin/pending-reviews`),
+
+  reviewSubmission: (submissionId: string, approve: boolean, score?: number, feedback?: string) =>
+    fetchAPI<any>(`/api/gamification/admin/review-submission`, {
+      method: 'POST',
+      body: JSON.stringify({ submission_id: submissionId, approve, score, feedback }),
+    }),
     
   verifyChallenge: (employeeId: string, challengeId: string, approve: boolean) =>
     fetchAPI<any>(`/api/gamification/admin/verify-challenge`, {
@@ -480,6 +522,9 @@ export const learningAPI = {
   
   getHours: (employeeId: string) =>
     fetchAPI<any>(`/api/learning/${employeeId}/hours`),
+
+  generatePaths: (employeeId: string) =>
+    fetchAPI<LearningPath[]>(`/api/learning/${employeeId}/paths/generate`, { method: 'POST' }),
 };
 
 // ==================== CAREER ====================
@@ -488,57 +533,220 @@ export interface CareerGoal {
   id: string;
   employee_id: string;
   target_role: string;
-  timeline: string;
-  focus_area: string;
-  target_industry: string;
+  timeline?: string;
+  focus_area?: string;
+  target_industry?: string;
   readiness_score: number;
+  visible_to_manager: boolean;
   is_active: boolean;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  roadmap_steps: CareerRoadmapStep[];
 }
 
-export interface RoadmapStep {
+export interface CareerRoadmapStep {
   id: string;
   career_goal_id: string;
   step_order: number;
   title: string;
   status: string;
+  description?: string;
+  step_type: string;
+  related_skill_gap_id?: string | null;
+  requires_evidence: boolean;
+  evidence_type?: string | null;
+  estimated_hours: number;
+  xp_reward: number;
+  due_window?: string | null;
+  evidence_submitted: boolean;
+  completed_at?: string | null;
+}
+
+export interface ReadinessComponent {
+  id: string;
+  goal_id: string;
+  name: string;
+  score: number;
+  weight: number;
+  explanation: string;
+}
+
+export interface CareerSkillGap {
+  id: string;
+  goal_id: string;
+  skill: string;
+  current_level: number;
+  target_level: number;
+  gap: number;
+  recommended_path: string;
+  estimated_hours: number;
+  status: string;
+  path_type: string;
+  priority: string;
+  category?: string | null;
+  evidence_count: number;
+}
+
+export interface CareerInternalRole {
+  role_id: string;
+  title: string;
+  department?: string | null;
+  is_open: boolean;
+  overall_fit_pct: number;
+  missing_requirements: string[];
+  matched_skills: string[];
+  eligibility_summary: string;
+}
+
+export interface CareerMentorMatch {
+  id: string;
+  employee_id: string;
+  mentor_employee_id: string;
+  mentor_name: string;
+  mentor_role?: string | null;
+  mentor_department?: string | null;
+  shared_target_role?: string | null;
+  shared_skill?: string | null;
+  match_reason: string;
+  intro_requested: boolean;
+}
+
+export interface CareerMarketTrend {
+  skill: string;
+  category: string;
+  trend: string;
+  implication: string;
+}
+
+export interface CareerNextAction {
+  title: string;
   description: string;
+  action_type: string;
+  target_id?: string | null;
+  estimated_hours: number;
+  xp_reward: number;
+}
+
+export interface CareerStallFlag {
+  id: string;
+  employee_id: string;
+  goal_id: string;
+  last_progress_at: string;
+  flagged_at: string;
+  resolved: boolean;
+  message: string;
+}
+
+export interface CareerEvidenceSubmission {
+  id: string;
+  employee_id: string;
+  skill_gap_id?: string | null;
+  roadmap_step_id?: string | null;
+  evidence_type: string;
+  description?: string | null;
+  file_ref?: string | null;
+  status: string;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  xp_awarded: number;
+  created_at?: string | null;
+}
+
+export interface CareerAnalysis {
+  goal?: CareerGoal | null;
+  readiness_score: number;
+  readiness_band: string;
+  readiness_explanation: string;
+  readiness_components: ReadinessComponent[];
+  skill_gaps: CareerSkillGap[];
+  roadmap_steps: CareerRoadmapStep[];
+  internal_roles: CareerInternalRole[];
+  mentors: CareerMentorMatch[];
+  market_trends: CareerMarketTrend[];
+  next_action?: CareerNextAction | null;
+  stall_flag?: CareerStallFlag | null;
+  summary: string;
+  strengths: string[];
+  blockers: string[];
+  xp_total: number;
 }
 
 export const careerAPI = {
   getGoal: (employeeId: string) =>
-    fetchAPI<CareerGoal>(`/api/career/${employeeId}/goal`),
+    fetchAPI<CareerGoal>(`/api/career/${employeeId}/goal`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
   
-  setGoal: (employeeId: string, data: Omit<CareerGoal, 'id' | 'employee_id' | 'readiness_score' | 'created_at' | 'updated_at'>) =>
+  setGoal: (employeeId: string, data: {
+    target_role: string;
+    timeline?: string;
+    focus_area?: string;
+    target_industry?: string;
+    visible_to_manager?: boolean;
+  }) =>
     fetchAPI<CareerGoal>(`/api/career/${employeeId}/goal`, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeoutMs: CAREER_AI_TIMEOUT_MS,
     }),
     
-  getAnalysis: (employeeId: string) =>
-    fetchAPI<any>(`/api/career/${employeeId}/analysis`),
+  getAnalysis: (employeeId: string, refresh = false) =>
+    fetchAPI<CareerAnalysis>(`/api/career/${employeeId}/analysis${refresh ? '?refresh=true' : ''}`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
     
   chat: (employeeId: string, message: string, history: any[] = []) =>
-    fetchAPI<{response: string}>(`/api/career/${employeeId}/chat`, {
+    fetchAPI<{response: string; grounding_points: string[]}>(`/api/career/${employeeId}/chat`, {
       method: 'POST',
       body: JSON.stringify({ message, history }),
+      timeoutMs: CAREER_AI_TIMEOUT_MS,
     }),
-  
-  getRoadmap: (employeeId: string) =>
-    fetchAPI<RoadmapStep[]>(`/api/career/${employeeId}/roadmap`),
-  
-  getSkillGaps: (employeeId: string) =>
-    fetchAPI<any>(`/api/career/${employeeId}/skill-gaps`),
-  
-  getRecommendations: (employeeId: string) =>
-    fetchAPI<any[]>(`/api/career/${employeeId}/recommendations`),
-  
-  getMarketTrends: () =>
-    fetchAPI<any>('/api/career/market-trends'),
-  
-  computeReadiness: (employeeId: string) =>
-    fetchAPI<{ readiness_score: number; gap_areas: any[] }>(`/api/career/${employeeId}/readiness`, {
+
+  updateRoadmapStep: (stepId: string, status: string, evidenceId?: string) =>
+    fetchAPI<{ id: string; status: string; analysis: CareerAnalysis }>(`/api/career/roadmap/${stepId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status, evidence_id: evidenceId || null }),
+      timeoutMs: CAREER_AI_TIMEOUT_MS,
+    }),
+
+  submitEvidence: (
+    employeeId: string,
+    data: {
+      skill_gap_id?: string;
+      roadmap_step_id?: string;
+      evidence_type: string;
+      description?: string;
+      file?: File | null;
+    }
+  ) => {
+    const form = new FormData();
+    if (data.skill_gap_id) form.append('skill_gap_id', data.skill_gap_id);
+    if (data.roadmap_step_id) form.append('roadmap_step_id', data.roadmap_step_id);
+    form.append('evidence_type', data.evidence_type);
+    if (data.description) form.append('description', data.description);
+    if (data.file) form.append('file', data.file);
+    return fetchAPI<CareerEvidenceSubmission>(`/api/career/${employeeId}/evidence`, {
+      method: 'POST',
+      body: form,
+      timeoutMs: 60000,
+    });
+  },
+
+  getInternalRoles: (employeeId: string) =>
+    fetchAPI<CareerInternalRole[]>(`/api/career/${employeeId}/internal-roles`),
+
+  getMentors: (employeeId: string) =>
+    fetchAPI<CareerMentorMatch[]>(`/api/career/${employeeId}/mentors`),
+
+  requestMentorIntro: (employeeId: string, mentorId: string) =>
+    fetchAPI<{ status: string; mentor_match: CareerMentorMatch }>(`/api/career/${employeeId}/mentors/${mentorId}/request-intro`, {
+      method: 'POST',
+    }),
+
+  updateVisibility: (employeeId: string, visible_to_manager: boolean) =>
+    fetchAPI<CareerGoal>(`/api/career/${employeeId}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visible_to_manager }),
+    }),
+
+  scanStallFlags: (days = 14) =>
+    fetchAPI<{ scanned_goals: number; flagged_goals: number; resolved_goals: number; flags: CareerStallFlag[] }>(`/api/career/stall-flags/scan?days=${days}`, {
       method: 'POST',
     }),
 };

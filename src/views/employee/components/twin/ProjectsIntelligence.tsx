@@ -184,7 +184,7 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
 
         <TabsContent value="current" className="m-0 space-y-4">
           {projects.current.map((project: any) => {
-            const statusStyle = STATUS_STYLES[project.status] || STATUS_STYLES['Behind'];
+            const statusStyle = STATUS_STYLES[project.status] || STATUS_STYLES['On Track'];
             return (
               <div
                 key={project.id}
@@ -203,9 +203,9 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                     <div style={{
                       width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: project.status === 'At Risk' ? 'rgba(239,68,68,0.15)' : project.successScore > 85 ? 'rgba(16,185,129,0.15)' : 'rgba(124,58,237,0.15)',
-                      color: project.status === 'At Risk' ? '#ef4444' : project.successScore > 85 ? '#10b981' : '#a78bfa',
-                      border: `1px solid ${project.status === 'At Risk' ? 'rgba(239,68,68,0.25)' : project.successScore > 85 ? 'rgba(16,185,129,0.25)' : 'rgba(124,58,237,0.25)'}`,
+                      background: statusStyle.bg,
+                      color: statusStyle.color,
+                      border: `1px solid ${statusStyle.border}`,
                     }}>
                       {project.status === 'At Risk' ? <AlertTriangle size={15} /> : <TrendingUp size={15} />}
                     </div>
@@ -240,14 +240,6 @@ export const ProjectsIntelligence: React.FC<ProjectsIntelligenceProps> = ({ proj
                           {project.role}
                         </span>
                       </div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: '24px', fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>
-                      {project.successScore}%
-                    </div>
-                    <div style={{ fontSize: '9px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '2px' }}>
-                      Predicted Success
                     </div>
                   </div>
                 </div>

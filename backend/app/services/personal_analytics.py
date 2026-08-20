@@ -5,7 +5,6 @@ Analyzes employee data from documents, projects, and skills to generate insights
 
 from typing import Dict, List, Any
 from supabase import Client
-from google import genai
 import json
 import os
 
@@ -280,44 +279,32 @@ def generate_rule_based_analytics(employee_id: str, sb: Client) -> AnalyticsResp
     )
 
 
-def process_analytics(employee_id: str, sb: Client, api_key: str) -> AnalyticsResponse:
+def process_analytics(employee_id: str, sb: Client, api_key: str = "") -> AnalyticsResponse:
     """
     Process personal analytics using AI to generate insights from employee data.
     """
-    if not api_key:
-        return generate_rule_based_analytics(employee_id, sb)
-    
     # Build context
     context = build_analytics_context(employee_id, sb)
     
-    # Initialize Gemini client
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=api_key)
-    
     # Create prompt
-    prompt = f"""EMPLOYEE DATA FOR ANALYSIS:
+    prompt = f"""{SYSTEM_PROMPT}
+
+EMPLOYEE DATA FOR ANALYSIS:
 {context}
 
 Based on this employee data, generate comprehensive personal analytics including:
 1. Key insights about productivity, skills, projects, and growth areas
 2. Productivity trends over the last 6 months (estimate based on project timeline)
 3. Skill growth analysis for top skills
-4. Actionable recommendations for improvementProvide response in the specified JSON format."""
+4. Actionable recommendations for improvement
+
+Provide response strictly in valid JSON format."""
     
     try:
-        # Call Gemini API
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-            ),
-        )
-        
-        # Parse response
-        result_text = response.text
+        from app.services.gemini_safe import ask_gemini_timed
+        result_text = ask_gemini_timed(prompt, timeout=6, fallback="")
+        if not result_text:
+            raise Exception("Gemini timeout")
         # Extract JSON from response (in case there's extra text)
         json_start = result_text.find('{')
         json_end = result_text.rfind('}') + 1
@@ -374,16 +361,8 @@ Based on this employee data, generate comprehensive personal analytics including
         )
         
     except Exception as e:
-        # Return error response
-        return AnalyticsResponse(
-            insights=[
-                AnalyticsInsight("Error", "Analysis Failed", f"Failed to generate analytics: {str(e)}", "High", False)
-            ],
-            productivity_trends=[],
-            skill_growth=[],
-            recommendations=["Please try again later"],
-            overall_score=0,
-        )
+        print(f"[personal_analytics] Gemini analysis failed, using rule-based fallback: {e}")
+        return generate_rule_based_analytics(employee_id, sb)
 
 
 # ─── Response Formatting ───────────────────────────────────────

@@ -4,11 +4,14 @@ Digital Twin v3 — FastAPI Application Entry Point
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+import httpcore
+import httpx
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.database import get_supabase_admin
+from app.database import get_supabase_admin, reset_supabase_clients
 
 # Import all routers
 from app.routers import auth, employees, gamification, learning, career, organization
@@ -37,6 +40,31 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(httpx.HTTPError)
+async def handle_httpx_errors(_: Request, exc: httpx.HTTPError):
+    """Gracefully surface transient Supabase/network failures."""
+    reset_supabase_clients()
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Backend data service is temporarily unavailable. Please retry.",
+            "error_type": exc.__class__.__name__,
+        },
+    )
+
+
+@app.exception_handler(httpcore.ProtocolError)
+async def handle_httpcore_protocol_errors(_: Request, exc: httpcore.ProtocolError):
+    reset_supabase_clients()
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Database connection was interrupted. Please retry.",
+            "error_type": exc.__class__.__name__,
+        },
+    )
 
 # CORS middleware — allow the React frontend to connect
 app.add_middleware(

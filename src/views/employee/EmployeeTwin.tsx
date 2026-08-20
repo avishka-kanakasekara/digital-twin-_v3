@@ -7,11 +7,13 @@ import { EmployeeSelector } from '../../components/EmployeeSelector';
 // Components
 import { IdentityProfile } from './components/twin/IdentityProfile';
 import { SkillsIntelligence } from './components/twin/SkillsIntelligence';
-import { AIReadiness } from './components/twin/AIReadiness';
 import { KnowledgeSources } from './components/twin/KnowledgeSources';
 import { ProjectsIntelligence } from './components/twin/ProjectsIntelligence';
 import { PersonalAnalytics } from './components/twin/PersonalAnalytics';
 import { GamificationBoard } from './components/twin/GamificationBoard';
+import { TwinSummary } from './components/twin/TwinSummary';
+import { CollaborationIntelligence } from './components/twin/CollaborationIntelligence';
+import { AIRecommendations } from './components/twin/AIRecommendations';
 
 
 const EmployeeTwin: React.FC = () => {
@@ -22,11 +24,12 @@ const EmployeeTwin: React.FC = () => {
     profile, updateProfile,
     projects, addProject, updateProjectProgress, deleteProject,
     getProjectTasks, addTask, updateTask, deleteTask,
-    knowledge, uploadKnowledgeSource, refreshAllData, refreshAIReadiness,
+    knowledge, uploadKnowledgeSource, refreshAllData,
     gamification, completeMission,
     updateSkill, deleteSkill,
-    skillsData, aiReadiness,
-    personalAnalytics, personalAnalyticsAI
+    skillsData, twinSummary,
+    personalAnalytics, personalAnalyticsAI,
+    collaborationIntel, aiRecommendations
   } = useDigitalTwin();
 
   return (
@@ -103,7 +106,12 @@ const EmployeeTwin: React.FC = () => {
       <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8 space-y-6">
 
         {/* Row 1: Hero Profile */}
-        <IdentityProfile profile={profile} onUpdate={updateProfile} />
+        <IdentityProfile
+          profile={profile}
+          onUpdate={updateProfile}
+          twinHealth={(twinSummary as any)?.twinHealth || (twinSummary as any)?.twin_health || Math.round((twinSummary as any)?.aiConfidence || 0)}
+          gamification={gamification}
+        />
 
         {/* Row 2: Asymmetric Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -118,7 +126,9 @@ const EmployeeTwin: React.FC = () => {
 
           {/* Right Column — Sidebar (4 cols) */}
           <div className="lg:col-span-4 space-y-6">
-            <AIReadiness data={aiReadiness} onRefresh={refreshAIReadiness} />
+            <TwinSummary summary={twinSummary} />
+            <AIRecommendations recommendations={aiRecommendations || []} />
+            <CollaborationIntelligence intel={collaborationIntel} />
             <KnowledgeSources
               sources={knowledge}
               onUpload={uploadKnowledgeSource}

@@ -186,7 +186,7 @@ class ChallengeCreateWithSteps(BaseModel):
     type: str = "weekly"
     difficulty: str = "Medium"
     category: str = "Learning"
-    end_date: str
+    end_date: Optional[str] = None
     bonus_badge: Optional[str] = "🎯"
     color: str = "#7c3aed"
     is_active: bool = True
@@ -195,7 +195,15 @@ class ChallengeCreateWithSteps(BaseModel):
 
 
 class SubmitStepRequest(BaseModel):
-    content: str           # text / URL / code / file-URL
+    content: str           # text / URL / code / extracted file text
+    storage_path: Optional[str] = None  # server-side upload path for image/file evaluation
+
+
+class ManualReviewRequest(BaseModel):
+    submission_id: str
+    approve: bool
+    score: Optional[int] = None
+    feedback: Optional[str] = None
 
 
 class EvaluationResponse(BaseModel):

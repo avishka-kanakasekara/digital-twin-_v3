@@ -24,18 +24,43 @@ const STEP_STATUS_CONFIG: Record<string, { label: string; color: string; bg: str
   manual_review:  { label: 'Under Review',   color: '#9333ea',               bg: '#f3e8ff' },
 };
 
+const defaultChallengeForm = () => ({
+  title: '', description: '', type: 'weekly', difficulty: 'Medium',
+  category: 'Learning', end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+  bonus_badge: '🎯', color: '#7c3aed', is_active: true,
+});
+
+const defaultStep = () => ({ title: '', instructions: '', submission_type: 'text', evaluation_rubric: '', xp_value: 200, reference_url: '' });
+
+const HubNotice: React.FC<{ type: 'success' | 'error' | 'info'; message: string; onDismiss?: () => void }> = ({ type, message, onDismiss }) => (
+  <div className={`hub-notice hub-notice-${type}`}>
+    {type === 'success' ? <CheckCircle2 size={16} /> : type === 'error' ? <AlertCircle size={16} /> : <Loader2 size={16} />}
+    <span className="flex-1">{message}</span>
+    {onDismiss && (
+      <button type="button" onClick={onDismiss} className="p-1 hover:opacity-70"><X size={14} /></button>
+    )}
+  </div>
+);
+
 // ─── Create Challenge Modal (with step builder) ───────────────
-const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onCreated: () => void }> = ({ isOpen, onClose, onCreated }) => {
-  const defaultStep = () => ({ title: '', instructions: '', submission_type: 'text', evaluation_rubric: '', xp_value: 200, reference_url: '' });
-  const [formData, setFormData] = useState({
-    title: '', description: '', type: 'weekly', difficulty: 'Medium',
-    category: 'Learning', end_date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-    bonus_badge: '🎯', color: '#7c3aed', is_active: true
-  });
+const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onCreated: () => void; onNotice: (msg: string, type: 'success' | 'error') => void }> = ({ isOpen, onClose, onCreated, onNotice }) => {
+  const [formData, setFormData] = useState(defaultChallengeForm());
   const [steps, setSteps] = useState([defaultStep()]);
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const totalXP = steps.reduce((sum, s) => sum + (Number(s.xp_value) || 0), 0);
+
+  const resetForm = () => {
+    setFormData(defaultChallengeForm());
+    setSteps([defaultStep()]);
+    setFormError(null);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    resetForm();
+  }, [isOpen]);
 
   const addStep = () => setSteps(prev => [...prev, defaultStep()]);
   const removeStep = (i: number) => setSteps(prev => prev.filter((_, idx) => idx !== i));
@@ -44,10 +69,20 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (steps.length === 0) { alert('Add at least one step.'); return; }
-    for (const s of steps) {
-      if (!s.title || !s.instructions || !s.evaluation_rubric) {
-        alert('Every step needs a title, instructions, and evaluation rubric.'); return;
+    setFormError(null);
+    if (!formData.title.trim() || !formData.description.trim()) {
+      setFormError('Title and description are required.');
+      return;
+    }
+    if (steps.length === 0) {
+      setFormError('Add at least one step.');
+      return;
+    }
+    for (let i = 0; i < steps.length; i++) {
+      const s = steps[i];
+      if (!s.title.trim() || !s.instructions.trim() || !s.evaluation_rubric.trim()) {
+        setFormError(`Step ${i + 1} needs a title, instructions, and evaluation rubric.`);
+        return;
       }
     }
     setLoading(true);
@@ -57,12 +92,13 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
         end_date: new Date(formData.end_date).toISOString(),
         steps: steps.map((s, i) => ({ ...s, step_order: i + 1, xp_value: Number(s.xp_value) || 200 })),
       });
+      onNotice(`Challenge created with ${totalXP.toLocaleString()} XP across ${steps.length} step(s).`, 'success');
       onCreated();
+      resetForm();
       onClose();
-      setSteps([defaultStep()]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create challenge', err);
-      alert('Failed to create challenge. Check console.');
+      setFormError(err?.message || 'Failed to create challenge.');
     } finally {
       setLoading(false);
     }
@@ -71,6 +107,7 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Create New Challenge">
       <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
+        {formError && <HubNotice type="error" message={formError} onDismiss={() => setFormError(null)} />}
         {/* — Challenge metadata — */}
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
@@ -187,14 +224,24 @@ const ChallengeDetailDrawer: React.FC<{
   const [loading, setLoading] = useState(true);
   const [activeStep, setActiveStep] = useState<any>(null);
   const [submitContent, setSubmitContent] = useState('');
+  const [storagePath, setStoragePath] = useState<string | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadDetail = () => {
     setLoading(true);
+    setLoadError(null);
     gamificationAPI.getChallengeDetail(employeeId, challengeId)
       .then(d => { setDetail(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err: any) => {
+        setLoadError(err?.message || 'Could not load challenge details.');
+        setLoading(false);
+      });
   };
 
   useEffect(() => { loadDetail(); }, [challengeId, employeeId]);
@@ -204,10 +251,13 @@ const ChallengeDetailDrawer: React.FC<{
     setSubmitting(true);
     setEvalResult(null);
     try {
-      const result = await gamificationAPI.submitStep(employeeId, challengeId, activeStep.id, submitContent);
+      const result = await gamificationAPI.submitStep(
+        employeeId, challengeId, activeStep.id, submitContent, storagePath || undefined
+      );
       setEvalResult(result);
       setSubmitContent('');
-      // Reload to reflect new statuses
+      setStoragePath(null);
+      setUploadedFileName(null);
       loadDetail();
       onProgressUpdate();
     } catch (err: any) {
@@ -218,7 +268,42 @@ const ChallengeDetailDrawer: React.FC<{
     }
   };
 
-  const openStep = (step: any) => { setActiveStep(step); setEvalResult(null); setSubmitContent(''); };
+  const handleFileUpload = async (file: File) => {
+    if (!activeStep) return;
+    setUploading(true);
+    setEvalResult(null);
+    try {
+      const result = await gamificationAPI.uploadSubmission(employeeId, file);
+      setSubmitContent(result.content);
+      setStoragePath(result.storage_path);
+      setUploadedFileName(result.filename);
+    } catch (err: any) {
+      setEvalResult({ error: err?.message || 'Upload failed.' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileUpload(file);
+    e.target.value = '';
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const openStep = (step: any) => {
+    setActiveStep(step);
+    setEvalResult(null);
+    setSubmitContent('');
+    setStoragePath(null);
+    setUploadedFileName(null);
+  };
 
   const DIFF_COLORS: Record<string, string> = { Easy: 'var(--color-success)', Medium: 'var(--color-warning)', Hard: 'var(--color-danger)' };
 
@@ -242,7 +327,11 @@ const ChallengeDetailDrawer: React.FC<{
         {loading ? (
           <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
         ) : !detail ? (
-          <div className="flex-1 flex items-center justify-center text-secondary text-sm">Could not load challenge details.</div>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <AlertCircle className="text-danger" size={28} />
+            <p className="text-sm text-secondary">{loadError || 'Could not load challenge details.'}</p>
+            <button onClick={loadDetail} className="text-xs font-bold text-primary px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5">Retry</button>
+          </div>
         ) : activeStep ? (
           /* ── Step submission view ── */
           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5">
@@ -288,9 +377,9 @@ const ChallengeDetailDrawer: React.FC<{
 
             {/* New evaluation result */}
             {evalResult && !evalResult.error && (
-              <div className={`p-4 rounded-xl border animate-fade-in ${evalResult.passed ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20'}`}>
-                <h4 className="text-xs font-extrabold uppercase tracking-wider mb-2" style={{ color: evalResult.passed ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                  {evalResult.passed ? '🎯 Passed!' : '❌ Not quite — try again'}
+              <div className={`p-4 rounded-xl border animate-fade-in ${evalResult.passed || evalResult.status === 'manual_review' ? 'bg-success/5 border-success/20' : 'bg-danger/5 border-danger/20'}`}>
+                <h4 className="text-xs font-extrabold uppercase tracking-wider mb-2" style={{ color: evalResult.passed ? 'var(--color-success)' : evalResult.status === 'manual_review' ? '#9333ea' : 'var(--color-danger)' }}>
+                  {evalResult.status === 'manual_review' ? '⏳ Sent for manual review' : evalResult.passed ? '🎯 Passed!' : '❌ Not quite — try again'}
                 </h4>
                 <p className="text-sm leading-relaxed text-secondary mb-3">{evalResult.feedback}</p>
                 <div className="flex items-center gap-4 text-xs font-bold">
@@ -310,7 +399,7 @@ const ChallengeDetailDrawer: React.FC<{
             )}
 
             {/* Submission form — only if not already passed */}
-            {activeStep.status !== 'passed' && (
+            {activeStep.status !== 'passed' && activeStep.status !== 'manual_review' && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-secondary uppercase tracking-wider">Your Submission</label>
@@ -322,14 +411,49 @@ const ChallengeDetailDrawer: React.FC<{
                     className="w-full input-field resize-y font-mono text-xs"
                     value={submitContent}
                     onChange={e => setSubmitContent(e.target.value)}
-                    placeholder={`// Paste your ${activeStep.submission_type} here...`}
+                    placeholder="// Paste your code here..."
+                    disabled={submitting || uploading}
                   />
                 ) : activeStep.submission_type === 'link' ? (
-                  <input type="url" className="w-full input-field" value={submitContent} onChange={e => setSubmitContent(e.target.value)} placeholder="https://..." />
+                  <input type="url" className="w-full input-field" value={submitContent} onChange={e => setSubmitContent(e.target.value)} placeholder="https://..." disabled={submitting || uploading} />
                 ) : activeStep.submission_type === 'file' || activeStep.submission_type === 'image' ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs text-tertiary">Upload your file and paste the public URL here. (Use any file host, e.g. Google Drive share link)</p>
-                    <input type="url" className="w-full input-field" value={submitContent} onChange={e => setSubmitContent(e.target.value)} placeholder="https://drive.google.com/..." />
+                  <div className="flex flex-col gap-3">
+                    <input ref={fileInputRef} type="file" className="hidden" accept={activeStep.submission_type === 'image' ? 'image/*' : undefined} onChange={onFileInputChange} />
+                    <div
+                      className={`upload-dropzone ${dragOver ? 'drag-over' : ''}`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={onDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {uploading ? (
+                        <div className="flex flex-col items-center gap-2 text-primary"><Loader2 className="animate-spin" size={24} /><span className="text-xs font-bold">Uploading…</span></div>
+                      ) : (
+                        <>
+                          <Upload size={24} className="mx-auto mb-2 text-tertiary" />
+                          <p className="text-sm font-bold text-primary">Drop file here or click to upload</p>
+                          <p className="text-[11px] text-tertiary mt-1">Images, PDF, code, or text files up to 10MB</p>
+                        </>
+                      )}
+                    </div>
+                    {uploadedFileName && (
+                      <div className="flex items-center gap-2 text-xs font-bold text-success bg-success/10 border border-success/20 rounded-lg px-3 py-2">
+                        <CheckCircle2 size={14} /> {uploadedFileName} ready to submit
+                        <button type="button" className="ml-auto text-tertiary hover:text-danger" onClick={() => { setUploadedFileName(null); setStoragePath(null); setSubmitContent(''); }}>
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
+                    {(activeStep.submission_type === 'file' || activeStep.submission_type === 'image') && (
+                      <textarea
+                        rows={4}
+                        className="w-full input-field resize-y text-xs"
+                        value={submitContent}
+                        onChange={e => setSubmitContent(e.target.value)}
+                        placeholder="Add notes or paste supporting text (required after upload)…"
+                        disabled={submitting || uploading}
+                      />
+                    )}
                   </div>
                 ) : (
                   <textarea
@@ -338,16 +462,24 @@ const ChallengeDetailDrawer: React.FC<{
                     value={submitContent}
                     onChange={e => setSubmitContent(e.target.value)}
                     placeholder="Write your response here…"
+                    disabled={submitting || uploading}
                   />
                 )}
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || !submitContent.trim()}
+                  disabled={submitting || uploading || !submitContent.trim()}
                   className="w-full py-3 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {submitting ? <><Loader2 size={16} className="animate-spin" /> Evaluating with AI…</> : 'Submit for AI Evaluation'}
                 </button>
-                <p className="text-[10px] text-tertiary text-center">Your submission will be graded immediately by AI against the step's rubric.</p>
+                <p className="text-[10px] text-tertiary text-center">Evaluation may take up to a minute. Do not close this panel while submitting.</p>
+              </div>
+            )}
+            {activeStep.status === 'manual_review' && (
+              <div className="p-4 rounded-xl bg-purple-50 border border-purple-200 text-center">
+                <Loader2 className="mx-auto text-purple-600 mb-2 animate-spin" size={28} />
+                <p className="text-sm font-bold text-purple-800">Under admin review</p>
+                <p className="text-xs text-purple-600 mt-1">An admin will grade your submission shortly. You'll see results here once reviewed.</p>
               </div>
             )}
             {activeStep.status === 'passed' && (
@@ -398,7 +530,6 @@ const ChallengeDetailDrawer: React.FC<{
               )}
               {(detail.steps || []).map((step: any) => {
                 const cfg = STEP_STATUS_CONFIG[step.status] || STEP_STATUS_CONFIG.not_started;
-                const canSubmit = step.status !== 'passed';
                 return (
                   <button
                     key={step.id}
@@ -448,21 +579,26 @@ const DIFF_COLORS: Record<string, string> = { Easy: 'var(--color-success)', Medi
 
 // ─── XP Hero Banner ───────────────────────────────────────────
 const XPProgressBar: React.FC = () => {
-  const { currentEmployee } = useEmployee();
+  const { currentEmployee, loading: employeeLoading } = useEmployee();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentEmployee) return;
-    gamificationAPI.getProfile(currentEmployee.id).then(gamData => {
-      setProfile({ ...gamData, name: currentEmployee.full_name });
+    if (employeeLoading) return;
+    if (!currentEmployee) {
       setLoading(false);
-    });
-  }, [currentEmployee]);
+      return;
+    }
+    gamificationAPI.getProfile(currentEmployee.id)
+      .then(gamData => setProfile({ ...gamData, name: currentEmployee.full_name }))
+      .catch(() => setProfile(null))
+      .finally(() => setLoading(false));
+  }, [currentEmployee, employeeLoading]);
 
-  if (loading || !profile) return <Card className="glass-panel p-6 flex justify-center"><Loader2 className="animate-spin text-primary" /></Card>;
+  if (loading) return <Card className="glass-panel p-6 flex justify-center"><Loader2 className="animate-spin text-primary" /></Card>;
+  if (!profile) return <Card className="glass-panel p-6 text-sm text-slate-500">Could not load your gamification profile. The backend will create one on first visit — try refresh.</Card>;
 
-  const pct = (profile.xp / profile.next_level_xp) * 100;
+  const pct = profile.next_level_xp ? Math.min(100, (profile.xp / profile.next_level_xp) * 100) : 0;
   
   const quickStats = [
     { label: 'Company Rank', value: `#${profile.company_rank}`, icon: <Crown size={14} />, color: '#f59e0b' },
@@ -562,10 +698,10 @@ const Leaderboard: React.FC = () => {
 
   useEffect(() => {
     if (!currentEmployee) return;
-    gamificationAPI.getLeaderboard({ limit: 10, current_employee_id: currentEmployee.id }).then(setLeaderboard);
+    gamificationAPI.getLeaderboard({ limit: 10, current_employee_id: currentEmployee.id }).then(setLeaderboard).catch(() => setLeaderboard([]));
   }, [currentEmployee]);
 
-  if (!leaderboard.length) return null;
+  if (!leaderboard.length) return <p className="text-sm text-slate-500 py-4">No leaderboard data yet. Earn XP to appear here.</p>;
 
   return (
     <div className="flex flex-col gap-3">
@@ -605,18 +741,32 @@ const Leaderboard: React.FC = () => {
   );
 };
 
-const Challenges: React.FC<{ onOpenDetail: (id: string) => void }> = ({ onOpenDetail }) => {
+const Challenges: React.FC<{ onOpenDetail: (id: string) => void; refreshKey?: number }> = ({ onOpenDetail, refreshKey = 0 }) => {
   const { currentEmployee } = useEmployee();
   const [challenges, setChallenges] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadChallenges = () => {
     if (!currentEmployee) return;
-    gamificationAPI.getChallenges(currentEmployee.id).then(data => setChallenges(Array.isArray(data) ? data : data?.challenges || []));
+    setLoading(true);
+    setError(null);
+    gamificationAPI.getChallenges(currentEmployee.id)
+      .then(data => setChallenges(Array.isArray(data) ? data : (data as { challenges?: any[] })?.challenges || []))
+      .catch((err: any) => {
+        setError(err?.message || 'Failed to load challenges');
+        setChallenges([]);
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
     loadChallenges();
-  }, [currentEmployee]);
+  }, [currentEmployee, refreshKey]);
+
+  if (loading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" size={28} /></div>;
+  if (error) return <HubNotice type="error" message={error} />;
+  if (!challenges.length) return <p className="text-sm text-slate-500 py-4">No active challenges. Create one from the Challenges tab.</p>;
 
   return (
     <div className="grid grid-cols-1 gap-4">
@@ -680,12 +830,91 @@ const Challenges: React.FC<{ onOpenDetail: (id: string) => void }> = ({ onOpenDe
   );
 };
 
+// ─── Admin Manual Reviews ─────────────────────────────────────
+const AdminManualReviews: React.FC<{ refreshKey: number; onReviewed: () => void }> = ({ refreshKey, onReviewed }) => {
+  const [pending, setPending] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    gamificationAPI.getPendingReviews()
+      .then(setPending)
+      .catch((err: any) => setError(err?.message || 'Could not load pending reviews'))
+      .finally(() => setLoading(false));
+  }, [refreshKey]);
+
+  if (loading) return null;
+  if (error) return <HubNotice type="error" message={error} />;
+  if (pending.length === 0) return null;
+
+  const handleReview = async (submissionId: string, approve: boolean, score?: number) => {
+    setReviewingId(submissionId);
+    try {
+      await gamificationAPI.reviewSubmission(submissionId, approve, score);
+      setPending(prev => prev.filter(p => p.id !== submissionId));
+      onReviewed();
+    } catch (err: any) {
+      setError(err?.message || 'Review failed');
+    } finally {
+      setReviewingId(null);
+    }
+  };
+
+  return (
+    <Card className="glass-panel p-6 flex flex-col gap-4 border border-purple-200 bg-purple-50/50">
+      <h3 className="text-lg font-extrabold text-purple-800 flex items-center gap-3 border-b border-purple-200 pb-3">
+        <div className="p-2 bg-white rounded-lg border border-purple-200 shadow-sm text-purple-700"><AlertCircle size={20} /></div>
+        Admin: Manual Review Queue ({pending.length})
+      </h3>
+      <div className="grid grid-cols-1 gap-3">
+        {pending.map((p: any) => (
+          <div key={p.id} className="p-4 bg-white rounded-xl border border-purple-200 flex flex-col gap-3 shadow-sm">
+            <div>
+              <h4 className="font-bold text-primary text-sm">{p.challenges?.title} — {p.challenge_steps?.title}</h4>
+              <p className="text-xs text-secondary">By <span className="font-bold">{p.employees?.full_name}</span> · +{p.challenge_steps?.xp_value} XP</p>
+              <p className="text-xs text-tertiary mt-2 line-clamp-3">{p.content}</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                disabled={reviewingId === p.id}
+                onClick={() => handleReview(p.id, false)}
+                className="py-1.5 px-3 text-xs font-bold text-danger bg-danger/10 hover:bg-danger/20 rounded-md border border-danger/20 disabled:opacity-50"
+              >
+                Reject
+              </button>
+              <button
+                disabled={reviewingId === p.id}
+                onClick={() => handleReview(p.id, true, 75)}
+                className="py-1.5 px-3 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-md shadow-sm disabled:opacity-50 flex items-center gap-1"
+              >
+                {reviewingId === p.id ? <Loader2 size={12} className="animate-spin" /> : null}
+                Approve (75)
+              </button>
+              <button
+                disabled={reviewingId === p.id}
+                onClick={() => handleReview(p.id, true, 90)}
+                className="py-1.5 px-3 text-xs font-bold text-white bg-success hover:bg-success/90 rounded-md shadow-sm disabled:opacity-50"
+              >
+                Approve (90)
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
+
 // ─── Admin Verifications ──────────────────────────────────────
 const AdminVerifications: React.FC<{ refreshKey: number, onVerified: () => void }> = ({ refreshKey, onVerified }) => {
   const [pending, setPending] = useState<any[]>([]);
 
   useEffect(() => {
-    gamificationAPI.getPendingVerifications().then(setPending);
+    gamificationAPI.getPendingVerifications()
+      .then(setPending)
+      .catch(() => setPending([]));
   }, [refreshKey]);
 
   if (pending.length === 0) return null;
@@ -776,20 +1005,36 @@ const RewardStore: React.FC = () => {
   const [claimed, setClaimed] = useState<Set<string>>(new Set());
   const [rewards, setRewards] = useState<any[]>([]);
   const [playerXP, setPlayerXP] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentEmployee) return;
+    setLoading(true);
     Promise.all([
       gamificationAPI.getRewards(),
       gamificationAPI.getProfile(currentEmployee.id),
-    ]).then(([rewardsData, profile]) => {
-      setRewards(rewardsData || []);
-      setPlayerXP(profile.xp);
-    });
+      gamificationAPI.getRewardClaims(currentEmployee.id).catch(() => []),
+    ])
+      .then(([rewardsData, profile, claims]) => {
+        setRewards(rewardsData || []);
+        setPlayerXP(profile.xp);
+        setClaimed(new Set(claims || []));
+        setError(null);
+      })
+      .catch((err: any) => setError(err?.message || 'Failed to load reward store'))
+      .finally(() => setLoading(false));
   }, [currentEmployee]);
 
+  if (loading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" size={28} /></div>;
+  if (error) return <HubNotice type="error" message={error} />;
+  if (!rewards.length) return <p className="text-sm text-slate-500 py-4">No rewards available yet.</p>;
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+    <div className="flex flex-col gap-4">
+      {claimError && <HubNotice type="error" message={claimError} onDismiss={() => setClaimError(null)} />}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {rewards.map((reward) => {
         const isClaimed = claimed.has(reward.id);
         const canAfford = playerXP >= reward.cost;
@@ -813,7 +1058,16 @@ const RewardStore: React.FC = () => {
             </div>
             
             <button
-              onClick={() => { if (reward.available && canAfford && !isClaimed && currentEmployee) gamificationAPI.claimReward(currentEmployee.id, reward.id).then(() => setClaimed(prev => new Set([...prev, reward.id]))); }}
+              onClick={() => {
+                if (reward.available && canAfford && !isClaimed && currentEmployee) {
+                  gamificationAPI.claimReward(currentEmployee.id, reward.id)
+                    .then((res) => {
+                      setClaimed(prev => new Set([...prev, reward.id]));
+                      if (res?.xp_remaining != null) setPlayerXP(res.xp_remaining);
+                    })
+                    .catch((err) => setClaimError(err.message || 'Redeem failed'));
+                }
+              }}
               disabled={!reward.available || !canAfford || isClaimed}
               className={`mt-4 w-full py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
                 isClaimed ? 'bg-success text-white' : 
@@ -826,6 +1080,7 @@ const RewardStore: React.FC = () => {
           </div>
         );
       })}
+      </div>
     </div>
   );
 };
@@ -839,6 +1094,13 @@ export const GamificationHub: React.FC = () => {
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [refreshChallengesKey, setRefreshChallengesKey] = useState(0);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
+  const [hubNotice, setHubNotice] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  const bumpRefresh = () => setRefreshChallengesKey(k => k + 1);
+  const showNotice = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setHubNotice({ message, type });
+    window.setTimeout(() => setHubNotice(null), 5000);
+  };
 
   const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'overview',      label: 'Overview',      icon: <Star size={14} /> },
@@ -879,16 +1141,20 @@ export const GamificationHub: React.FC = () => {
       {/* Hero Section */}
       <XPProgressBar />
 
+      {hubNotice && (
+        <HubNotice type={hubNotice.type} message={hubNotice.message} onDismiss={() => setHubNotice(null)} />
+      )}
+
       {/* Main Content Areas */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 flex flex-col gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 flex flex-col gap-6">
             <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
                 <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Target size={20} /></div>
                 Active Challenges
               </h3>
-              <Challenges />
+              <Challenges key={refreshChallengesKey} refreshKey={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
             </Card>
             
             <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
@@ -903,7 +1169,7 @@ export const GamificationHub: React.FC = () => {
             </Card>
           </div>
           
-          <div className="col-span-1 flex flex-col gap-6">
+          <div className="lg:col-span-1 flex flex-col gap-6">
             <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
               <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
                 <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Crown size={20} /></div>
@@ -927,9 +1193,10 @@ export const GamificationHub: React.FC = () => {
 
       {activeTab === 'challenges' && (
         <div className="flex flex-col gap-6">
+          <AdminManualReviews refreshKey={refreshChallengesKey} onReviewed={bumpRefresh} />
           <AdminVerifications 
             refreshKey={refreshChallengesKey} 
-            onVerified={() => setRefreshChallengesKey(k => k + 1)} 
+            onVerified={bumpRefresh} 
           />
 
           <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
@@ -942,12 +1209,13 @@ export const GamificationHub: React.FC = () => {
                 <Plus size={16} /> New Challenge
               </Button>
             </div>
-            <Challenges key={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
+            <Challenges key={refreshChallengesKey} refreshKey={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
             
             <CreateChallengeModal 
               isOpen={showCreateChallenge} 
               onClose={() => setShowCreateChallenge(false)} 
-              onCreated={() => setRefreshChallengesKey(k => k + 1)} 
+              onCreated={bumpRefresh}
+              onNotice={showNotice}
             />
           </Card>
         </div>
@@ -978,7 +1246,7 @@ export const GamificationHub: React.FC = () => {
           challengeId={selectedChallengeId}
           employeeId={currentEmployee.id}
           onClose={() => setSelectedChallengeId(null)}
-          onProgressUpdate={() => setRefreshChallengesKey(k => k + 1)}
+          onProgressUpdate={bumpRefresh}
         />
       )}
     </div>

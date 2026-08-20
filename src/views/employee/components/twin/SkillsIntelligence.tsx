@@ -14,14 +14,19 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
   const [editingSkill, setEditingSkill] = useState<any>(null);
   const [editForm, setEditForm] = useState({ proficiency: 0, experience: 0, category: '' });
 
-  const allSkills = Object.values(skillsData).flat() as any[];
-  const categories = ['All', ...Object.keys(skillsData)];
+  const allSkills = Object.values(skillsData || {}).flat() as any[];
+  const categories = ['All', ...Object.keys(skillsData || {})];
 
-  const filteredSkills = allSkills.filter((s: any) =>
-    (selectedCategory === 'All' || s.category === selectedCategory) &&
-    (s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.category.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const categorySkills = selectedCategory === 'All'
+    ? allSkills
+    : ((skillsData || {})[selectedCategory] || []);
+
+  const filteredSkills = categorySkills.filter((s: any) => {
+    const q = searchQuery.toLowerCase();
+    const name = String(s.name || '').toLowerCase();
+    const cat = String(s.category || selectedCategory || '').toLowerCase();
+    return !q || name.includes(q) || cat.includes(q);
+  });
 
   const totalSkills = allSkills.length;
   const expertCount = allSkills.filter((s: any) => s.proficiency >= 90).length;
@@ -264,7 +269,7 @@ export const SkillsIntelligence: React.FC<SkillsIntelligenceProps> = ({ skillsDa
       {/* Skill Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10" style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
         <AnimatePresence>
-          {filteredSkills.map((skill, index) => {
+          {filteredSkills.map((skill: any, index: number) => {
             const style = getCategoryStyles(skill.category);
             const isExpert = skill.proficiency >= 90;
             return (

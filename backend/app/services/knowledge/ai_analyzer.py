@@ -220,8 +220,8 @@ EXTRACTION_SCHEMA = """{
 }"""
 
 
-def _rule_based_extract(extracted_text: str, document_type: str) -> AnalysisResult:
-    """Fallback rule-based intelligence extraction when GOOGLE_API_KEY is not set."""
+def _extract_rule_based(extracted_text: str, document_type: str) -> AnalysisResult:
+    """Fallback rule-based intelligence extraction when AI service is unavailable."""
     if not extracted_text or not extracted_text.strip():
         return AnalysisResult(
             success=False,
@@ -391,23 +391,13 @@ Respond with the JSON extraction schema. Be precise. Do not invent information."
 def _call_gemini(api_key: str, user_prompt: str) -> str:
     """Call Google Gemini and return raw response text."""
     try:
-        from google import genai
-        from google.genai import types
+        from gemini_client import ask_gemini
 
-        client = genai.Client(api_key=api_key)
         system_instruction = f"{SYSTEM_PROMPT}\n\nJSON SCHEMA:\n{EXTRACTION_SCHEMA}"
+        full_prompt = f"{system_instruction}\n\n{user_prompt}"
 
-        response = client.models.generate_content(
-            model=MODEL_NAME,
-            contents=user_prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-            ),
-        )
-        return response.text
+        return ask_gemini(full_prompt)
 
-    except ImportError:
-        raise _AICallFailed("google-genai package not installed. Run: pip install google-genai")
     except Exception as exc:
         raise _AICallFailed(str(exc))
 

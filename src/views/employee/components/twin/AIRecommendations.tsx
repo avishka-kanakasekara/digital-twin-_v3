@@ -29,8 +29,8 @@ const TYPE_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: st
 export const AIRecommendations: React.FC<AIRecommendationsProps> = ({ recommendations }) => {
   return (
     <div style={{
-      background: 'rgba(255,255,255,0.04)',
-      border: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(255,255,255,0.9)',
+      border: '1px solid rgba(226, 232, 240, 0.9)',
       borderRadius: '20px',
       padding: '1.5rem',
       backdropFilter: 'blur(20px)',
@@ -86,7 +86,7 @@ export const AIRecommendations: React.FC<AIRecommendationsProps> = ({ recommenda
                 }}>
                   {rec.type}
                 </span>
-                <p style={{ fontSize: '12px', color: '#cbd5e1', lineHeight: 1.55, fontWeight: 500 }}>
+                <p style={{ fontSize: '12px', color: '#334155', lineHeight: 1.55, fontWeight: 500 }}>
                   {rec.text}
                 </p>
               </div>

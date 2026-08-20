@@ -1,448 +1,895 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import {
+  AlertCircle,
+  Briefcase,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Flag,
+  Loader2,
+  MessageSquare,
+  Milestone,
+  Send,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Upload,
+  UserPlus,
+  Zap,
+} from 'lucide-react';
+import './CareerCoach.css';
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
+
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Modal } from '../../components/Modal';
-import { 
-  TrendingUp, BookOpen, Crosshair, Edit, Flag, CheckCircle, 
-  ArrowRight, Sparkles, Send, MessageSquare, 
-  Briefcase, GraduationCap, Zap, ChevronRight, BarChart
-} from 'lucide-react';
-import { careerAPI } from '../../lib/api';
+import {
+  careerAPI,
+  type CareerAnalysis,
+  type CareerRoadmapStep,
+  type CareerSkillGap,
+} from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
-import ReactMarkdown from 'react-markdown';
-import './CareerCoach.css';
 
-interface CareerAnalysis {
-  readiness_score: number;
-  strengths: { title: string; description: string }[];
-  opportunities: { title: string; description: string }[];
-  skill_gaps: any[];
-  roadmap_steps: any[];
-  recommendations: any[];
-  market_trends: any[];
-  narrative: string;
-}
+type ChatMessage = { role: 'user' | 'assistant'; content: string; grounding?: string[] };
+
+const GOAL_DEFAULTS = {
+  target_role: 'Senior Software Engineer',
+  timeline: '12 months',
+  focus_area: 'Engineering',
+  target_industry: 'Technology',
+  visible_to_manager: false,
+};
+
+const evidenceTypeForStep = (step: CareerRoadmapStep) =>
+  step.evidence_type || (step.step_type === 'mentor' ? 'manager_signoff' : step.step_type === 'project' ? 'project' : 'certificate');
+
+const priorityClass = (priority: string) => {
+  const key = priority.toLowerCase();
+  if (key === 'critical') return 'career-priority--critical';
+  if (key === 'high') return 'career-priority--high';
+  if (key === 'medium') return 'career-priority--medium';
+  return 'career-priority--low';
+};
+
+const SectionHead: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}> = ({ icon, title, subtitle, action }) => (
+  <div className="career-section__head">
+    <div className="career-section__title-row">
+      <div className="career-section__icon">{icon}</div>
+      <div>
+        <h2 className="career-section__title">{title}</h2>
+        {subtitle ? <p className="career-section__sub">{subtitle}</p> : null}
+      </div>
+    </div>
+    {action}
+  </div>
+);
+
+const ReadinessRing: React.FC<{ score: number }> = ({ score }) => (
+  <div className="career-ring-wrap">
+    <svg viewBox="0 0 36 36" className="career-ring">
+      <defs>
+        <linearGradient id="careerRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="50%" stopColor="#6366f1" />
+          <stop offset="100%" stopColor="#10b981" />
+        </linearGradient>
+      </defs>
+      <path
+        className="career-ring__track"
+        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+      />
+      <path
+        className="career-ring__fill"
+        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+        strokeDasharray={`${score}, 100`}
+      />
+    </svg>
+    <div className="career-ring__center">
+      <span className="career-ring__score">{score}%</span>
+      <span className="career-ring__label">Readiness</span>
+    </div>
+  </div>
+);
 
 export const CareerCoach: React.FC = () => {
-  const { currentEmployee } = useEmployee();
-  
-  // State
+  const { currentEmployee, loading: employeeLoading } = useEmployee();
+
   const [loading, setLoading] = useState(true);
+  const [savingGoal, setSavingGoal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<CareerAnalysis | null>(null);
-  
-  // Goal Modal
-  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  const [goalForm, setGoalForm] = useState({ 
-    target_role: 'Senior Software Engineer', 
-    timeline: '12-18 Months', 
-    focus_area: 'Engineering' 
-  });
-  
-  // Chat
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<any[]>([]);
-  const [isChatting, setIsChatting] = useState(false);
+  const [goalForm, setGoalForm] = useState(GOAL_DEFAULTS);
+  const [goalModalOpen, setGoalModalOpen] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatting, setChatting] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [mentorLoadingId, setMentorLoadingId] = useState<string | null>(null);
+  const [evidenceModal, setEvidenceModal] = useState<{ skillGap?: CareerSkillGap; step?: CareerRoadmapStep } | null>(null);
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidenceDescription, setEvidenceDescription] = useState('');
+  const [evidenceSubmitting, setEvidenceSubmitting] = useState(false);
+  const [stepUpdatingId, setStepUpdatingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Initial Data Load
-  useEffect(() => {
-    if (!currentEmployee) return;
+  const goal = analysis?.goal;
 
-    const loadData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const goalData = await careerAPI.getGoal(currentEmployee.id);
-        if (goalData) {
-          setGoalForm({
-            target_role: goalData.target_role,
-            timeline: goalData.timeline || '12-18 Months',
-            focus_area: goalData.focus_area || 'Engineering',
-          });
-        }
-        
-        const analysisData = await careerAPI.getAnalysis(currentEmployee.id);
-        setAnalysis(analysisData);
-        
-        setChatHistory([{
-          role: 'assistant',
-          content: `Hello ${currentEmployee.full_name.split(' ')[0]}. I have analyzed your skills and projects. Your personalized transition roadmap for **${goalData?.target_role || 'Senior Engineer'}** is ready. How can I assist you today?`
-        }]);
-        
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load career data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [currentEmployee]);
-  
-  // Scroll chat to bottom
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory]);
+  const showToast = (type: 'success' | 'error', message: string) => {
+    setToast({ type, message });
+    window.setTimeout(() => setToast(null), 4500);
+  };
 
-  const handleSaveGoal = async () => {
+  const loadAnalysis = async (refresh = false) => {
     if (!currentEmployee) return;
     setLoading(true);
-    setIsGoalModalOpen(false);
-    
+    setError(null);
     try {
-      await careerAPI.setGoal(currentEmployee.id, {
-        target_role: goalForm.target_role,
-        timeline: goalForm.timeline,
-        focus_area: goalForm.focus_area,
-        target_industry: goalForm.focus_area,
-        is_active: true,
-      });
-      
-      const newAnalysis = await careerAPI.getAnalysis(currentEmployee.id);
-      setAnalysis(newAnalysis);
-      
-      setChatHistory([{
-        role: 'assistant',
-        content: `I've updated your goal to **${goalForm.target_role}** and recalculated your readiness and roadmap. What steps would you like to discuss?`
-      }]);
-      
+      const analysisData = await careerAPI.getAnalysis(currentEmployee.id, refresh);
+      setAnalysis(analysisData);
+      const nextGoal = analysisData.goal
+        ? {
+            target_role: analysisData.goal.target_role,
+            timeline: analysisData.goal.timeline || GOAL_DEFAULTS.timeline,
+            focus_area: analysisData.goal.focus_area || GOAL_DEFAULTS.focus_area,
+            target_industry: analysisData.goal.target_industry || GOAL_DEFAULTS.target_industry,
+            visible_to_manager: analysisData.goal.visible_to_manager,
+          }
+        : GOAL_DEFAULTS;
+      setGoalForm(nextGoal);
+      setChatHistory([
+        {
+          role: 'assistant',
+          content: `You're **${analysisData.readiness_score}%** ready for **${nextGoal.target_role}**. This week, focus on **${analysisData.next_action?.title || 'your highest-priority roadmap step'}**.`,
+          grounding: [
+            `Readiness ${analysisData.readiness_score}%`,
+            ...(analysisData.blockers || []).slice(0, 2),
+          ],
+        },
+      ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save goal');
+      setError(err instanceof Error ? err.message : 'Failed to load career analysis');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessage.trim() || !currentEmployee) return;
-    
-    const userMsg = chatMessage.trim();
-    setChatMessage('');
-    
-    const newHistory = [...chatHistory, { role: 'user', content: userMsg }];
-    setChatHistory(newHistory);
-    setIsChatting(true);
-    
+  useEffect(() => {
+    if (employeeLoading) return;
+    if (!currentEmployee) {
+      setLoading(false);
+      setError('No employee selected yet.');
+      return;
+    }
+    loadAnalysis();
+  }, [currentEmployee, employeeLoading]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatHistory]);
+
+  const radarData = useMemo(
+    () =>
+      (analysis?.skill_gaps || []).slice(0, 6).map((gap) => ({
+        skill: gap.skill,
+        Current: gap.current_level,
+        Target: gap.target_level,
+        fullMark: 10,
+      })),
+    [analysis?.skill_gaps]
+  );
+
+  const highestGap = useMemo(
+    () => [...(analysis?.skill_gaps || [])].sort((a, b) => b.gap - a.gap)[0],
+    [analysis?.skill_gaps]
+  );
+
+  const handleGoalSave = async () => {
+    if (!currentEmployee) return;
+    setSavingGoal(true);
     try {
-      const resp = await careerAPI.chat(currentEmployee.id, userMsg, newHistory.slice(0, -1));
-      setChatHistory([...newHistory, { role: 'assistant', content: resp.response }]);
-    } catch (error) {
-      setChatHistory([...newHistory, { role: 'assistant', content: 'An error occurred. Please try again.' }]);
+      await careerAPI.setGoal(currentEmployee.id, goalForm);
+      setGoalModalOpen(false);
+      await loadAnalysis(true);
+      showToast('success', 'Career goal updated — AI analysis regenerated.');
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to save goal');
     } finally {
-      setIsChatting(false);
+      setSavingGoal(false);
+    }
+  };
+
+  const handleVisibilityToggle = async () => {
+    if (!currentEmployee || !goal) return;
+    try {
+      const updated = await careerAPI.updateVisibility(currentEmployee.id, !goal.visible_to_manager);
+      setAnalysis((prev) => (prev ? { ...prev, goal: { ...prev.goal!, ...updated } } : prev));
+      setGoalForm((prev) => ({ ...prev, visible_to_manager: updated.visible_to_manager }));
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to update visibility');
+    }
+  };
+
+  const handleMentorRequest = async (mentorId: string) => {
+    if (!currentEmployee) return;
+    setMentorLoadingId(mentorId);
+    try {
+      const response = await careerAPI.requestMentorIntro(currentEmployee.id, mentorId);
+      setAnalysis((prev) =>
+        prev
+          ? {
+              ...prev,
+              mentors: prev.mentors.map((mentor) =>
+                mentor.mentor_employee_id === mentorId ? response.mentor_match : mentor
+              ),
+            }
+          : prev
+      );
+      showToast('success', 'Intro request sent.');
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to request intro');
+    } finally {
+      setMentorLoadingId(null);
+    }
+  };
+
+  const handleEvidenceSubmit = async () => {
+    if (!currentEmployee || !evidenceModal) return;
+    const skillGap = evidenceModal.skillGap;
+    const step = evidenceModal.step;
+    if (!evidenceDescription.trim() && !evidenceFile) {
+      showToast('error', 'Add a description or a file before submitting evidence.');
+      return;
+    }
+    setEvidenceSubmitting(true);
+    try {
+      const evidence = await careerAPI.submitEvidence(currentEmployee.id, {
+        skill_gap_id: skillGap?.id,
+        roadmap_step_id: step?.id,
+        evidence_type: step ? evidenceTypeForStep(step) : 'certificate',
+        description: evidenceDescription,
+        file: evidenceFile,
+      });
+      if (step) {
+        setStepUpdatingId(step.id);
+        const updated = await careerAPI.updateRoadmapStep(step.id, 'achieved', evidence.id);
+        setAnalysis(updated.analysis);
+        setStepUpdatingId(null);
+      } else {
+        await loadAnalysis();
+      }
+      setEvidenceModal(null);
+      setEvidenceDescription('');
+      setEvidenceFile(null);
+      showToast(
+        'success',
+        evidence.status === 'pending_approval'
+          ? 'Evidence submitted and waiting for manager sign-off.'
+          : `Evidence accepted. ${evidence.xp_awarded} XP credited.`
+      );
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to submit evidence');
+    } finally {
+      setEvidenceSubmitting(false);
+      setStepUpdatingId(null);
+    }
+  };
+
+  const handleQuickStepComplete = async (step: CareerRoadmapStep) => {
+    if (step.requires_evidence) {
+      setEvidenceModal({ step });
+      return;
+    }
+    setStepUpdatingId(step.id);
+    try {
+      const updated = await careerAPI.updateRoadmapStep(step.id, 'achieved');
+      setAnalysis(updated.analysis);
+      showToast('success', `${step.title} marked complete.`);
+    } catch (err) {
+      showToast('error', err instanceof Error ? err.message : 'Failed to update step');
+    } finally {
+      setStepUpdatingId(null);
+    }
+  };
+
+  const handleSendMessage = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!currentEmployee || !chatInput.trim()) return;
+    const userMessage = chatInput.trim();
+    const nextHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: userMessage }];
+    setChatHistory(nextHistory);
+    setChatInput('');
+    setChatting(true);
+    try {
+      const response = await careerAPI.chat(currentEmployee.id, userMessage, nextHistory.slice(0, -1));
+      setChatHistory([
+        ...nextHistory,
+        { role: 'assistant', content: response.response, grounding: response.grounding_points || [] },
+      ]);
+    } catch (err) {
+      setChatHistory([
+        ...nextHistory,
+        { role: 'assistant', content: 'I hit a problem retrieving your grounded career context. Please try again.' },
+      ]);
+    } finally {
+      setChatting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-4">
-        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-        <p className="text-slate-600 font-medium">Analyzing career profile...</p>
+      <div className="career-loading">
+        <Loader2 className="animate-spin text-primary" size={36} />
+        <p className="text-sm font-semibold text-secondary">Running AI career analysis for this employee…</p>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !analysis) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 gap-4">
-        <div className="bg-red-50 text-red-600 border border-red-200 px-6 py-4 rounded-lg font-medium shadow-sm">
-          {error}
+      <div className="career-error">
+        <div className="career-error-box">
+          <AlertCircle className="mx-auto mb-3 text-danger" size={32} />
+          <p className="text-sm font-semibold text-secondary">{error || 'Unable to load Career Coach.'}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-8 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto flex flex-col gap-8">
-        
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              Career Coach
-              <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-semibold border border-indigo-200 flex items-center gap-1">
-                <Sparkles size={12}/> AI Powered
-              </span>
-            </h1>
-            <p className="text-slate-500 text-sm mt-1">Data-driven pathway to your next career milestone.</p>
+    <div className="career-coach">
+      {toast && (
+        <div className={`career-toast career-toast--${toast.type}`}>{toast.message}</div>
+      )}
+
+      <div className="career-header">
+        <div>
+          <div className="career-kicker">
+            <Sparkles size={12} className="text-primary" />
+            Career Coach
           </div>
-          <Button variant="outline" onClick={() => setIsGoalModalOpen(true)} className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm">
-            <Edit size={16} className="mr-2"/> Edit Goal
+          <h1 className="career-title">{goal?.target_role || goalForm.target_role}</h1>
+        </div>
+        <div className="career-header__actions">
+          <Button variant="ghost" onClick={handleVisibilityToggle} className="border border-[var(--border-subtle)] bg-white/80">
+            {goal?.visible_to_manager ? <Eye size={16} className="mr-2" /> : <EyeOff size={16} className="mr-2" />}
+            {goal?.visible_to_manager ? 'Visible to manager' : 'Private to you'}
+          </Button>
+          <Button onClick={() => setGoalModalOpen(true)}>
+            <Target size={16} className="mr-2" />
+            Edit goal
           </Button>
         </div>
+      </div>
 
-        {/* Hero Goal Banner */}
-        <Card className="p-0 overflow-hidden bg-white border border-slate-200 shadow-sm rounded-xl flex flex-col md:flex-row">
-          <div className="p-8 flex-1 flex flex-col justify-center">
-            <h2 className="text-3xl font-bold text-slate-900 mb-2">{goalForm.target_role}</h2>
-            <div className="flex flex-wrap gap-4 text-sm text-slate-600 mb-6">
-              <span className="flex items-center gap-1.5 font-medium"><Briefcase size={16} className="text-slate-400"/> {goalForm.focus_area}</span>
-              <span className="flex items-center gap-1.5 font-medium"><Flag size={16} className="text-slate-400"/> {goalForm.timeline}</span>
+      {analysis.stall_flag && (
+        <div className="career-stall">
+          <AlertCircle className="shrink-0 text-amber-600" size={20} />
+          <div>
+            <p className="career-stall__title">Momentum check</p>
+            <p className="career-stall__text">{analysis.stall_flag.message}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="career-hero">
+        <div className="career-hero__glow career-hero__glow--tr" />
+        <div className="career-hero__glow career-hero__glow--bl" />
+        <div className="career-hero__inner">
+          <div className="career-hero__main">
+            <p className="career-summary">{analysis.summary}</p>
+            <div className="career-pills">
+              <span className="career-pill">
+                <Briefcase size={13} />
+                {goal?.focus_area || goalForm.focus_area}
+              </span>
+              <span className="career-pill">
+                <Flag size={13} />
+                {goal?.timeline || goalForm.timeline}
+              </span>
+              <span className="career-pill career-pill--band">
+                <TrendingUp size={13} />
+                {analysis.readiness_band}
+              </span>
             </div>
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 border-l-4 border-l-indigo-500">
-              <p className="text-sm text-slate-700 leading-relaxed">
-                {analysis?.narrative}
-              </p>
+            <div className="career-next-action">
+              <p className="career-next-action__label">Next action this week</p>
+              <h2 className="career-next-action__title">{analysis.next_action?.title || 'No action queued'}</h2>
+              <p className="career-next-action__desc">{analysis.next_action?.description}</p>
+              <div className="career-next-action__meta">
+                <span className="career-meta-chip">
+                  <Zap size={12} />
+                  {analysis.next_action?.xp_reward || 0} XP
+                </span>
+                <span className="career-meta-chip">
+                  {analysis.next_action?.estimated_hours || 0} hrs estimated
+                </span>
+              </div>
             </div>
           </div>
-          <div className="bg-indigo-50 w-full md:w-80 flex flex-col items-center justify-center p-8 border-t md:border-t-0 md:border-l border-slate-200 shrink-0">
-             <div className="relative flex items-center justify-center w-32 h-32 mb-3">
-                <svg viewBox="0 0 36 36" className="w-32 h-32 transform -rotate-90">
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none" stroke="#e2e8f0" strokeWidth="2.5"
-                  />
-                  <path
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                    fill="none" stroke="#4f46e5" strokeWidth="2.5"
-                    strokeDasharray={`${analysis?.readiness_score}, 100`}
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center text-center">
-                  <span className="text-3xl font-bold text-slate-900">{analysis?.readiness_score}<span className="text-lg text-slate-500">%</span></span>
-                </div>
-              </div>
-              <span className="text-sm font-semibold text-slate-600 uppercase tracking-wide">Readiness Score</span>
-          </div>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Main Left Column */}
-          <div className="lg:col-span-2 flex flex-col gap-8">
-            
-            {/* AI Generated Roadmap */}
-            <Card className="p-6 bg-white border border-slate-200 shadow-sm rounded-xl">
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
-                <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-                  <TrendingUp size={20} className="text-indigo-600"/> Development Roadmap
-                </h3>
-              </div>
-              
-              <div className="relative pl-6 before:absolute before:inset-0 before:ml-8 before:-translate-x-px before:h-full before:w-0.5 before:bg-slate-200">
-                {analysis?.roadmap_steps.map((step, idx) => (
-                  <div key={idx} className="relative flex items-start justify-normal mb-8 last:mb-0">
-                    <div className={`flex items-center justify-center w-5 h-5 rounded-full border-2 border-white shrink-0 shadow-sm z-10 mt-1 ml-[0.35rem] ${
-                      step.status === 'achieved' ? 'bg-emerald-500' : 
-                      step.status === 'in_progress' ? 'bg-indigo-600' : 
-                      step.status === 'goal' ? 'bg-slate-800' : 'bg-slate-300'
-                    }`}>
-                      {step.status === 'achieved' ? <CheckCircle size={10} className="text-white"/> : 
-                       step.status === 'goal' ? <Flag size={10} className="text-white"/> : 
-                       <span className="w-1.5 h-1.5 bg-white rounded-full"></span>}
-                    </div>
-                    
-                    <div className="ml-6 w-full">
-                      <div className="flex items-center gap-3 mb-1.5">
-                        <h4 className={`font-bold text-base ${step.status === 'in_progress' ? 'text-indigo-700' : 'text-slate-900'}`}>{step.title}</h4>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide ${
-                          step.status === 'achieved' ? 'bg-emerald-100 text-emerald-700' : 
-                          step.status === 'in_progress' ? 'bg-indigo-100 text-indigo-700' : 
-                          'bg-slate-100 text-slate-600'
-                        }`}>
-                          {step.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">{step.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Recommended Learning Path */}
-            <Card className="p-6 bg-white border border-slate-200 shadow-sm rounded-xl">
-               <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-                 <h3 className="font-bold text-lg text-slate-900 flex items-center gap-2">
-                    <GraduationCap size={20} className="text-indigo-600"/> Recommended Learning Paths
-                  </h3>
-                  <Button variant="ghost" size="sm" className="text-indigo-600 hover:bg-indigo-50 font-medium">
-                    View Catalog <ChevronRight size={16} />
-                  </Button>
-               </div>
-               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {analysis?.recommendations.slice(0, 4).map((path, index) => (
-                  <div key={path.id} className="relative rounded-xl p-5 flex gap-4 border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md transition-all group">
-                    {path.is_top_match && <div className="absolute top-0 right-0 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg rounded-tr-xl bg-indigo-600">Top Match</div>}
-                    
-                    <div className="w-12 h-12 rounded-lg flex shrink-0 items-center justify-center bg-slate-50 border border-slate-100 text-slate-700 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                      <BookOpen size={20}/>
-                    </div>
-                    
-                    <div className="flex flex-col flex-1">
-                      <h5 className="font-bold text-sm text-slate-900 mb-1 leading-snug pr-8">{path.title}</h5>
-                      <p className="text-xs text-slate-500 font-medium mb-3">{path.provider} • {path.duration}</p>
-                      
-                      <div className="mt-auto flex items-center justify-between">
-                        <span className="text-[11px] font-bold px-2 py-1 rounded text-emerald-700 bg-emerald-50 border border-emerald-100">Impact: {path.readiness_impact}</span>
-                        <div className="text-xs font-bold text-indigo-600 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          Enroll <ArrowRight size={14} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </div>
-
-          {/* Sidebar Right Column */}
-          <div className="lg:col-span-1 flex flex-col gap-8 h-full">
-            
-            {/* Skill Gap Radar */}
-            <Card className="p-6 bg-white border border-slate-200 shadow-sm rounded-xl">
-              <h3 className="font-bold text-base text-slate-900 flex items-center gap-2 mb-4">
-                <BarChart size={18} className="text-indigo-600"/> Skill Gap Analysis
-              </h3>
-              
-              <div className="w-full relative min-h-[260px] mb-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={analysis?.skill_gaps.map(g => ({
-                    subject: g.skill,
-                    Current: g.current_level,
-                    Target: g.target_level,
-                    fullMark: 10,
-                  }))}>
-                    <PolarGrid stroke="#e2e8f0" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 500 }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
-                    <Radar name="Target" dataKey="Target" stroke="#cbd5e1" strokeWidth={1} fill="#f1f5f9" fillOpacity={0.5} strokeDasharray="3 3" />
-                    <Radar name="Current" dataKey="Current" stroke="#4f46e5" strokeWidth={2} fill="#4f46e5" fillOpacity={0.2} />
-                    <Tooltip 
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                      itemStyle={{ fontWeight: '600', fontSize: '12px' }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-              
-              <div className="flex gap-6 justify-center">
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm bg-indigo-500"></div><span className="text-xs font-medium text-slate-600">Current</span></div>
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-sm border border-dashed border-slate-400 bg-slate-100"></div><span className="text-xs font-medium text-slate-600">Target</span></div>
-              </div>
-            </Card>
-
-            {/* AI Chat Assistant */}
-            <Card className="flex-1 flex flex-col p-0 overflow-hidden bg-white border border-slate-200 shadow-sm rounded-xl min-h-[400px]">
-              <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-sm">
-                    <MessageSquare size={14} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900">Career Advisor</h3>
-                    <p className="text-[11px] font-medium text-emerald-600 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Online
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
-                {chatHistory.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] px-4 py-3 text-sm rounded-2xl ${
-                      msg.role === 'user' 
-                        ? 'bg-indigo-600 text-white rounded-br-sm' 
-                        : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                    }`}>
-                      {msg.role === 'assistant' ? (
-                        <div className="prose prose-sm prose-slate max-w-none prose-p:leading-relaxed prose-a:text-indigo-600">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="leading-relaxed">{msg.content}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {isChatting && (
-                  <div className="flex justify-start">
-                    <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-                      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
-                      <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
-                    </div>
-                  </div>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-              
-              <div className="p-3 border-t border-slate-100 bg-white">
-                <form onSubmit={handleSendMessage} className="relative flex items-center">
-                  <input 
-                    type="text" 
-                    value={chatMessage}
-                    onChange={e => setChatMessage(e.target.value)}
-                    placeholder="Message advisor..."
-                    className="w-full pl-4 pr-10 py-2.5 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all text-sm"
-                    disabled={isChatting}
-                  />
-                  <button 
-                    type="submit"
-                    disabled={!chatMessage.trim() || isChatting}
-                    className="absolute right-1.5 w-7 h-7 flex items-center justify-center rounded-md bg-indigo-600 text-white disabled:opacity-50 hover:bg-indigo-700 transition-colors"
-                  >
-                    <Send size={12} />
-                  </button>
-                </form>
-              </div>
-            </Card>
-
+          <div className="career-hero__aside">
+            <ReadinessRing score={analysis.readiness_score} />
+            <button type="button" onClick={() => setShowBreakdown((prev) => !prev)} className="career-breakdown-toggle">
+              {showBreakdown ? 'Hide score breakdown' : 'See score breakdown'}
+            </button>
+            <p className="career-readiness-note">{analysis.readiness_explanation}</p>
           </div>
         </div>
       </div>
 
-      {/* Goal Modal */}
-      <Modal isOpen={isGoalModalOpen} onClose={() => setIsGoalModalOpen(false)} title="Edit Career Goal">
-        <div className="flex flex-col gap-4 p-1">
-          <p className="text-sm text-slate-500 mb-2">Update your target role to generate a new personalized roadmap.</p>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">Target Role</label>
-            <input
-              type="text"
-              value={goalForm.target_role}
-              onChange={e => setGoalForm(f => ({ ...f, target_role: e.target.value }))}
-              placeholder="e.g. Principal Engineer"
-              className="h-10 px-3 rounded-lg w-full text-sm outline-none border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
+      {showBreakdown && (
+        <Card glass={false} className="glass-panel career-section">
+          <SectionHead
+            icon={<Target size={18} />}
+            title="Readiness breakdown"
+            subtitle="Weighted score from real components — not a vanity percentage."
+          />
+          <div className="career-breakdown-grid">
+            {analysis.readiness_components.map((component) => (
+              <div key={component.id} className="career-breakdown-card">
+                <div className="career-breakdown-card__top">
+                  <p className="career-breakdown-card__name">{component.name.replace('_', ' ')}</p>
+                  <span className="career-breakdown-card__score">{component.score}%</span>
+                </div>
+                <p className="career-breakdown-card__weight">Weight {Math.round(component.weight * 100)}%</p>
+                <div className="career-breakdown-card__bar">
+                  <div className="career-breakdown-card__bar-fill" style={{ width: `${component.score}%` }} />
+                </div>
+                <p className="career-breakdown-card__text">{component.explanation}</p>
+              </div>
+            ))}
           </div>
-          
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">Timeline</label>
-            <select
-              value={goalForm.timeline}
-              onChange={e => setGoalForm(f => ({ ...f, timeline: e.target.value }))}
-              className="h-10 px-3 rounded-lg w-full text-sm outline-none border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            >
-              <option>6-12 Months</option>
-              <option>12-18 Months</option>
-              <option>2+ Years</option>
-            </select>
-          </div>
+        </Card>
+      )}
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700">Target Domain</label>
+      <div className="career-grid-main">
+        <div className="career-col">
+          <Card glass={false} className="glass-panel career-section">
+            <SectionHead
+              icon={<Milestone size={18} />}
+              title="Roadmap with proof points"
+              subtitle="Every step is tied to evidence and XP so progress is actually usable."
+            />
+            <div className="career-roadmap">
+              {analysis.roadmap_steps.map((step) => (
+                <div
+                  key={step.id}
+                  className={`career-roadmap-step ${step.status === 'achieved' ? 'career-roadmap-step--achieved' : ''}`}
+                >
+                  <div className="career-roadmap-step__marker">
+                    {step.status === 'achieved' ? (
+                      <CheckCircle2 size={18} className="text-emerald-600" />
+                    ) : (
+                      <Milestone size={18} className="text-secondary" />
+                    )}
+                  </div>
+                  <div className="career-roadmap-step__body">
+                    <div className="career-roadmap-step__header">
+                      <h3 className="career-roadmap-step__title">{step.title}</h3>
+                      <span className="career-tag career-tag--status">{step.status.replace('_', ' ')}</span>
+                      <span className="career-tag career-tag--type">{step.step_type}</span>
+                      {step.requires_evidence && (
+                        <span className="career-tag career-tag--evidence">
+                          Needs {step.evidence_type?.replace('_', ' ') || 'evidence'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="career-roadmap-step__desc">{step.description}</p>
+                    <div className="career-roadmap-step__footer">
+                      <div className="career-roadmap-step__chips">
+                        <span className="career-chip">{step.estimated_hours} hrs</span>
+                        <span className="career-chip">{step.xp_reward} XP</span>
+                      </div>
+                      {step.status !== 'achieved' && (
+                        <div className="career-roadmap-step__actions">
+                          {step.requires_evidence && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="border border-[var(--border-subtle)] bg-white/80"
+                              onClick={() => setEvidenceModal({ step })}
+                            >
+                              <Upload size={14} className="mr-1.5" />
+                              Add evidence
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => handleQuickStepComplete(step)} disabled={stepUpdatingId === step.id}>
+                            {stepUpdatingId === step.id ? (
+                              <Loader2 size={14} className="mr-1.5 animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={14} className="mr-1.5" />
+                            )}
+                            Mark achieved
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card glass={false} className="glass-panel career-section">
+            <SectionHead
+              icon={<TrendingUp size={18} />}
+              title="Skill gaps with a closing path"
+              subtitle="Each gap includes the work to do, how long it should take, and how to prove it."
+              action={
+                highestGap ? (
+                  <div className="career-gap-highlight">
+                    <p className="career-gap-highlight__label">Biggest gap</p>
+                    <p className="career-gap-highlight__skill">{highestGap.skill}</p>
+                  </div>
+                ) : undefined
+              }
+            />
+            <div className="space-y-4">
+              {analysis.skill_gaps.map((gap) => (
+                <div key={gap.id} className="career-gap-card">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-base font-bold text-primary">{gap.skill}</h3>
+                        <span className={`career-tag ${priorityClass(gap.priority)}`}>{gap.priority}</span>
+                        <span className="career-tag career-tag--status">{gap.path_type}</span>
+                      </div>
+                      <div className="career-gap-card__levels">
+                        <div className="career-level-bar">
+                          <span className="career-level-bar__label">Current</span>
+                          <div className="career-level-bar__track">
+                            <div
+                              className="career-level-bar__fill career-level-bar__fill--current"
+                              style={{ width: `${(gap.current_level / 10) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-secondary">{gap.current_level}/10</span>
+                        </div>
+                        <div className="career-level-bar">
+                          <span className="career-level-bar__label">Target</span>
+                          <div className="career-level-bar__track">
+                            <div
+                              className="career-level-bar__fill career-level-bar__fill--target"
+                              style={{ width: `${(gap.target_level / 10) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-secondary">{gap.target_level}/10</span>
+                        </div>
+                      </div>
+                      <p className="career-gap-card__path">{gap.recommended_path}</p>
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        <span className="career-chip">{gap.estimated_hours} hrs</span>
+                        <span className="career-chip">{gap.evidence_count} evidence item(s)</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 border border-[var(--border-subtle)] bg-white/80"
+                      onClick={() => setEvidenceModal({ skillGap: gap })}
+                    >
+                      <Upload size={14} className="mr-1.5" />
+                      Upload evidence
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card glass={false} className="glass-panel career-section">
+            <SectionHead
+              icon={<Briefcase size={18} />}
+              title="Internal opportunities"
+              subtitle="Live roles with the exact gaps currently blocking eligibility."
+            />
+            <div className="career-roles-grid">
+              {analysis.internal_roles.map((role) => (
+                <div key={role.role_id} className="career-role-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-base font-bold text-primary">{role.title}</h3>
+                      <p className="text-sm text-secondary">{role.department}</p>
+                    </div>
+                    <div className="career-role-card__fit">
+                      <p className="career-role-card__fit-label">Fit</p>
+                      <p className="career-role-card__fit-value">{role.overall_fit_pct}%</p>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-secondary">{role.eligibility_summary}</p>
+                  <div className="mt-4 space-y-2">
+                    {role.missing_requirements.length ? (
+                      role.missing_requirements.map((item, index) => (
+                        <div key={index} className="career-role-req career-role-req--missing">{item}</div>
+                      ))
+                    ) : (
+                      <div className="career-role-req career-role-req--ok">
+                        You are eligible based on the currently tracked requirements.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <div className="career-col">
+          <Card glass={false} className="glass-panel career-section career-section--compact">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-tertiary">What is holding you back</p>
+            <div className="career-insight-list mt-4">
+              {analysis.blockers.length ? (
+                analysis.blockers.map((blocker, index) => (
+                  <div key={index} className="career-insight-item">{blocker}</div>
+                ))
+              ) : (
+                <p className="text-sm text-secondary">No major blockers detected right now.</p>
+              )}
+            </div>
+            <div className="mt-6 pt-4 border-t border-[var(--border-subtle)]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-tertiary">Strongest signals</p>
+              <div className="career-insight-list mt-3">
+                {analysis.strengths.map((strength, index) => (
+                  <div key={index} className="career-insight-item career-insight-item--strength">{strength}</div>
+                ))}
+              </div>
+              <div className="career-xp-block">
+                <p className="career-xp-block__label">Career XP earned</p>
+                <p className="career-xp-block__value">{analysis.xp_total.toLocaleString()}</p>
+              </div>
+            </div>
+          </Card>
+
+          <Card glass={false} className="glass-panel career-section">
+            <SectionHead icon={<TrendingUp size={18} />} title="Gap map" subtitle="Current vs target skill levels" />
+            <div className="career-chart-wrap">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
+                  <PolarGrid stroke="rgba(148,163,184,0.35)" />
+                  <PolarAngleAxis dataKey="skill" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
+                  <Radar name="Target" dataKey="Target" stroke="#94a3b8" fill="#cbd5e1" fillOpacity={0.3} />
+                  <Radar name="Current" dataKey="Current" stroke="#3b82f6" fill="#6366f1" fillOpacity={0.25} />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card glass={false} className="glass-panel career-section">
+            <SectionHead icon={<UserPlus size={18} />} title="Suggested mentors" subtitle="Matched to your gaps and target role" />
+            {analysis.mentors.map((mentor) => (
+              <div key={mentor.id} className="career-mentor-card">
+                <div className="career-mentor-card__top">
+                  <div className="career-mentor-card__identity">
+                    <div className="career-mentor-card__avatar">
+                      {mentor.mentor_name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold text-primary">{mentor.mentor_name}</h3>
+                      <p className="text-xs text-tertiary">
+                        {mentor.mentor_role} · {mentor.mentor_department}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => handleMentorRequest(mentor.mentor_employee_id)}
+                    disabled={mentor.intro_requested || mentorLoadingId === mentor.mentor_employee_id}
+                  >
+                    {mentorLoadingId === mentor.mentor_employee_id ? (
+                      <Loader2 size={14} className="mr-1 animate-spin" />
+                    ) : (
+                      <UserPlus size={14} className="mr-1" />
+                    )}
+                    {mentor.intro_requested ? 'Requested' : 'Request intro'}
+                  </Button>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-secondary">{mentor.match_reason}</p>
+              </div>
+            ))}
+          </Card>
+
+          <Card glass={false} className="glass-panel career-section career-chat">
+            <div className="career-chat__head">
+              <div className="flex items-center gap-3">
+                <div className="career-section__icon">
+                  <MessageSquare size={16} />
+                </div>
+                <div>
+                  <h2 className="career-section__title">Grounded AI chat</h2>
+                  <p className="career-section__sub">Answers reference your real readiness, gaps, and role matches.</p>
+                </div>
+              </div>
+            </div>
+            <div className="career-chat__messages">
+              {chatHistory.map((message, index) => (
+                <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`career-chat__bubble career-chat__bubble--${message.role}`}>
+                    {message.role === 'assistant' ? (
+                      <>
+                        <div className="prose prose-sm max-w-none prose-p:my-2">
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                        </div>
+                        {message.grounding?.length ? (
+                          <div className="career-chat__grounding">
+                            {message.grounding.map((item, i) => (
+                              <span key={i} className="career-chat__ground-chip">{item}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p>{message.content}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {chatting && (
+                <div className="flex justify-start">
+                  <div className="career-chat__bubble career-chat__bubble--assistant">
+                    <Loader2 size={16} className="animate-spin text-tertiary" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+            <form onSubmit={handleSendMessage} className="career-chat__input-row">
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask how to close the gap to your target role…"
+                className="input-field h-11 flex-1"
+                disabled={chatting}
+              />
+              <Button type="submit" disabled={!chatInput.trim() || chatting}>
+                <Send size={15} />
+              </Button>
+            </form>
+          </Card>
+        </div>
+      </div>
+
+      <Card glass={false} className="glass-panel career-section">
+        <SectionHead icon={<Sparkles size={18} />} title="Market context" subtitle="Trends affecting your target path" />
+        <div className="career-trends-row">
+          {analysis.market_trends.map((trend, index) => (
+            <div key={index} className="career-trend-card">
+              <div className="career-trend-card__top">
+                <div>
+                  <p className="career-trend-card__skill">{trend.skill}</p>
+                  <p className="career-trend-card__category">{trend.category}</p>
+                </div>
+                <span className="career-trend-card__trend">{trend.trend}</span>
+              </div>
+              <p className="career-trend-card__implication">{trend.implication}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Modal isOpen={goalModalOpen} onClose={() => setGoalModalOpen(false)} title="Update career goal">
+        <div className="space-y-4 p-1">
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">Target role</label>
             <input
-              type="text"
-              value={goalForm.focus_area}
-              onChange={e => setGoalForm(f => ({ ...f, focus_area: e.target.value }))}
-              placeholder="e.g. Architecture"
-              className="h-10 px-3 rounded-lg w-full text-sm outline-none border border-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="input-field"
+              value={goalForm.target_role}
+              onChange={(e) => setGoalForm((prev) => ({ ...prev, target_role: e.target.value }))}
             />
           </div>
-          
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-slate-200">
-            <Button variant="ghost" onClick={() => setIsGoalModalOpen(false)} className="rounded-lg text-slate-600 hover:bg-slate-100 border border-slate-200">Cancel</Button>
-            <Button variant="primary" onClick={handleSaveGoal} className="rounded-lg bg-indigo-600 hover:bg-indigo-700 border-none text-white">Save Changes</Button>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Timeline</label>
+              <input
+                className="input-field"
+                value={goalForm.timeline}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, timeline: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-700">Focus area</label>
+              <input
+                className="input-field"
+                value={goalForm.focus_area}
+                onChange={(e) => setGoalForm((prev) => ({ ...prev, focus_area: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">Industry or domain</label>
+            <input
+              className="input-field"
+              value={goalForm.target_industry}
+              onChange={(e) => setGoalForm((prev) => ({ ...prev, target_industry: e.target.value }))}
+            />
+          </div>
+          <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={goalForm.visible_to_manager}
+              onChange={(e) => setGoalForm((prev) => ({ ...prev, visible_to_manager: e.target.checked }))}
+            />
+            Allow manager visibility for this goal
+          </label>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+            <Button variant="ghost" className="border border-slate-200 bg-white text-slate-700" onClick={() => setGoalModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleGoalSave} disabled={savingGoal}>
+              {savingGoal ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
+              Save and recompute
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!evidenceModal}
+        onClose={() => {
+          setEvidenceModal(null);
+          setEvidenceDescription('');
+          setEvidenceFile(null);
+        }}
+        title={evidenceModal?.step ? `Submit evidence for ${evidenceModal.step.title}` : `Submit evidence for ${evidenceModal?.skillGap?.skill}`}
+      >
+        <div className="space-y-4 p-1">
+          <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+            {(evidenceModal?.step?.description || evidenceModal?.skillGap?.recommended_path) ?? ''}
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">Evidence notes</label>
+            <textarea
+              rows={5}
+              className="input-field resize-y"
+              value={evidenceDescription}
+              onChange={(e) => setEvidenceDescription(e.target.value)}
+              placeholder="Describe what you completed, what changed, and why this proves progress."
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-700">Optional file</label>
+            <input
+              type="file"
+              className="input-field"
+              onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
+            />
+            <p className="mt-2 text-xs text-slate-500">
+              Use manager sign-off evidence when the step requires approval. Otherwise files are auto-approved and award XP immediately.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+            <Button
+              variant="ghost"
+              className="border border-slate-200 bg-white text-slate-700"
+              onClick={() => {
+                setEvidenceModal(null);
+                setEvidenceDescription('');
+                setEvidenceFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleEvidenceSubmit} disabled={evidenceSubmitting}>
+              {evidenceSubmitting ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Upload size={16} className="mr-2" />}
+              Submit evidence
+            </Button>
           </div>
         </div>
       </Modal>

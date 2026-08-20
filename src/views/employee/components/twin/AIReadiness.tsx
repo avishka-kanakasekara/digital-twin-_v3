@@ -8,6 +8,8 @@ interface AIReadinessProps {
 }
 
 export const AIReadiness: React.FC<AIReadinessProps> = ({ data, onRefresh }) => {
+  const breakdown = data?.breakdown || [];
+  const overall = data?.overallScore ?? 0;
   return (
     <div style={{
       background: 'rgba(255,255,255,0.8)',
@@ -38,7 +40,7 @@ export const AIReadiness: React.FC<AIReadinessProps> = ({ data, onRefresh }) => 
             boxShadow: '0 0 20px rgba(59,130,246,0.25)',
           }}>
             <span style={{ fontSize: '18px', fontWeight: 900, color: 'white', lineHeight: 1 }}>
-              {data.overallScore}
+              {overall}
             </span>
           </div>
           {onRefresh && (
@@ -61,7 +63,7 @@ export const AIReadiness: React.FC<AIReadinessProps> = ({ data, onRefresh }) => 
       {/* Radar Chart */}
       <div style={{ height: '220px', width: '100%' }}>
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data.breakdown}>
+          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={breakdown}>
             <PolarGrid stroke="rgba(226, 232, 240, 0.8)" strokeDasharray="3 3" />
             <PolarAngleAxis dataKey="category" tick={{ fill: '#64748b', fontSize: 9, fontWeight: 700 }} />
             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
@@ -111,10 +113,10 @@ export const AIReadiness: React.FC<AIReadinessProps> = ({ data, onRefresh }) => 
           <Sparkles size={11} /> AI Insight
         </h4>
         <p style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
-          {data.recommendation.action}
+          {data?.recommendation?.action}
         </p>
         <p style={{ fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
-          {data.recommendation.message}
+          {data?.recommendation?.message}
         </p>
         <div style={{
           marginTop: '10px', display: 'inline-block',
