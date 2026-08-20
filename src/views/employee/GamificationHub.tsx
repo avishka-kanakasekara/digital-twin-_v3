@@ -1,10 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, Loader2, CheckCircle2, Plus, X, ChevronRight, FileText, Link, Code, Image, Upload, AlertCircle, ArrowLeft, Trash2 } from 'lucide-react';
+import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, Loader2, CheckCircle2, Plus, X, ChevronRight, FileText, Link, Code, Image, Upload, AlertCircle, ArrowLeft, Trash2, Sparkles } from 'lucide-react';
+import './GamificationHub.css';
 import { gamificationAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { Card } from '../../components/Card';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
+
+const SectionHead: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}> = ({ icon, title, subtitle, action }) => (
+  <div className="gh-section__head">
+    <div className="gh-section__title-row">
+      <div className="gh-section__icon">{icon}</div>
+      <div>
+        <h2 className="gh-section__title">{title}</h2>
+        {subtitle ? <p className="gh-section__sub">{subtitle}</p> : null}
+      </div>
+    </div>
+    {action}
+  </div>
+);
 
 // ─── Step type icons ─────────────────────────────────────────
 const STEP_TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -308,10 +327,9 @@ const ChallengeDetailDrawer: React.FC<{
   const DIFF_COLORS: Record<string, string> = { Easy: 'var(--color-success)', Medium: 'var(--color-warning)', Hard: 'var(--color-danger)' };
 
   return (
-    <div className="fixed inset-0 z-50 flex" style={{ backdropFilter: 'blur(2px)', backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
-      <div className="ml-auto h-full w-full max-w-2xl bg-white shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[var(--border-subtle)] bg-[var(--bg-main)]">
+    <div className="gh-drawer-overlay" onClick={onClose}>
+      <div className="gh-drawer" onClick={e => e.stopPropagation()}>
+        <div className="gh-drawer__head">
           {activeStep ? (
             <button onClick={() => { setActiveStep(null); setEvalResult(null); }} className="flex items-center gap-2 text-sm font-bold text-secondary hover:text-primary transition-colors">
               <ArrowLeft size={16} /> Back to steps
@@ -325,7 +343,7 @@ const ChallengeDetailDrawer: React.FC<{
         </div>
 
         {loading ? (
-          <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-primary" size={32} /></div>
+          <div className="gh-loading flex-1"><Loader2 className="animate-spin" size={32} /></div>
         ) : !detail ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
             <AlertCircle className="text-danger" size={28} />
@@ -348,9 +366,9 @@ const ChallengeDetailDrawer: React.FC<{
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
-              <h4 className="text-xs font-extrabold text-blue-600 uppercase tracking-wider mb-2">📋 Task Instructions</h4>
-              <p className="text-sm text-blue-900 leading-relaxed whitespace-pre-line">{activeStep.instructions}</p>
+            <div className="gh-instruction-box">
+              <h4 className="gh-instruction-box__label">Task instructions</h4>
+              <p className="gh-instruction-box__text">{activeStep.instructions}</p>
             </div>
 
             {activeStep.reference_url && (
@@ -466,9 +484,10 @@ const ChallengeDetailDrawer: React.FC<{
                   />
                 )}
                 <button
+                  type="button"
                   onClick={handleSubmit}
                   disabled={submitting || uploading || !submitContent.trim()}
-                  className="w-full py-3 rounded-xl font-bold text-sm text-white bg-primary hover:bg-primary/90 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="gh-submit-btn"
                 >
                   {submitting ? <><Loader2 size={16} className="animate-spin" /> Evaluating with AI…</> : 'Submit for AI Evaluation'}
                 </button>
@@ -491,14 +510,12 @@ const ChallengeDetailDrawer: React.FC<{
             )}
           </div>
         ) : (
-          /* ── Steps list view ── */
-          <div className="flex-1 overflow-y-auto">
-            {/* Challenge header */}
-            <div className="p-6 border-b border-[var(--border-subtle)]" style={{ borderLeft: `4px solid ${detail.color || '#7c3aed'}` }}>
+          <div className="gh-drawer__body">
+            <div className="gh-drawer__challenge-head" style={{ ['--gh-drawer-accent' as string]: detail.color || '#6366f1' }}>
               <div className="flex items-start gap-3 mb-3">
                 <span className="text-3xl">{detail.bonus_badge || '🏆'}</span>
                 <div>
-                  <h2 className="text-xl font-extrabold text-primary">{detail.title}</h2>
+                  <h2 className="gh-drawer__challenge-title">{detail.title}</h2>
                   <p className="text-sm text-secondary mt-1">{detail.description}</p>
                 </div>
               </div>
@@ -520,9 +537,8 @@ const ChallengeDetailDrawer: React.FC<{
               </div>
             </div>
 
-            {/* Steps list */}
-            <div className="p-4 flex flex-col gap-3">
-              <h3 className="text-xs font-extrabold text-secondary uppercase tracking-wider px-2">Steps ({detail.steps?.length || 0})</h3>
+            <div className="gh-step-list">
+              <h3 className="text-xs font-extrabold text-secondary uppercase tracking-wider px-1">Steps ({detail.steps?.length || 0})</h3>
               {(!detail.steps || detail.steps.length === 0) && (
                 <div className="p-6 text-center text-sm text-tertiary">
                   This challenge has no steps defined. It uses the legacy manual progress system.
@@ -533,12 +549,13 @@ const ChallengeDetailDrawer: React.FC<{
                 return (
                   <button
                     key={step.id}
+                    type="button"
                     onClick={() => openStep(step)}
-                    className="w-full text-left p-4 rounded-xl border border-[var(--border-subtle)] bg-white hover:border-primary hover:shadow-md transition-all group"
+                    className="gh-step-card group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-extrabold shrink-0"
+                        <div className="gh-step-num"
                           style={{ borderColor: cfg.color, color: cfg.color, background: cfg.bg }}>
                           {step.step_order}
                         </div>
@@ -595,97 +612,60 @@ const XPProgressBar: React.FC = () => {
       .finally(() => setLoading(false));
   }, [currentEmployee, employeeLoading]);
 
-  if (loading) return <Card className="glass-panel p-6 flex justify-center"><Loader2 className="animate-spin text-primary" /></Card>;
-  if (!profile) return <Card className="glass-panel p-6 text-sm text-slate-500">Could not load your gamification profile. The backend will create one on first visit — try refresh.</Card>;
+  if (loading) return <div className="gh-loading"><Loader2 className="animate-spin" size={28} /></div>;
+  if (!profile) return <div className="gh-empty">Could not load your gamification profile. Try refreshing the page.</div>;
 
   const pct = profile.next_level_xp ? Math.min(100, (profile.xp / profile.next_level_xp) * 100) : 0;
-  
+
   const quickStats = [
-    { label: 'Company Rank', value: `#${profile.company_rank}`, icon: <Crown size={14} />, color: '#f59e0b' },
-    { label: 'Dept. Rank',   value: `#${profile.department_rank}`, icon: <Trophy size={14} />, color: '#64748b' },
-    { label: 'Total XP',     value: profile.total_xp_earned.toLocaleString(), icon: <Zap size={14} />, color: '#0ea5e9' },
-    { label: 'Streak',       value: `${profile.streak_days}d`, icon: <Flame size={14} />, color: '#ef4444' },
+    { label: 'Company Rank', value: `#${profile.company_rank}`, icon: <Crown size={14} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+    { label: 'Dept. Rank', value: `#${profile.department_rank}`, icon: <Trophy size={14} />, color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
+    { label: 'Total XP', value: profile.total_xp_earned.toLocaleString(), icon: <Zap size={14} />, color: '#0ea5e9', bg: 'rgba(14,165,233,0.15)' },
+    { label: 'Streak', value: `${profile.streak_days}d`, icon: <Flame size={14} />, color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
   ];
 
   return (
-    <div
-      className="relative overflow-hidden mb-6"
-      style={{
-        background: 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(255,255,255,0.9) 40%, rgba(139,92,246,0.06) 100%)',
-        border: '1px solid rgba(226, 232, 240, 0.8)',
-        borderRadius: '24px',
-        padding: '2rem 2.5rem',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.08), 0 0 40px rgba(59,130,246,0.08)',
-      }}
-    >
-      {/* Background Glow Accents */}
-      <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '300px', height: '300px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: '-40px', left: '200px', width: '200px', height: '200px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
-
-      <div className="relative z-10 flex flex-col md:flex-row gap-8 items-start md:items-center">
-
-        {/* Level Indicator */}
-        <div className="relative shrink-0">
-          <div style={{ position: 'absolute', inset: '-4px', borderRadius: '28px', background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #10b981 100%)', padding: '3px', filter: 'blur(0px)', boxShadow: '0 0 25px rgba(59,130,246,0.2)' }} />
-          <div style={{
-            position: 'relative', width: '100px', height: '100px', borderRadius: '24px',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
-            border: '3px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column',
-            color: 'white', boxShadow: '0 8px 30px rgba(59,130,246,0.2)',
-          }}>
-            <div style={{ position: 'absolute', inset: 0, borderRadius: '21px', background: 'linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(99,102,241,0.1) 100%)' }} />
-            <span style={{ position: 'relative', zIndex: 1, fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Level</span>
-            <span style={{ position: 'relative', zIndex: 1, fontSize: '2.5rem', fontWeight: 900, lineHeight: 1 }}>{profile.level}</span>
+    <div className="gh-hero">
+      <div className="gh-hero__glow gh-hero__glow--tr" />
+      <div className="gh-hero__glow gh-hero__glow--bl" />
+      <div className="gh-hero__inner">
+        <div className="gh-level-badge">
+          <div className="gh-level-badge__ring" />
+          <div className="gh-level-badge__core">
+            <span className="gh-level-badge__label">Level</span>
+            <span className="gh-level-badge__num">{profile.level}</span>
           </div>
-          {/* Online Indicator */}
-          <div style={{ position: 'absolute', bottom: '-4px', right: '-4px', width: '22px', height: '22px', borderRadius: '50%', background: '#10b981', border: '3px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 10px rgba(16,185,129,0.4)' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'white', animation: 'pulse 2s infinite' }} />
-          </div>
+          <div className="gh-level-badge__live" />
         </div>
 
-        {/* Details */}
-        <div className="flex-1 w-full">
-          <div className="flex items-center gap-2 mb-2">
-            <span style={{ padding: '2px 10px', borderRadius: '99px', fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#3b82f6' }}>
-              ✦ {profile.title}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center mb-1">
-            <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, background: 'linear-gradient(90deg, #0f172a 0%, #334155 60%, #3b82f6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              {profile.name}
-            </h2>
-            <div className="text-right">
-              <span className="text-2xl font-extrabold text-slate-800">{profile.xp.toLocaleString()} <span className="text-[10px] font-bold text-slate-500 uppercase">XP</span></span>
+        <div className="gh-hero__main">
+          <span className="gh-hero__kicker"><Sparkles size={12} /> {profile.title}</span>
+          <div className="gh-hero__row">
+            <h2 className="gh-hero__name">{profile.name}</h2>
+            <div className="gh-hero__xp">
+              {profile.xp.toLocaleString()} <span className="gh-hero__xp-unit">XP</span>
             </div>
           </div>
-          
-          <div className="h-4 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50 relative shadow-inner mt-4">
-            <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }} />
+          <div className="gh-xp-bar">
+            <div className="gh-xp-bar__fill" style={{ width: `${pct}%` }} />
           </div>
-          <div className="flex justify-between items-center mt-2">
-            <span className="text-[10px] font-bold text-slate-500">{pct.toFixed(1)}% to next level</span>
-            <span className="text-[10px] font-bold text-slate-500">Next Level: {profile.next_level_xp.toLocaleString()} XP</span>
+          <div className="gh-xp-bar__meta">
+            <span>{pct.toFixed(1)}% to next level</span>
+            <span>Next: {profile.next_level_xp.toLocaleString()} XP</span>
           </div>
         </div>
 
-        {/* Quick Stats Column */}
-        <div className="flex flex-col gap-3 shrink-0 w-full md:w-auto">
-          <div className="grid grid-cols-2 md:grid-cols-2 gap-3">
-            {quickStats.map((s, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '14px', flex: 1, background: 'rgba(255,255,255,0.7)', border: `1px solid ${s.color}40`, boxShadow: `0 0 15px ${s.color}20` }}>
-                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: `${s.color}20`, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {s.icon}
-                </div>
-                <div>
-                  <p style={{ fontSize: '9px', color: '#475569', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{s.label}</p>
-                  <p style={{ fontSize: '16px', fontWeight: 900, color: '#0f172a', lineHeight: 1.2 }}>{s.value}</p>
-                </div>
+        <div className="gh-stat-grid">
+          {quickStats.map((s) => (
+            <div key={s.label} className="gh-stat">
+              <div className="gh-stat__icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+              <div>
+                <p className="gh-stat__label">{s.label}</p>
+                <p className="gh-stat__value">{s.value}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-
       </div>
     </div>
   );
@@ -701,39 +681,39 @@ const Leaderboard: React.FC = () => {
     gamificationAPI.getLeaderboard({ limit: 10, current_employee_id: currentEmployee.id }).then(setLeaderboard).catch(() => setLeaderboard([]));
   }, [currentEmployee]);
 
-  if (!leaderboard.length) return <p className="text-sm text-slate-500 py-4">No leaderboard data yet. Earn XP to appear here.</p>;
+  if (!leaderboard.length) return <p className="gh-empty">No leaderboard data yet. Earn XP to appear here.</p>;
+
+  const rowClass = (player: any) => {
+    if (player.is_me) return 'gh-lb-row gh-lb-row--me';
+    if (player.rank === 1) return 'gh-lb-row gh-lb-row--top1';
+    if (player.rank === 2) return 'gh-lb-row gh-lb-row--top2';
+    if (player.rank === 3) return 'gh-lb-row gh-lb-row--top3';
+    return 'gh-lb-row';
+  };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="gh-leaderboard">
       {leaderboard.map((player) => (
-        <div 
-          key={player.rank} 
-          className={`p-3 bg-white rounded-xl border ${player.is_me ? 'border-primary shadow-sm bg-primary/5' : 'border-[var(--border-subtle)]'} flex items-center justify-between transition-all hover:shadow-md group`}
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-extrabold text-tertiary w-6 text-center">{player.rank <= 3 ? player.badge : player.rank}</span>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white shadow-sm ${player.is_me ? 'bg-primary' : 'bg-secondary'}`}>
-              {player.initials}
-            </div>
+        <div key={player.rank} className={rowClass(player)}>
+          <div className="gh-lb-left">
+            <span className="gh-lb-rank">{player.rank <= 3 ? player.badge : player.rank}</span>
+            <div className="gh-lb-avatar">{player.initials}</div>
             <div>
-              <h4 className="font-bold text-primary text-sm flex items-center gap-2">
+              <h4 className="gh-lb-name">
                 {player.name}
-                {player.is_me && <span className="text-[9px] font-bold text-primary bg-[var(--bg-main)] border border-[var(--border-subtle)] px-2 py-0.5 rounded-md">YOU</span>}
+                {player.is_me && <span className="gh-lb-you">YOU</span>}
               </h4>
-              <p className="text-[10px] text-secondary font-medium">Lv {player.level} • {player.department}</p>
+              <p className="gh-lb-dept">Lv {player.level} · {player.department}</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
+          <div className="gh-lb-right">
             <div className="text-right">
-              <span className="text-sm font-extrabold text-primary">{player.xp.toLocaleString()}</span>
-              <span className="text-[9px] font-bold text-secondary uppercase ml-1">XP</span>
+              <span className="gh-lb-xp">{player.xp.toLocaleString()}</span>
+              <span className="gh-lb-xp-label"> XP</span>
             </div>
-            <div className="w-5 flex justify-end shrink-0">
-              {player.trend === 'up' && <TrendingUp size={14} className="text-success" />}
-              {player.trend === 'down' && <TrendingDown size={14} className="text-danger" />}
-              {player.trend === 'stable' && <Minus size={14} className="text-tertiary" />}
-            </div>
+            {player.trend === 'up' && <TrendingUp size={14} className="text-success" />}
+            {player.trend === 'down' && <TrendingDown size={14} className="text-danger" />}
+            {player.trend === 'stable' && <Minus size={14} className="text-tertiary" />}
           </div>
         </div>
       ))}
@@ -741,7 +721,7 @@ const Leaderboard: React.FC = () => {
   );
 };
 
-const Challenges: React.FC<{ onOpenDetail: (id: string) => void; refreshKey?: number }> = ({ onOpenDetail, refreshKey = 0 }) => {
+const Challenges: React.FC<{ onOpenDetail: (id: string) => void; refreshKey?: number; singleColumn?: boolean }> = ({ onOpenDetail, refreshKey = 0, singleColumn = false }) => {
   const { currentEmployee } = useEmployee();
   const [challenges, setChallenges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -764,63 +744,63 @@ const Challenges: React.FC<{ onOpenDetail: (id: string) => void; refreshKey?: nu
     loadChallenges();
   }, [currentEmployee, refreshKey]);
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" size={28} /></div>;
+  if (loading) return <div className="gh-loading"><Loader2 className="animate-spin" size={28} /></div>;
   if (error) return <HubNotice type="error" message={error} />;
-  if (!challenges.length) return <p className="text-sm text-slate-500 py-4">No active challenges. Create one from the Challenges tab.</p>;
+  if (!challenges.length) return <p className="gh-empty">No active challenges. Create one from the Challenges tab.</p>;
 
   return (
-    <div className="grid grid-cols-1 gap-4">
+    <div className={`gh-challenge-grid ${singleColumn ? 'gh-challenge-grid--single' : ''}`}>
       {challenges.map((ch) => (
         <div
           key={ch.id}
-          className="p-4 bg-white rounded-xl border border-[var(--border-subtle)] shadow-sm flex flex-col transition-all hover:shadow-md hover:border-primary group cursor-pointer"
+          role="button"
+          tabIndex={0}
+          className="gh-challenge-card"
+          style={{ ['--gh-challenge-accent' as string]: ch.color || '#6366f1' }}
           onClick={() => onOpenDetail(ch.id)}
+          onKeyDown={(e) => e.key === 'Enter' && onOpenDetail(ch.id)}
         >
-          <div className="flex items-start gap-4 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-[var(--bg-main)] border border-[var(--border-subtle)] flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
-              {ch.bonus_badge || '🏆'}
-            </div>
-            <div className="flex-1">
-              <h4 className="font-bold text-primary text-sm group-hover:text-primary transition-colors">{ch.title}</h4>
-              <p className="text-[11px] text-secondary mt-1">{ch.description}</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-[9px] font-bold px-2 py-1 rounded-md border" style={{ color: DIFF_COLORS[ch.difficulty], borderColor: DIFF_COLORS[ch.difficulty], backgroundColor: `${DIFF_COLORS[ch.difficulty]}15` }}>
+          <div className="gh-challenge-card__top">
+            <div className="gh-challenge-card__emoji">{ch.bonus_badge || '🏆'}</div>
+            <div className="flex-1 min-w-0">
+              <h4 className="gh-challenge-card__title">{ch.title}</h4>
+              <p className="gh-challenge-card__desc">{ch.description}</p>
+              <div className="gh-tag-row">
+                <span className="gh-tag" style={{ color: DIFF_COLORS[ch.difficulty], borderColor: `${DIFF_COLORS[ch.difficulty]}40`, background: `${DIFF_COLORS[ch.difficulty]}12` }}>
                   {ch.difficulty}
                 </span>
-                <span className="text-[9px] font-bold text-secondary bg-[var(--bg-main)] border border-[var(--border-subtle)] px-2 py-1 rounded-md">{ch.type}</span>
+                <span className="gh-tag">{ch.type}</span>
+                <span className="gh-tag">{ch.category}</span>
               </div>
             </div>
           </div>
 
-          <div className="mt-auto pt-3 border-t border-[var(--border-subtle)]">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-[10px] font-bold text-tertiary uppercase tracking-wider">Progress</span>
-              <span className="text-[10px] font-bold text-primary">{ch.progress}%</span>
+          <div className="gh-challenge-card__foot">
+            <div className="gh-progress-label">
+              <span>Progress</span>
+              <span>{ch.progress}%</span>
             </div>
-            <div className="h-2 bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-subtle)] mb-2 shadow-inner">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${ch.progress}%`, backgroundColor: ch.color || 'var(--color-primary)' }}
-              />
+            <div className="gh-progress-track">
+              <div className="gh-progress-fill" style={{ width: `${ch.progress}%`, background: ch.color || 'var(--gh-accent)' }} />
             </div>
-            <div className="flex justify-between items-center text-[10px] font-bold text-secondary">
-              <span className="flex items-center gap-1"><Calendar size={12}/> {ch.days_left}d left</span>
-              <span className="px-2 py-1 rounded-md bg-success/10 text-success border border-success/20">+{ch.xp_reward?.toLocaleString() || 0} XP</span>
+            <div className="gh-challenge-card__meta">
+              <span className="flex items-center gap-1"><Calendar size={12} /> {ch.days_left}d left</span>
+              <span className="gh-tag gh-tag--xp">+{ch.xp_reward?.toLocaleString() || 0} XP</span>
             </div>
 
             {ch.progress === 100 && !ch.completed && (
-              <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex items-center justify-center gap-2 text-xs font-bold text-warning bg-warning/5 py-2 rounded-md border border-warning/20">
-                <Loader2 size={14} className="animate-spin" /> Pending Verification
+              <div className="gh-status-banner gh-status-banner--pending">
+                <Loader2 size={14} className="animate-spin" /> Pending verification
               </div>
             )}
             {ch.progress === 100 && ch.completed && (
-              <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex items-center justify-center gap-2 text-xs font-bold text-success bg-success/5 py-2 rounded-md border border-success/20">
+              <div className="gh-status-banner gh-status-banner--done">
                 <CheckCircle2 size={14} /> Completed
               </div>
             )}
             {ch.progress < 100 && (
-              <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] flex items-center justify-center gap-1 text-[10px] font-bold text-primary">
-                <ChevronRight size={12} /> Click to view steps &amp; submit work
+              <div className="gh-challenge-card__cta">
+                <ChevronRight size={12} /> View steps & submit work
               </div>
             )}
           </div>
@@ -863,20 +843,20 @@ const AdminManualReviews: React.FC<{ refreshKey: number; onReviewed: () => void 
   };
 
   return (
-    <Card className="glass-panel p-6 flex flex-col gap-4 border border-purple-200 bg-purple-50/50">
-      <h3 className="text-lg font-extrabold text-purple-800 flex items-center gap-3 border-b border-purple-200 pb-3">
-        <div className="p-2 bg-white rounded-lg border border-purple-200 shadow-sm text-purple-700"><AlertCircle size={20} /></div>
-        Admin: Manual Review Queue ({pending.length})
+    <Card glass={false} className="glass-panel gh-section gh-admin-panel gh-admin-panel--review">
+      <h3 className="gh-admin-panel__title">
+        <AlertCircle size={20} />
+        Manual review queue ({pending.length})
       </h3>
-      <div className="grid grid-cols-1 gap-3">
+      <div className="flex flex-col gap-3">
         {pending.map((p: any) => (
-          <div key={p.id} className="p-4 bg-white rounded-xl border border-purple-200 flex flex-col gap-3 shadow-sm">
+          <div key={p.id} className="gh-admin-item">
             <div>
               <h4 className="font-bold text-primary text-sm">{p.challenges?.title} — {p.challenge_steps?.title}</h4>
               <p className="text-xs text-secondary">By <span className="font-bold">{p.employees?.full_name}</span> · +{p.challenge_steps?.xp_value} XP</p>
               <p className="text-xs text-tertiary mt-2 line-clamp-3">{p.content}</p>
             </div>
-            <div className="flex gap-2 justify-end">
+            <div className="gh-admin-actions">
               <button
                 disabled={reviewingId === p.id}
                 onClick={() => handleReview(p.id, false)}
@@ -931,20 +911,20 @@ const AdminVerifications: React.FC<{ refreshKey: number, onVerified: () => void 
   };
 
   return (
-    <Card className="glass-panel p-6 flex flex-col gap-4 border border-warning/30 bg-warning/5 transition-all duration-300">
-      <h3 className="text-lg font-extrabold text-warning flex items-center gap-3 border-b border-warning/20 pb-3">
-        <div className="p-2 bg-white rounded-lg border border-warning/30 shadow-sm text-warning"><CheckCircle2 size={20} /></div>
-        Admin: Pending Verifications
+    <Card glass={false} className="glass-panel gh-section gh-admin-panel gh-admin-panel--verify">
+      <h3 className="gh-admin-panel__title">
+        <CheckCircle2 size={20} />
+        Pending verifications
       </h3>
-      <div className="grid grid-cols-1 gap-3">
+      <div className="flex flex-col gap-3">
         {pending.map((p: any) => (
-          <div key={p.id} className="p-4 bg-white rounded-xl border border-warning/30 flex justify-between items-center shadow-sm">
+          <div key={p.id} className="gh-admin-item flex-row flex-wrap items-center justify-between">
             <div>
               <h4 className="font-bold text-primary text-sm">{p.challenges?.title}</h4>
-              <p className="text-xs text-secondary font-medium">Completed by <span className="text-tertiary font-bold">{p.employees?.full_name}</span></p>
+              <p className="text-xs text-secondary font-medium">Completed by <span className="font-bold">{p.employees?.full_name}</span></p>
               <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-md mt-1 inline-block">+{p.challenges?.xp_reward} XP pending</span>
             </div>
-            <div className="flex gap-2">
+            <div className="gh-admin-actions">
               <button 
                 onClick={() => handleVerify(p.employee_id, p.challenge_id, false)}
                 className="py-1.5 px-3 text-xs font-bold text-danger bg-danger/10 hover:bg-danger/20 rounded-md transition-colors border border-danger/20"
@@ -976,20 +956,18 @@ const AchievementGallery: React.FC = () => {
   }, [currentEmployee]);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+    <div className="gh-achievement-grid">
       {achievements.map((ach: any) => {
         const unlocked = ach.unlocked || !!ach.unlocked_at;
         return (
-          <div 
-            key={ach.id} 
-            className={`p-4 bg-white rounded-xl border border-[var(--border-subtle)] flex flex-col items-center justify-center text-center transition-all ${unlocked ? 'hover:shadow-md hover:-translate-y-1 hover:border-primary shadow-sm' : 'opacity-60 grayscale'}`}
+          <div
+            key={ach.id}
+            className={`gh-achievement ${unlocked ? 'gh-achievement--unlocked' : 'gh-achievement--locked'}`}
           >
-            <div className={`w-12 h-12 rounded-full mb-3 flex items-center justify-center text-2xl ${unlocked ? 'bg-primary/10 border border-primary/20' : 'bg-[var(--bg-main)] border border-[var(--border-subtle)]'}`}>
-              {ach.emoji || '🏆'}
-            </div>
-            <h4 className="font-bold text-primary text-xs leading-tight mb-1">{ach.name}</h4>
-            <span className="text-[9px] font-bold text-secondary uppercase tracking-wider mb-2">{ach.rarity || 'Common'}</span>
-            <div className="text-[10px] font-medium text-tertiary">
+            <div className="gh-achievement__icon">{ach.emoji || '🏆'}</div>
+            <h4 className="gh-achievement__name">{ach.name}</h4>
+            <span className="gh-achievement__rarity">{ach.rarity || 'Common'}</span>
+            <div className="gh-achievement__meta">
               {unlocked ? ach.unlockedDate || ach.unlocked_date || 'Unlocked' : `+${ach.xpValue || ach.xp_value || 0} XP`}
             </div>
           </div>
@@ -1027,37 +1005,32 @@ const RewardStore: React.FC = () => {
       .finally(() => setLoading(false));
   }, [currentEmployee]);
 
-  if (loading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin text-primary" size={28} /></div>;
+  if (loading) return <div className="gh-loading"><Loader2 className="animate-spin" size={28} /></div>;
   if (error) return <HubNotice type="error" message={error} />;
-  if (!rewards.length) return <p className="text-sm text-slate-500 py-4">No rewards available yet.</p>;
+  if (!rewards.length) return <p className="gh-empty">No rewards available yet.</p>;
 
   return (
     <div className="flex flex-col gap-4">
       {claimError && <HubNotice type="error" message={claimError} onDismiss={() => setClaimError(null)} />}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="gh-reward-grid">
       {rewards.map((reward) => {
         const isClaimed = claimed.has(reward.id);
         const canAfford = playerXP >= reward.cost;
         return (
-          <div 
-            key={reward.id} 
-            className={`p-5 bg-white rounded-xl border border-[var(--border-subtle)] shadow-sm flex flex-col transition-all hover:shadow-md group ${!reward.available ? 'opacity-60' : ''}`}
+          <div
+            key={reward.id}
+            className={`gh-reward-card ${!reward.available ? 'opacity-60' : ''}`}
           >
-            <div className="flex items-start justify-between mb-3">
-              <div className="w-12 h-12 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-                {reward.emoji}
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-1 rounded-md border ${canAfford ? 'bg-primary/10 text-primary border-primary/20' : 'bg-[var(--bg-main)] text-tertiary border-[var(--border-subtle)]'}`}>
+            <div className="gh-reward-card__top">
+              <div className="gh-reward-card__emoji">{reward.emoji}</div>
+              <span className={`gh-reward-card__cost ${canAfford ? 'gh-reward-card__cost--afford' : ''}`}>
                 {reward.cost.toLocaleString()} XP
               </span>
             </div>
-            
-            <div className="flex-1">
-              <h4 className="font-bold text-primary text-sm mb-1">{reward.name}</h4>
-              <p className="text-xs text-secondary leading-relaxed">{reward.description}</p>
-            </div>
-            
+            <h4 className="gh-reward-card__name">{reward.name}</h4>
+            <p className="gh-reward-card__desc">{reward.description}</p>
             <button
+              type="button"
               onClick={() => {
                 if (reward.available && canAfford && !isClaimed && currentEmployee) {
                   gamificationAPI.claimReward(currentEmployee.id, reward.id)
@@ -1069,10 +1042,10 @@ const RewardStore: React.FC = () => {
                 }
               }}
               disabled={!reward.available || !canAfford || isClaimed}
-              className={`mt-4 w-full py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
-                isClaimed ? 'bg-success text-white' : 
-                !reward.available || !canAfford ? 'bg-[var(--bg-main)] text-tertiary border border-[var(--border-subtle)] cursor-not-allowed' : 
-                'bg-primary text-white shadow-sm hover:-translate-y-0.5 hover:shadow-md cursor-pointer'
+              className={`gh-reward-btn ${
+                isClaimed ? 'gh-reward-btn--claimed' :
+                !reward.available || !canAfford ? 'gh-reward-btn--disabled' :
+                'gh-reward-btn--primary'
               }`}
             >
               {isClaimed ? <><CheckCircle2 size={14}/> Claimed</> : !reward.available ? 'Unavailable' : !canAfford ? 'Need More XP' : 'Redeem Reward'}
@@ -1111,70 +1084,58 @@ export const GamificationHub: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col gap-6 relative pb-8 w-full">
-      
-      {/* Header */}
-      <div className="z-10 mb-2 flex flex-wrap items-end justify-between gap-4">
+    <div className="gamification-hub">
+      <header className="gh-page-head">
         <div>
-          <h1 className="text-3xl font-extrabold mb-1 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">Gamification Hub</h1>
-          <p className="text-base text-slate-500 font-medium mt-0.5">Level up your career, compete with peers, and earn rewards.</p>
+          <h1 className="gh-page-head__title">Gamification Hub</h1>
+          <p className="gh-page-head__sub">Level up your career, compete with peers, and redeem rewards for your progress.</p>
         </div>
-        
-        {/* Simple Tab Switcher matching Workforce Planning style */}
-        <div className="flex items-center gap-2 bg-[var(--bg-surface)] p-1.5 rounded-xl border border-[var(--border-subtle)] shadow-sm">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === tab.id 
-                  ? 'bg-white text-primary shadow-sm border border-[var(--border-subtle)]' 
-                  : 'text-secondary hover:text-primary hover:bg-[var(--bg-main)]'
-              }`}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+        <div className="gh-tabs-wrap">
+          <div className="gh-tabs" role="tablist">
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`gh-tab ${activeTab === tab.id ? 'gh-tab--active' : ''}`}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      </header>
 
-      {/* Hero Section */}
       <XPProgressBar />
 
       {hubNotice && (
         <HubNotice type={hubNotice.type} message={hubNotice.message} onDismiss={() => setHubNotice(null)} />
       )}
 
-      {/* Main Content Areas */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 flex flex-col gap-6">
-            <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-              <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
-                <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Target size={20} /></div>
-                Active Challenges
-              </h3>
-              <Challenges key={refreshChallengesKey} refreshKey={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
+        <div className="gh-overview-grid">
+          <div className="gh-stack">
+            <Card glass={false} className="glass-panel gh-section">
+              <SectionHead icon={<Target size={20} />} title="Active challenges" subtitle="Complete steps to earn XP and badges" />
+              <Challenges refreshKey={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
             </Card>
-            
-            <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-              <div className="flex justify-between items-center border-b border-[var(--border-subtle)] pb-4">
-                <h3 className="text-lg font-extrabold text-primary flex items-center gap-3">
-                  <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Award size={20} /></div>
-                  Recent Achievements
-                </h3>
-                <button onClick={() => setActiveTab('achievements')} className="text-xs font-bold text-primary hover:text-primary-hover transition-colors cursor-pointer p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] hover:shadow-sm">View All</button>
-              </div>
+
+            <Card glass={false} className="glass-panel gh-section">
+              <SectionHead
+                icon={<Award size={20} />}
+                title="Recent achievements"
+                subtitle="Badges unlocked from your activity"
+                action={<button type="button" className="gh-link-btn" onClick={() => setActiveTab('achievements')}>View all</button>}
+              />
               <AchievementGallery />
             </Card>
           </div>
-          
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-              <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
-                <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Crown size={20} /></div>
-                Top Leaderboard
-              </h3>
+
+          <div className="gh-stack">
+            <Card glass={false} className="glass-panel gh-section">
+              <SectionHead icon={<Crown size={20} />} title="Top leaderboard" subtitle="Company-wide XP rankings" />
               <Leaderboard />
             </Card>
           </div>
@@ -1182,38 +1143,33 @@ export const GamificationHub: React.FC = () => {
       )}
 
       {activeTab === 'leaderboard' && (
-        <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-          <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
-            <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Crown size={20} /></div>
-            Company Leaderboard
-          </h3>
+        <Card glass={false} className="glass-panel gh-section">
+          <SectionHead icon={<Crown size={20} />} title="Company leaderboard" subtitle="See how you rank against peers" />
           <Leaderboard />
         </Card>
       )}
 
       {activeTab === 'challenges' && (
-        <div className="flex flex-col gap-6">
+        <div className="gh-stack">
           <AdminManualReviews refreshKey={refreshChallengesKey} onReviewed={bumpRefresh} />
-          <AdminVerifications 
-            refreshKey={refreshChallengesKey} 
-            onVerified={bumpRefresh} 
-          />
+          <AdminVerifications refreshKey={refreshChallengesKey} onVerified={bumpRefresh} />
 
-          <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-            <div className="flex justify-between items-center border-b border-[var(--border-subtle)] pb-4">
-              <h3 className="text-lg font-extrabold text-primary flex items-center gap-3">
-                <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Target size={20} /></div>
-                All Active Challenges
-              </h3>
-              <Button size="sm" onClick={() => setShowCreateChallenge(true)} className="flex items-center gap-2">
-                <Plus size={16} /> New Challenge
-              </Button>
-            </div>
-            <Challenges key={refreshChallengesKey} refreshKey={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
-            
-            <CreateChallengeModal 
-              isOpen={showCreateChallenge} 
-              onClose={() => setShowCreateChallenge(false)} 
+          <Card glass={false} className="glass-panel gh-section">
+            <SectionHead
+              icon={<Target size={20} />}
+              title="All active challenges"
+              subtitle="Multi-step challenges with AI evaluation"
+              action={
+                <Button size="sm" onClick={() => setShowCreateChallenge(true)} className="flex items-center gap-2">
+                  <Plus size={16} /> New challenge
+                </Button>
+              }
+            />
+            <Challenges singleColumn refreshKey={refreshChallengesKey} onOpenDetail={setSelectedChallengeId} />
+
+            <CreateChallengeModal
+              isOpen={showCreateChallenge}
+              onClose={() => setShowCreateChallenge(false)}
               onCreated={bumpRefresh}
               onNotice={showNotice}
             />
@@ -1222,21 +1178,15 @@ export const GamificationHub: React.FC = () => {
       )}
 
       {activeTab === 'achievements' && (
-        <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-          <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
-            <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Award size={20} /></div>
-            Achievement Gallery
-          </h3>
+        <Card glass={false} className="glass-panel gh-section">
+          <SectionHead icon={<Award size={20} />} title="Achievement gallery" subtitle="Collect badges as you grow" />
           <AchievementGallery />
         </Card>
       )}
 
       {activeTab === 'store' && (
-        <Card className="glass-panel p-6 flex flex-col gap-5 border border-[var(--border-subtle)] transition-all duration-300 hover:shadow-md">
-          <h3 className="text-lg font-extrabold text-primary flex items-center gap-3 border-b border-[var(--border-subtle)] pb-4">
-            <div className="p-2 bg-[var(--bg-main)] rounded-lg border border-[var(--border-subtle)] shadow-sm text-primary"><Gift size={20} /></div>
-            Reward Store
-          </h3>
+        <Card glass={false} className="glass-panel gh-section">
+          <SectionHead icon={<Gift size={20} />} title="Reward store" subtitle="Spend XP on perks and experiences" />
           <RewardStore />
         </Card>
       )}

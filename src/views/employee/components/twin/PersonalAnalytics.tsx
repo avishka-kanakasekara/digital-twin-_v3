@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, TrendingUp, Brain, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
+import { TrendingUp, Brain, CheckCircle, Sparkles, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../../components/ui/Tabs';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -79,26 +79,10 @@ export const PersonalAnalytics: React.FC<PersonalAnalyticsProps> = ({ analytics,
   }
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.9)',
-      border: '1px solid rgba(226, 232, 240, 0.9)',
-      borderRadius: '24px',
-      padding: '1.75rem',
-    }}>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 style={{
-            fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-            letterSpacing: '0.1em', color: '#94a3b8',
-            display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px',
-          }}>
-            <BarChart3 size={14} style={{ color: '#a78bfa' }} /> AI-Powered Analytics
-          </h3>
-          <p style={{ fontSize: '11px', color: '#475569' }}>Real insights from your documents, projects & skills</p>
-        </div>
+    <div>
+      <div className="flex items-center justify-end mb-5">
         <div style={{
-          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+          background: 'linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%)',
           padding: '8px 16px',
           borderRadius: '12px',
           color: 'white',

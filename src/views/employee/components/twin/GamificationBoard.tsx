@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trophy, Target, Award, Flame, Crown, CheckCircle2 } from 'lucide-react';
+import { Target, Award, Flame, Crown, CheckCircle2 } from 'lucide-react';
 
 interface GamificationBoardProps {
   gamification: any;
@@ -28,37 +28,7 @@ export const GamificationBoard: React.FC<GamificationBoardProps> = ({ gamificati
   ];
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.8)',
-      border: '1px solid rgba(226, 232, 240, 0.8)',
-      borderRadius: '24px',
-      padding: '1.75rem',
-      backdropFilter: 'blur(20px)',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      {/* Ambient accent */}
-      <div style={{
-        position: 'absolute', top: '-60px', right: '-40px',
-        width: '200px', height: '200px', borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 style={{
-            fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-            letterSpacing: '0.1em', color: '#64748b',
-            display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px',
-          }}>
-            <Trophy size={14} style={{ color: '#f59e0b' }} /> Gamification Board
-          </h3>
-          <p style={{ fontSize: '11px', color: '#475569' }}>Level up your AI Identity and unlock rewards</p>
-        </div>
-      </div>
-
+    <div className="relative overflow-hidden">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* XP & Level Section */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, ArrowRight, BookOpen, Users, Briefcase } from 'lucide-react';
+import { Sparkles, BookOpen, Users, Briefcase } from 'lucide-react';
 
 interface AIRecommendationsProps {
   recommendations: any[];
@@ -8,98 +8,61 @@ interface AIRecommendationsProps {
 const TYPE_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string }> = {
   Certification: {
     icon: <BookOpen size={15} />,
-    color: '#22d3ee',
-    bg: 'rgba(6,182,212,0.12)',
-    border: 'rgba(6,182,212,0.25)',
+    color: '#0ea5e9',
+    bg: 'rgba(14,165,233,0.12)',
+    border: 'rgba(14,165,233,0.25)',
   },
   Leadership: {
     icon: <Users size={15} />,
-    color: '#fbbf24',
+    color: '#d97706',
     bg: 'rgba(245,158,11,0.12)',
     border: 'rgba(245,158,11,0.25)',
   },
   Project: {
     icon: <Briefcase size={15} />,
-    color: '#a78bfa',
-    bg: 'rgba(124,58,237,0.12)',
-    border: 'rgba(124,58,237,0.25)',
+    color: '#2563eb',
+    bg: 'rgba(37,99,235,0.12)',
+    border: 'rgba(37,99,235,0.25)',
   },
 };
 
 export const AIRecommendations: React.FC<AIRecommendationsProps> = ({ recommendations }) => {
+  if (!recommendations?.length) {
+    return <div className="pd-empty">No recommendations yet. Keep updating your twin to unlock suggestions.</div>;
+  }
+
   return (
-    <div style={{
-    background: 'rgba(255,255,255,0.9)',
-      border: '1px solid rgba(226, 232, 240, 0.9)',
-      borderRadius: '20px',
-      padding: '1.5rem',
-      backdropFilter: 'blur(20px)',
-    }}>
-      {/* Header */}
-      <h3 style={{
-        fontSize: '11px', fontWeight: 800, textTransform: 'uppercase',
-        letterSpacing: '0.1em', color: '#94a3b8',
-        display: 'flex', alignItems: 'center', gap: '8px',
-        marginBottom: '16px',
-      }}>
-        <Sparkles size={14} style={{ color: '#a78bfa' }} />
-        Intelligent Recommendations
-      </h3>
+    <div className="pd-rec-list">
+      {recommendations.map((rec) => {
+        const style = TYPE_STYLES[rec.type] || {
+          icon: <Sparkles size={15} />,
+          color: '#64748b',
+          bg: 'rgba(248,250,252,0.95)',
+          border: 'rgba(226,232,240,0.85)',
+        };
 
-      <div className="space-y-3">
-        {recommendations.map((rec) => {
-          const style = TYPE_STYLES[rec.type] || {
-            icon: <Sparkles size={15} />, color: '#94a3b8',
-            bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)',
-          };
-
-          return (
+        return (
+          <div key={rec.id || rec.text} className="pd-rec-item">
             <div
-              key={rec.id}
-              style={{
-                display: 'flex', alignItems: 'flex-start', gap: '12px',
-                padding: '14px', borderRadius: '14px',
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
-                cursor: 'pointer', transition: 'all 0.2s',
-              }}
-              className="hover:bg-white/[0.06] group/rec"
+              className="pd-rec-item__icon"
+              style={{ background: style.bg, borderColor: style.border, color: style.color }}
             >
-              <div style={{
-                width: '36px', height: '36px', borderRadius: '10px', flexShrink: 0,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: style.bg,
-                border: `1px solid ${style.border}`,
-                color: style.color,
-              }}>
-                {style.icon}
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <span style={{
-                  display: 'inline-block',
-                  marginBottom: '6px',
-                  padding: '2px 8px', borderRadius: '99px',
-                  fontSize: '9px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em',
-                  background: style.bg, color: style.color,
-                  border: `1px solid ${style.border}`,
-                }}>
+              {style.icon}
+            </div>
+            <div className="flex-1 min-w-0">
+              {rec.type ? (
+                <span
+                  className="pd-rec-item__type"
+                  style={{ background: style.bg, color: style.color, borderColor: style.border }}
+                >
                   {rec.type}
                 </span>
-                <p style={{ fontSize: '12px', color: '#334155', lineHeight: 1.55, fontWeight: 500 }}>
-                  {rec.text}
-                </p>
-              </div>
-
-              <ArrowRight
-                size={13}
-                style={{ color: '#475569', flexShrink: 0, marginTop: '11px', transition: 'all 0.2s' }}
-                className="group-hover/rec:text-white group-hover/rec:translate-x-0.5"
-              />
+              ) : null}
+              <p className="pd-rec-item__text">{rec.text}</p>
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
