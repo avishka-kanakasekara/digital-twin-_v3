@@ -640,6 +640,24 @@ export const organizationAPI = {
   getCapabilities: () => fetchAPI<any[]>('/api/organization/strategy/capabilities'),
   getTransformations: () => fetchAPI<any[]>('/api/organization/strategy/transformations'),
   getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
+
+  // Applications
+  getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
+    fetchAPI<any[]>(`/api/organization/talent/applications?${new URLSearchParams(
+      Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+    ).toString()}`),
+
+  submitApplication: (data: { opportunity_id: string; opportunity_type: string; opportunity_title: string; applicant_employee_id?: string }) =>
+    fetchAPI<any>('/api/organization/talent/applications', {
+      method: 'POST',
+      body: JSON.stringify({ status: 'Under Review', ...data }),
+    }),
+
+  updateApplicationStatus: (id: string, status: string) =>
+    fetchAPI<any>(`/api/organization/talent/applications/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };
 
 // ==================== DEPARTMENTS ====================

@@ -322,3 +322,24 @@ class OrgOKRUpdate(BaseModel):
     progress: Optional[int] = None
     status: Optional[str] = None
     initiatives: Optional[List[Dict[str, Any]]] = None
+
+
+# ==================== TALENT APPLICATIONS ====================
+
+class OrgTalentApplicationBase(BaseModel):
+    applicant_employee_id: Optional[str] = None   # null = anonymous / manager-posted
+    opportunity_id: str                            # gig or mentor id
+    opportunity_type: str                          # "gig" | "mentoring"
+    opportunity_title: str
+    status: str = "Under Review"                  # Under Review | Accepted | Rejected
+
+class OrgTalentApplicationCreate(OrgTalentApplicationBase):
+    pass
+
+class OrgTalentApplicationRead(OrgTalentApplicationBase):
+    id: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class OrgTalentApplicationUpdate(BaseModel):
+    status: Optional[str] = None

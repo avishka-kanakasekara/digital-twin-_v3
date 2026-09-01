@@ -17,7 +17,8 @@ from app.schemas.organization import (
     OrgTeamBuilderOptionRead, OrgTeamBuilderOptionCreate, OrgTeamBuilderOptionUpdate,
     OrgOKRRead, OrgOKRCreate, OrgOKRUpdate,
     OrgStrategyVisionResponse, OrgAIReadinessResponse,
-    OrgCapabilityResponse, OrgTransformationResponse
+    OrgCapabilityResponse, OrgTransformationResponse,
+    OrgTalentApplicationRead, OrgTalentApplicationCreate, OrgTalentApplicationUpdate,
 )
 import sys
 import os
@@ -253,6 +254,42 @@ def delete_talent_gig(id: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Talent gig not found")
     return None
+
+
+# --- Talent Applications ---
+
+@router.get("/talent/applications", response_model=List[OrgTalentApplicationRead])
+def get_talent_applications(opportunity_type: str = None, employee_id: str = None):
+    """List all applications, optionally filtered by type or employee."""
+    sb = get_supabase_admin()
+    query = sb.table("org_talent_applications").select("*").order("created_at", desc=True)
+    if opportunity_type:
+        query = query.eq("opportunity_type", opportunity_type)
+    if employee_id:
+        query = query.eq("applicant_employee_id", employee_id)
+    result = query.execute()
+    return result.data
+
+@router.post("/talent/applications", response_model=OrgTalentApplicationRead, status_code=status.HTTP_201_CREATED)
+def create_talent_application(application: OrgTalentApplicationCreate):
+    """Submit a gig application or mentorship request."""
+    sb = get_supabase_admin()
+    result = sb.table("org_talent_applications").insert(application.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to submit application")
+    return result.data[0]
+
+@router.patch("/talent/applications/{id}", response_model=OrgTalentApplicationRead)
+def update_application_status(id: str, update: OrgTalentApplicationUpdate):
+    """Update application status (Under Review / Accepted / Rejected)."""
+    sb = get_supabase_admin()
+    update_data = update.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided")
+    result = sb.table("org_talent_applications").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return result.data[0]
 
 
 # --- Talent Mentors ---

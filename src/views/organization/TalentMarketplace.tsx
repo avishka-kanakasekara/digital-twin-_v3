@@ -6,23 +6,41 @@ import api from '../../lib/api';
 export const TalentMarketplace: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'gigs' | 'mentoring'>('gigs');
   const [showPostModal, setShowPostModal] = useState(false);
-  const [newOpportunity, setNewOpportunity] = useState({ title: '', type: 'gig', description: '', timeCommitment: '' });
+
+  // App state
+  const [newOpportunity, setNewOpportunity] = useState({ title: '', type: 'gig', department: 'General', urgency: 'Normal', required_skills: '', description: '', timeCommitment: '' });
   const [gigs, setGigs] = useState<any[]>([]);
   const [mentors, setMentors] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [selectedApp, setSelectedApp] = useState<any | null>(null);
+  const [selectedGigForMatch, setSelectedGigForMatch] = useState<any | null>(null);
+  const [showTopMatchOnly, setShowTopMatchOnly] = useState(false);
+  const [invitedCandidates, setInvitedCandidates] = useState<string[]>([]);
 
-  useEffect(() => {
+  const fetchApplications = () => {
+    api.organization.getApplications().then(setApplications).catch(console.error);
+  };
+
+  const fetchGigs = () => {
     api.organization.getGigs().then(data => {
-      setGigs(data.map((d: any) => ({
+      const filteredData = data.filter((d: any) => d.role_title !== 'ML Model Reviewer');
+      setGigs(filteredData.map((d: any) => ({
         id: d.id,
         title: d.role_title,
+        department: d.department || 'General',
         timeCommitment: d.urgency === 'High' ? '10 HRS/WEEK' : '5 HRS/WEEK',
-        description: `${d.department} department opportunity. Skills needed: ${d.required_skills.join(', ')}.`,
-        tags: d.required_skills.map((s: string) => ({ text: s })),
+        description: `${d.department || 'General'} department opportunity. Skills needed: ${(d.required_skills || []).join(', ')}.`,
+        tags: (d.required_skills || []).map((s: string) => ({ text: s })),
         icon: d.urgency === 'High' ? 'Target' : 'Briefcase',
-        aiMatch: d.matched_employees?.[0]?.match ?? 85,
+        aiMatch: d.matched_employees?.[0]?.match_score ?? d.matched_employees?.[0]?.match ?? 85,
+        urgency: d.urgency,
       })));
     }).catch(console.error);
+  };
 
+  useEffect(() => {
+    fetchGigs();
     api.organization.getMentors().then(data => {
       setMentors(data.map((d: any) => ({
         id: d.id,
@@ -33,7 +51,84 @@ export const TalentMarketplace: React.FC = () => {
         matchScore: d.match_score,
       })));
     }).catch(console.error);
+    fetchApplications();
   }, []);
+
+  const hasApplied = (id: string) => applications.some(a => a.opportunity_id === id);
+
+  const handleUpdateStatus = async (status: string) => {
+    if (!selectedApp) return;
+    try {
+      await api.organization.updateApplicationStatus(selectedApp.id, status);
+      fetchApplications();
+      setSelectedApp(null);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleApply = async (gig: any) => {
+    if (hasApplied(gig.id)) return;
+    setApplyingId(gig.id);
+    try {
+      await api.organization.submitApplication({ opportunity_id: gig.id, opportunity_type: 'gig', opportunity_title: gig.title });
+      fetchApplications();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
+  const handleRequestMentorship = async (mentor: any) => {
+    if (hasApplied(mentor.id)) return;
+    setApplyingId(mentor.id);
+    try {
+      await api.organization.submitApplication({ opportunity_id: mentor.id, opportunity_type: 'mentoring', opportunity_title: mentor.name });
+      fetchApplications();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setApplyingId(null);
+    }
+  };
+
+  const handlePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const skillsList = newOpportunity.required_skills ? newOpportunity.required_skills.split(',').map(s => s.trim()).filter(Boolean) : ['General'];
+      if (newOpportunity.type === 'gig') {
+        await fetch('http://localhost:8000/api/organization/talent/gigs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role_title: newOpportunity.title, department: newOpportunity.department, required_skills: skillsList, matched_employees: [], urgency: newOpportunity.urgency }),
+        });
+        await api.organization.submitApplication({ opportunity_id: 'new', opportunity_type: 'gig', opportunity_title: newOpportunity.title });
+        fetchGigs();
+      }
+      setShowPostModal(false);
+      setNewOpportunity({ title: '', type: 'gig', department: 'General', urgency: 'Normal', required_skills: '', description: '', timeCommitment: '' });
+      fetchApplications();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const statusStyle: Record<string, { bg: string; color: string; border: string }> = {
+    'Under Review': { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
+    'Accepted': { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+    'Rejected': { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+  };
+
+  const relativeTime = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(diff / 86400000)}d ago`;
+  };
 
   return (
     <div className="flex flex-col gap-6 relative pb-8 animate-fade-in z-0">
@@ -99,7 +194,7 @@ export const TalentMarketplace: React.FC = () => {
                 <>
                   {gigs.map((gig) => (
                     <div key={gig.id} className="flex gap-6 transition-all shadow-md hover:shadow-2xl rounded-3xl group bg-white/90 hover:bg-white hover:-translate-y-1.5 cursor-pointer" style={{ padding: '28px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
-                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xl group-hover:scale-110 transition-transform duration-500" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #a855f7 100%)' }}>
+                      <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-xl group-hover:scale-110 transition-transform duration-500" style={{ background: gig.urgency === 'High' ? 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #a855f7 100%)' }}>
                         {gig.icon === 'Target' && <Target size={28} />}
                         {gig.icon === 'Briefcase' && <Briefcase size={28} />}
                       </div>
@@ -110,9 +205,9 @@ export const TalentMarketplace: React.FC = () => {
                             <p className="text-[13px] font-bold mt-1 uppercase tracking-widest" style={{ color: '#64748b' }}>{gig.timeCommitment}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <span className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl shadow-md tracking-wide" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', border: 'none' }}>
+                            <button onClick={(e) => { e.stopPropagation(); setShowTopMatchOnly(true); setSelectedGigForMatch(gig); }} className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl shadow-md hover:shadow-lg tracking-wide hover:scale-105 transition-all cursor-pointer" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white', border: 'none' }}>
                               <BrainCircuit size={16} /> {gig.aiMatch}% AI Match
-                            </span>
+                            </button>
                           </div>
                         </div>
                         <p className="text-[15px] mt-4 mb-6 leading-relaxed font-semibold max-w-2xl" style={{ color: '#334155' }}>
@@ -128,8 +223,11 @@ export const TalentMarketplace: React.FC = () => {
                               }}>{tag.text}</span>
                             ))}
                           </div>
-                          <button className="shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40 rounded-full font-black text-sm px-8 py-3.5 text-white hover:scale-105 transition-all duration-300 border-none cursor-pointer whitespace-nowrap shrink-0" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}>
-                            Review & Apply
+                          <button
+                            onClick={() => { setShowTopMatchOnly(false); setSelectedGigForMatch(gig); }}
+                            className="shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/40 rounded-full font-black text-sm px-8 py-3.5 text-white hover:scale-105 transition-all duration-300 border-none cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-2"
+                            style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}>
+                            <Sparkles size={16} /> View AI Matches
                           </button>
                         </div>
                       </div>
@@ -161,8 +259,12 @@ export const TalentMarketplace: React.FC = () => {
                           {mentor.description}
                         </p>
                         <div className="flex justify-end mt-6 pt-6 border-t border-slate-100">
-                          <button className="shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 rounded-full font-black text-sm px-8 py-3.5 text-white hover:scale-105 transition-all duration-300 border-none cursor-pointer whitespace-nowrap shrink-0" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
-                            Request Mentorship
+                          <button
+                            onClick={() => handleRequestMentorship(mentor)}
+                            disabled={hasApplied(mentor.id) || applyingId === mentor.id}
+                            className="shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 rounded-full font-black text-sm px-8 py-3.5 text-white hover:scale-105 transition-all duration-300 border-none cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-70 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                            style={{ background: hasApplied(mentor.id) ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
+                            {applyingId === mentor.id ? 'Sending...' : hasApplied(mentor.id) ? 'Request Sent' : 'Request Mentorship'}
                           </button>
                         </div>
                       </div>
@@ -187,7 +289,7 @@ export const TalentMarketplace: React.FC = () => {
                 <Sparkles size={28} className="relative z-10" />
               </div>
               <div>
-                <h3 className="font-black text-slate-900 text-xl tracking-tight">How We Match You</h3>
+                <h3 className="font-black text-slate-900 text-xl tracking-tight">How AI Matches Talent</h3>
                 <p className="text-[11px] font-extrabold text-indigo-500 uppercase tracking-widest mt-1">Under the hood AI</p>
               </div>
             </div>
@@ -198,7 +300,7 @@ export const TalentMarketplace: React.FC = () => {
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div> Hybrid Recommender
                 </h4>
                 <p className="text-[13px] font-medium leading-relaxed text-slate-600">
-                  We look at your current skills (content-based) AND the historical success of employees who made similar moves.
+                  We look at current employee skills (content-based) AND the historical success of employees who made similar moves.
                 </p>
               </div>
 
@@ -207,7 +309,7 @@ export const TalentMarketplace: React.FC = () => {
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div> Vector Similarity
                 </h4>
                 <p className="text-[13px] font-medium leading-relaxed text-slate-600">
-                  For mentoring, our ML model maps you and prospective mentors into a vector space, searching for complementary profiles.
+                  For mentoring, our ML model maps employees and prospective mentors into a vector space, searching for complementary profiles.
                 </p>
               </div>
             </div>
@@ -219,17 +321,26 @@ export const TalentMarketplace: React.FC = () => {
               <div className="w-7 h-7 rounded-full shadow-sm flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white' }}>
                 <CheckCircle2 size={16} />
               </div>
-              <span className="mt-0.5">Your Applications</span>
+              <span className="mt-0.5">Incoming Applications</span>
             </h3>
 
             <div className="flex flex-col gap-3 relative z-10 mt-2">
-              <div className="flex items-center justify-between p-5 rounded-2xl shadow-md border hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer group" style={{ backgroundColor: 'white', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
-                <div className="flex-1 pr-4">
-                  <h4 className="text-[14px] font-black tracking-tight group-hover:text-emerald-600 transition-colors truncate" style={{ color: '#1e293b' }}>Cloud Migration Tiger Team</h4>
-                  <p className="text-[11px] font-extrabold mt-1.5 uppercase tracking-wider" style={{ color: '#94a3b8' }}>Applied 2 days ago</p>
-                </div>
-                <span className="shrink-0 inline-flex items-center text-[10px] font-black px-3.5 py-1.5 rounded-full shadow-sm uppercase tracking-widest" style={{ backgroundColor: '#fffbeb', color: '#d97706', border: '1px solid #fde68a' }}>Under Review</span>
-              </div>
+              {applications.length === 0 ? (
+                <div className="text-center py-6 text-slate-400 text-sm font-medium">No applications yet.</div>
+              ) : (
+                applications.slice(0, 5).map(app => {
+                  const s = statusStyle[app.status] || statusStyle['Under Review'];
+                  return (
+                    <div key={app.id} onClick={() => setSelectedApp(app)} className="flex items-center justify-between p-5 rounded-2xl shadow-md border hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer group" style={{ backgroundColor: 'white', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
+                      <div className="flex-1 pr-4">
+                        <h4 className="text-[14px] font-black tracking-tight group-hover:text-emerald-600 transition-colors truncate" style={{ color: '#1e293b' }}>{app.opportunity_title}</h4>
+                        <p className="text-[11px] font-extrabold mt-1.5 uppercase tracking-wider" style={{ color: '#94a3b8' }}>{relativeTime(app.created_at)} • {app.opportunity_type === 'gig' ? 'Gig' : 'Mentoring'}</p>
+                      </div>
+                      <span className="shrink-0 inline-flex items-center text-[10px] font-black px-3.5 py-1.5 rounded-full shadow-sm uppercase tracking-widest" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{app.status}</span>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </Card>
         </div>
@@ -238,18 +349,18 @@ export const TalentMarketplace: React.FC = () => {
 
       {/* Post Opportunity Modal */}
       {showPostModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-300 backdrop-blur-sm" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
-          <div className="backdrop-blur-xl rounded-[2rem] p-8 w-[calc(100%-2rem)] max-w-[600px] border animate-in zoom-in-95 duration-300 ease-out relative overflow-hidden shadow-2xl" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)' }}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-12 sm:pt-20 animate-in fade-in duration-300 backdrop-blur-sm" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
+          <div className="backdrop-blur-xl rounded-[2rem] p-6 w-[calc(100%-2rem)] max-w-[600px] max-h-[85vh] overflow-y-auto border animate-in zoom-in-95 duration-300 ease-out relative shadow-2xl custom-scrollbar" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)' }}>
             <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: 'rgba(79, 70, 229, 0.15)', transform: 'translate(30%, -30%)' }}></div>
-            
-            <div className="flex justify-between items-center mb-8 relative z-10">
+
+            <div className="flex justify-between items-center mb-6 relative z-10">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 shrink-0 rounded-full flex items-center justify-center shadow-sm border" style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', color: '#4f46e5', borderColor: 'rgba(79, 70, 229, 0.2)' }}>
-                  <Briefcase size={24} />
+                <div className="w-12 h-12 shrink-0 rounded-full flex items-center justify-center shadow-sm border" style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)', color: '#4f46e5', borderColor: 'rgba(79, 70, 229, 0.2)' }}>
+                  <Briefcase size={22} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Post Opportunity</h2>
-                  <p className="text-sm font-semibold mt-1" style={{ color: '#64748b' }}>Create a new gig or mentorship opening.</p>
+                  <h2 className="text-xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Post Opportunity</h2>
+                  <p className="text-[13px] font-semibold mt-0.5" style={{ color: '#64748b' }}>Create a new gig or mentorship opening.</p>
                 </div>
               </div>
               <button onClick={() => setShowPostModal(false)} className="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 border-none cursor-pointer hover:rotate-90 bg-slate-100 hover:bg-slate-200" style={{ color: '#64748b' }}>
@@ -257,74 +368,73 @@ export const TalentMarketplace: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); setShowPostModal(false); }} className="relative z-10 flex flex-col gap-4">
-              
-              <div 
-                className="relative rounded-[2rem] p-2 transition-all duration-300 shadow-inner flex gap-2 mb-2" 
+            <form onSubmit={handlePost} className="relative z-10 flex flex-col gap-4">
+
+              <div
+                className="relative rounded-[2rem] p-2 transition-all duration-300 shadow-inner flex gap-2 mb-2"
                 style={{ backgroundColor: 'rgba(241, 245, 249, 0.7)', border: '1px solid rgba(226, 232, 240, 0.6)' }}
               >
-                <button 
-                  type="button" 
-                  onClick={() => setNewOpportunity({...newOpportunity, type: 'gig'})} 
-                  className={`flex-1 py-3.5 px-4 rounded-3xl font-black text-[13px] transition-all duration-300 cursor-pointer ${newOpportunity.type === 'gig' ? 'shadow-md scale-[1.02]' : 'hover:bg-slate-200/50'}`} 
+                <button
+                  type="button"
+                  onClick={() => setNewOpportunity({ ...newOpportunity, type: 'gig' })}
+                  className={`flex-1 py-3.5 px-4 rounded-3xl font-black text-[13px] transition-all duration-300 cursor-pointer ${newOpportunity.type === 'gig' ? 'shadow-md scale-[1.02]' : 'hover:bg-slate-200/50'}`}
                   style={newOpportunity.type === 'gig' ? { background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', color: 'white', border: 'none' } : { backgroundColor: 'transparent', color: '#64748b', border: 'none' }}
                 >
                   Internal Gig
                 </button>
-                <button 
-                  type="button" 
-                  onClick={() => setNewOpportunity({...newOpportunity, type: 'mentoring'})} 
-                  className={`flex-1 py-3.5 px-4 rounded-3xl font-black text-[13px] transition-all duration-300 cursor-pointer ${newOpportunity.type === 'mentoring' ? 'shadow-md scale-[1.02]' : 'hover:bg-slate-200/50'}`} 
+                <button
+                  type="button"
+                  onClick={() => setNewOpportunity({ ...newOpportunity, type: 'mentoring' })}
+                  className={`flex-1 py-3.5 px-4 rounded-3xl font-black text-[13px] transition-all duration-300 cursor-pointer ${newOpportunity.type === 'mentoring' ? 'shadow-md scale-[1.02]' : 'hover:bg-slate-200/50'}`}
                   style={newOpportunity.type === 'mentoring' ? { background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', color: 'white', border: 'none' } : { backgroundColor: 'transparent', color: '#64748b', border: 'none' }}
                 >
                   Mentorship
                 </button>
               </div>
 
-              <div 
-                className="relative border rounded-3xl px-6 py-4 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group hover:border-indigo-200" 
-                style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
-                onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#4f46e5'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(79, 70, 229, 0.1)'; }}
-                onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
-                onClick={(e) => (e.currentTarget.querySelector('input') as HTMLElement)?.focus()}
-              >
-                <label className="block text-[11px] font-black uppercase tracking-widest mb-1.5 cursor-text transition-colors group-focus-within:text-indigo-600" style={{ color: '#475569' }}>Opportunity Title</label>
+              <div className="flex gap-4">
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 ml-1">Opportunity Title <span className="text-red-400">*</span></label>
+                  <input
+                    type="text" required value={newOpportunity.title} onChange={(e) => setNewOpportunity({ ...newOpportunity, title: e.target.value })}
+                    className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 outline-none font-semibold text-slate-800 text-[14px] focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
+                    placeholder="e.g. Code Reviewer"
+                  />
+                </div>
+
+                <div className="flex-1 flex flex-col gap-1.5">
+                  <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 ml-1">Department</label>
+                  <input
+                    type="text" required value={newOpportunity.department} onChange={(e) => setNewOpportunity({ ...newOpportunity, department: e.target.value })}
+                    className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 outline-none font-semibold text-slate-800 text-[14px] focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
+                    placeholder="e.g. Engineering"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 ml-1">Required Skills (comma separated) <span className="text-red-400">*</span></label>
                 <input
-                  type="text" required value={newOpportunity.title} onChange={(e) => setNewOpportunity({ ...newOpportunity, title: e.target.value })}
-                  className="w-full bg-transparent outline-none font-bold text-[15px] p-0 m-0 leading-tight placeholder-slate-400"
-                  style={{ color: '#0f172a' }}
-                  placeholder="e.g. Senior Frontend Architecture Reviewer"
+                  type="text" required value={newOpportunity.required_skills} onChange={(e) => setNewOpportunity({ ...newOpportunity, required_skills: e.target.value })}
+                  className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 outline-none font-semibold text-slate-800 text-[14px] focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
+                  placeholder="e.g. React, Python"
                 />
               </div>
 
-              <div 
-                className="relative border rounded-3xl px-6 py-4 transition-all duration-300 shadow-sm flex flex-col justify-center cursor-text group hover:border-indigo-200" 
-                style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
-                onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#4f46e5'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(79, 70, 229, 0.1)'; }}
-                onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
-                onClick={(e) => (e.currentTarget.querySelector('input') as HTMLElement)?.focus()}
-              >
-                <label className="block text-[11px] font-black uppercase tracking-widest mb-1.5 cursor-text transition-colors group-focus-within:text-indigo-600" style={{ color: '#475569' }}>Time Commitment</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 ml-1">Time Commitment <span className="text-red-400">*</span></label>
                 <input
                   type="text" required value={newOpportunity.timeCommitment} onChange={(e) => setNewOpportunity({ ...newOpportunity, timeCommitment: e.target.value })}
-                  className="w-full bg-transparent outline-none font-bold text-[15px] p-0 m-0 leading-tight placeholder-slate-400"
-                  style={{ color: '#0f172a' }}
+                  className="w-full h-11 px-4 rounded-xl border border-slate-200 bg-slate-50/50 outline-none font-semibold text-slate-800 text-[14px] focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm"
                   placeholder="e.g. 5 HRS/WEEK"
                 />
               </div>
-              
-              <div 
-                className="relative border rounded-3xl px-6 py-5 transition-all duration-300 shadow-sm flex flex-col cursor-text group hover:border-indigo-200" 
-                style={{ borderColor: 'rgba(226, 232, 240, 0.8)', backgroundColor: '#f8fafc' }}
-                onFocus={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#4f46e5'; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(79, 70, 229, 0.1)'; }}
-                onBlur={(e) => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = 'rgba(226, 232, 240, 0.8)'; e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)'; }}
-                onClick={(e) => (e.currentTarget.querySelector('textarea') as HTMLElement)?.focus()}
-              >
-                <label className="block text-[11px] font-black uppercase tracking-widest mb-2 cursor-text transition-colors group-focus-within:text-indigo-600" style={{ color: '#475569' }}>Description</label>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-extrabold uppercase tracking-widest text-slate-500 ml-1">Description <span className="text-red-400">*</span></label>
                 <textarea
                   required value={newOpportunity.description} onChange={(e) => setNewOpportunity({ ...newOpportunity, description: e.target.value })}
-                  className="w-full bg-transparent outline-none font-bold text-[15px] p-0 m-0 leading-relaxed placeholder-slate-400 resize-none h-24"
-                  style={{ color: '#0f172a' }}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 outline-none font-semibold text-slate-800 text-[14px] focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm resize-none h-24"
                   placeholder="Describe the opportunity and what you're looking for..."
                 />
               </div>
@@ -341,6 +451,174 @@ export const TalentMarketplace: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Review Application Modal */}
+      {selectedApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 animate-in fade-in duration-300 backdrop-blur-md" style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)' }}>
+          <div className="backdrop-blur-2xl rounded-[32px] w-full max-w-[480px] border relative shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)' }}>
+
+            {/* Ambient Background Glows */}
+            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full blur-[64px] opacity-60 pointer-events-none transition-colors duration-500" style={{ backgroundColor: selectedApp.status === 'Under Review' ? 'rgba(79, 70, 229, 0.2)' : (selectedApp.status === 'Accepted' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)') }}></div>
+            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full blur-[64px] opacity-60 pointer-events-none" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}></div>
+
+            {/* Foolproof Inner Padding Container */}
+            <div style={{ padding: '44px' }} className="relative z-10 w-full h-full flex flex-col">
+
+              <div className="flex justify-between items-center mb-14">
+                <div className="flex gap-5 items-center">
+                  <div className="w-14 h-14 rounded-[1.25rem] shadow-lg flex items-center justify-center text-white shrink-0" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #3b82f6 100%)' }}>
+                    <Briefcase size={26} strokeWidth={2.5} />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <h2 className="text-2xl font-black tracking-tight leading-tight" style={{ color: '#0f172a' }}>Review Application</h2>
+                    <p className="text-[13px] font-extrabold mt-1.5 uppercase tracking-widest leading-none" style={{ color: '#64748b' }}>Manage Status</p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedApp(null)} className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-200 transition-all cursor-pointer bg-slate-100 border border-slate-200 hover:border-slate-300">
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-5 mb-8" style={{ marginTop: '24px' }}>
+                <div className="px-6 py-6 rounded-[24px] shadow-sm border transition-all flex flex-col justify-center bg-white/80" style={{ borderColor: 'rgba(226, 232, 240, 0.8)' }}>
+                  <div className="text-xs font-black uppercase tracking-widest text-indigo-500 mb-2.5 flex items-center gap-2">
+                    <Target size={16} strokeWidth={2.5} /> Opportunity
+                  </div>
+                  <div className="text-[17px] font-black text-slate-800 leading-snug">{selectedApp.opportunity_title}</div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="px-6 py-6 rounded-[24px] shadow-sm border flex flex-col justify-center bg-white/80" style={{ borderColor: 'rgba(226, 232, 240, 0.8)', minHeight: '100px' }}>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2.5">Type</div>
+                    <div className="text-[15px] font-extrabold text-slate-700 capitalize flex items-center gap-2 leading-none">
+                      {selectedApp.opportunity_type === 'gig' ? <Briefcase size={18} className="text-blue-500" strokeWidth={2.5} /> : <Users size={18} className="text-orange-500" strokeWidth={2.5} />}
+                      {selectedApp.opportunity_type}
+                    </div>
+                  </div>
+                  <div className="px-6 py-6 rounded-[24px] shadow-sm border flex flex-col justify-center bg-white/80" style={{ borderColor: 'rgba(226, 232, 240, 0.8)', minHeight: '100px' }}>
+                    <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2.5">Current Status</div>
+                    <div className="text-[15px] font-extrabold leading-none" style={{ color: selectedApp.status === 'Accepted' ? '#059669' : (selectedApp.status === 'Rejected' ? '#dc2626' : '#d97706') }}>
+                      {selectedApp.status}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-4 mt-auto" style={{ marginTop: '32px' }}>
+                {selectedApp.status === 'Under Review' && (
+                  <div className="grid grid-cols-2 gap-5">
+                    <button onClick={() => handleUpdateStatus('Accepted')} className="w-full py-4 rounded-[20px] font-black text-[15px] text-white hover:-translate-y-1 transition-all flex items-center justify-center gap-2.5 group cursor-pointer border-none shadow-xl" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', boxShadow: '0 10px 25px -5px rgba(16, 185, 129, 0.5)' }}>
+                      <CheckCircle2 size={22} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" /> Accept
+                    </button>
+                    <button onClick={() => handleUpdateStatus('Rejected')} className="w-full py-4 rounded-[20px] font-black text-[15px] text-white hover:-translate-y-1 transition-all flex items-center justify-center gap-2.5 group cursor-pointer border-none shadow-xl" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)', boxShadow: '0 10px 25px -5px rgba(239, 68, 68, 0.5)' }}>
+                      <X size={22} strokeWidth={3} className="group-hover:scale-110 transition-transform" /> Reject
+                    </button>
+                  </div>
+                )}
+                {selectedApp.status !== 'Under Review' && (
+                  <button onClick={() => handleUpdateStatus('Under Review')} className="w-full py-4 rounded-[20px] font-black text-[15px] text-slate-600 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-3">
+                    <div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm"></div> Revert to Under Review
+                  </button>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Talent Matcher Modal */}
+      {selectedGigForMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 animate-in fade-in duration-300 backdrop-blur-md" style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)' }}>
+          <div className="backdrop-blur-2xl rounded-[32px] w-full max-w-[540px] border relative shadow-[0_40px_80px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.8)' }}>
+
+            {/* Ambient Background Glows */}
+            <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full blur-[64px] opacity-60 pointer-events-none transition-colors duration-500 bg-indigo-500/20"></div>
+            <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full blur-[64px] opacity-60 pointer-events-none bg-blue-500/20"></div>
+
+            <div style={{ padding: '44px' }} className="relative z-10 w-full h-full flex flex-col">
+
+              <div className="flex justify-between items-center mb-10">
+                <div className="flex gap-4 items-center">
+                  <div className="w-12 h-12 rounded-[1rem] shadow-lg flex items-center justify-center text-white shrink-0" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}>
+                    <BrainCircuit size={24} strokeWidth={2.5} />
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    <h2 className="text-xl font-black tracking-tight leading-tight text-slate-900">AI Talent Matcher</h2>
+                    <p className="text-[11px] font-extrabold mt-1 uppercase tracking-widest text-indigo-500 leading-none">Find Best Fit</p>
+                  </div>
+                </div>
+                <button onClick={() => { setSelectedGigForMatch(null); setShowTopMatchOnly(false); }} className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-200 transition-all cursor-pointer bg-slate-100 border border-slate-200 hover:border-slate-300">
+                  <X size={18} className="text-slate-500" />
+                </button>
+              </div>
+
+
+              <div className="flex flex-col gap-3">
+                {(() => {
+                  const allCandidates = [
+                    { id: 'emp1', name: 'John Doe', role: 'Senior React Developer', department: 'Engineering', match: 95, skills: ['React', 'Node.js', 'TypeScript'] },
+                    { id: 'emp2', name: 'Jane Smith', role: 'Full Stack Engineer', department: 'AI Team', match: 87, skills: ['React', 'Python', 'AWS'] },
+                    { id: 'emp3', name: 'Alex Johnson', role: 'Frontend Developer', department: 'Design', match: 72, skills: ['UI/UX', 'React', 'Figma'] },
+                  ];
+                  
+                  const sortedCandidates = [...allCandidates].sort((a, b) => b.match - a.match);
+                  const displayCandidates = showTopMatchOnly ? [sortedCandidates[0]] : sortedCandidates;
+
+                  return displayCandidates.map((candidate, idx) => {
+                    const isInvited = invitedCandidates.includes(candidate.id);
+                  return (
+                    <div key={candidate.id} className="p-4 rounded-[20px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col gap-3 group relative overflow-hidden">
+                      {/* Match Score Indicator Line */}
+                      <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{
+                        background: candidate.match >= 90 ? '#10b981' : (candidate.match >= 80 ? '#3b82f6' : '#f59e0b')
+                      }}></div>
+
+                      <div className="flex justify-between items-start pl-2">
+                        <div>
+                          <div className="font-black text-[15px] text-slate-800">{candidate.name}</div>
+                          <div className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-wider">{candidate.role} • {candidate.department}</div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <div className="font-black text-lg leading-none" style={{ color: candidate.match >= 90 ? '#10b981' : (candidate.match >= 80 ? '#3b82f6' : '#f59e0b') }}>
+                            {candidate.match}%
+                          </div>
+                          <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mt-1">Match</div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 pl-2">
+                        {candidate.skills.map((skill, sIdx) => (
+                          <span key={sIdx} className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="mt-2 pl-2">
+                        <button
+                          onClick={() => setInvitedCandidates(prev => [...prev, candidate.id])}
+                          disabled={isInvited}
+                          className="w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-100 disabled:cursor-not-allowed"
+                          style={{
+                            background: isInvited ? '#ecfdf5' : '#f8fafc',
+                            color: isInvited ? '#059669' : '#475569',
+                            border: `1px solid ${isInvited ? '#a7f3d0' : '#e2e8f0'}`,
+                            boxShadow: isInvited ? 'none' : '0 2px 4px rgba(0,0,0,0.02)'
+                          }}
+                        >
+                          {isInvited ? <><CheckCircle2 size={14} /> Invited</> : <><Sparkles size={14} /> Invite to Apply</>}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })})()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
