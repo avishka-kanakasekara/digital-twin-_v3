@@ -35,6 +35,8 @@ export const TalentMarketplace: React.FC = () => {
         icon: d.urgency === 'High' ? 'Target' : 'Briefcase',
         aiMatch: d.matched_employees?.[0]?.match_score ?? d.matched_employees?.[0]?.match ?? 85,
         urgency: d.urgency,
+        matched_employees: d.matched_employees || [],
+        required_skills: d.required_skills || [],
       })));
     }).catch(console.error);
   };
@@ -105,7 +107,36 @@ export const TalentMarketplace: React.FC = () => {
         });
         await api.organization.submitApplication({ opportunity_id: 'new', opportunity_type: 'gig', opportunity_title: newOpportunity.title });
         fetchGigs();
+      } else if (newOpportunity.type === 'mentoring') {
+        const initials = newOpportunity.title.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'M';
+        const randomScore = Math.floor(Math.random() * 20) + 75; // 75 to 94
+        
+        await fetch('http://localhost:8000/api/organization/talent/mentors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            name: newOpportunity.title, 
+            role: newOpportunity.department, 
+            description: newOpportunity.description,
+            match_score: randomScore,
+            initials: initials,
+            icon_bg: 'bg-orange-500'
+          }),
+        });
+        
+        // Refetch mentors
+        api.organization.getMentors().then(data => {
+          setMentors(data.map((d: any) => ({
+            id: d.id,
+            initials: d.initials,
+            name: d.name,
+            role: d.role,
+            description: d.description,
+            matchScore: d.match_score,
+          })));
+        }).catch(console.error);
       }
+      
       setShowPostModal(false);
       setNewOpportunity({ title: '', type: 'gig', department: 'General', urgency: 'Normal', required_skills: '', description: '', timeCommitment: '' });
       fetchApplications();
@@ -237,40 +268,49 @@ export const TalentMarketplace: React.FC = () => {
               )}
 
               {activeTab === 'mentoring' && (
-                <>
+                <div className="flex flex-col gap-6">
                   {mentors.map((mentor) => (
-                    <div key={mentor.id} className="flex gap-6 transition-all shadow-md hover:shadow-2xl rounded-3xl group bg-white/90 hover:bg-white hover:-translate-y-1.5 cursor-pointer" style={{ padding: '28px', border: '1px solid rgba(226, 232, 240, 0.8)' }}>
-                      <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shrink-0 shadow-xl font-black text-2xl group-hover:scale-110 transition-transform duration-500" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
+                    <div key={mentor.id} className="flex gap-6 transition-all shadow-sm hover:shadow-md rounded-[32px] group bg-white cursor-pointer border border-slate-200" style={{ padding: '24px' }}>
+                      {/* Avatar */}
+                      <div className="w-16 h-16 rounded-full flex items-center justify-center text-white shrink-0 font-bold text-xl bg-orange-500 shadow-lg shadow-orange-500/30">
                         {mentor.initials}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
+                      
+                      <div className="flex-1 flex flex-col justify-between">
+                        {/* Top row */}
+                        <div className="flex justify-between items-start">
                           <div>
-                            <h3 className="font-black text-xl tracking-tight transition-colors group-hover:text-amber-600" style={{ color: '#0f172a' }}>{mentor.name}</h3>
-                            <p className="text-[13px] font-bold mt-1 uppercase tracking-widest" style={{ color: '#64748b' }}>{mentor.role}</p>
+                            <h3 className="font-bold text-[17px] tracking-tight text-slate-800">{mentor.name}</h3>
+                            <p className="text-[11px] font-bold mt-1 uppercase tracking-widest text-slate-500">{mentor.role}</p>
                           </div>
+                          
                           <div className="text-right shrink-0">
-                            <span className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl shadow-md tracking-wide" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', border: 'none' }}>
-                              <Network size={16} /> {mentor.matchScore}% Complementary
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full bg-orange-500 text-white border-none">
+                              <Network size={14} /> {mentor.matchScore}% Complementary
                             </span>
                           </div>
                         </div>
-                        <p className="text-[15px] mt-4 mb-6 leading-relaxed font-semibold max-w-2xl" style={{ color: '#334155' }}>
+                        
+                        {/* Description */}
+                        <p className="text-[14px] mt-4 mb-4 font-semibold max-w-2xl text-slate-600">
                           {mentor.description}
                         </p>
-                        <div className="flex justify-end mt-6 pt-6 border-t border-slate-100">
+                        
+                        {/* Bottom line and Button */}
+                        <div className="flex justify-end pt-4 border-t border-slate-100">
                           <button
                             onClick={() => handleRequestMentorship(mentor)}
                             disabled={hasApplied(mentor.id) || applyingId === mentor.id}
-                            className="shadow-md shadow-amber-500/20 hover:shadow-amber-500/40 rounded-full font-black text-sm px-8 py-3.5 text-white hover:scale-105 transition-all duration-300 border-none cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-70 disabled:hover:scale-100 disabled:cursor-not-allowed"
-                            style={{ background: hasApplied(mentor.id) ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' }}>
+                            className="rounded-full font-bold text-xs px-6 py-2 text-white transition-all duration-300 border-none cursor-pointer disabled:opacity-90 disabled:cursor-not-allowed shadow-md"
+                            style={{ background: hasApplied(mentor.id) ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}
+                          >
                             {applyingId === mentor.id ? 'Sending...' : hasApplied(mentor.id) ? 'Request Sent' : 'Request Mentorship'}
                           </button>
                         </div>
                       </div>
                     </div>
                   ))}
-                </>
+                </div>
               )}
 
             </div>
@@ -556,63 +596,71 @@ export const TalentMarketplace: React.FC = () => {
 
               <div className="flex flex-col gap-3">
                 {(() => {
-                  const allCandidates = [
-                    { id: 'emp1', name: 'John Doe', role: 'Senior React Developer', department: 'Engineering', match: 95, skills: ['React', 'Node.js', 'TypeScript'] },
-                    { id: 'emp2', name: 'Jane Smith', role: 'Full Stack Engineer', department: 'AI Team', match: 87, skills: ['React', 'Python', 'AWS'] },
-                    { id: 'emp3', name: 'Alex Johnson', role: 'Frontend Developer', department: 'Design', match: 72, skills: ['UI/UX', 'React', 'Figma'] },
-                  ];
-                  
+                  let allCandidates = (selectedGigForMatch.matched_employees || []).map((emp: any) => ({
+                    id: emp.id || emp.employee_id,
+                    name: emp.name || 'Unknown Candidate',
+                    role: 'Candidate',
+                    department: selectedGigForMatch.department,
+                    match: emp.match || emp.match_score || 85,
+                    skills: selectedGigForMatch.required_skills || []
+                  }));
+
+                  if (allCandidates.length === 0) {
+                    allCandidates = [{ id: 'no-match', name: 'No candidates found', role: '-', department: '-', match: 0, skills: [] }];
+                  }
+
                   const sortedCandidates = [...allCandidates].sort((a, b) => b.match - a.match);
                   const displayCandidates = showTopMatchOnly ? [sortedCandidates[0]] : sortedCandidates;
 
                   return displayCandidates.map((candidate, idx) => {
                     const isInvited = invitedCandidates.includes(candidate.id);
-                  return (
-                    <div key={candidate.id} className="p-4 rounded-[20px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col gap-3 group relative overflow-hidden">
-                      {/* Match Score Indicator Line */}
-                      <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{
-                        background: candidate.match >= 90 ? '#10b981' : (candidate.match >= 80 ? '#3b82f6' : '#f59e0b')
-                      }}></div>
+                    return (
+                      <div key={candidate.id} className="p-4 rounded-[20px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col gap-3 group relative overflow-hidden">
+                        {/* Match Score Indicator Line */}
+                        <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{
+                          background: candidate.match >= 90 ? '#10b981' : (candidate.match >= 80 ? '#3b82f6' : '#f59e0b')
+                        }}></div>
 
-                      <div className="flex justify-between items-start pl-2">
-                        <div>
-                          <div className="font-black text-[15px] text-slate-800">{candidate.name}</div>
-                          <div className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-wider">{candidate.role} • {candidate.department}</div>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <div className="font-black text-lg leading-none" style={{ color: candidate.match >= 90 ? '#10b981' : (candidate.match >= 80 ? '#3b82f6' : '#f59e0b') }}>
-                            {candidate.match}%
+                        <div className="flex justify-between items-start pl-2">
+                          <div>
+                            <div className="font-black text-[15px] text-slate-800">{candidate.name}</div>
+                            <div className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-wider">{candidate.role} • {candidate.department}</div>
                           </div>
-                          <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mt-1">Match</div>
+                          <div className="flex flex-col items-end">
+                            <div className="font-black text-lg leading-none" style={{ color: candidate.match >= 90 ? '#10b981' : (candidate.match >= 80 ? '#3b82f6' : '#f59e0b') }}>
+                              {candidate.match}%
+                            </div>
+                            <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mt-1">Match</div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pl-2">
+                          {candidate.skills.map((skill, sIdx) => (
+                            <span key={sIdx} className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="mt-2 pl-2">
+                          <button
+                            onClick={() => setInvitedCandidates(prev => [...prev, candidate.id])}
+                            disabled={isInvited}
+                            className="w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-100 disabled:cursor-not-allowed"
+                            style={{
+                              background: isInvited ? '#ecfdf5' : '#f8fafc',
+                              color: isInvited ? '#059669' : '#475569',
+                              border: `1px solid ${isInvited ? '#a7f3d0' : '#e2e8f0'}`,
+                              boxShadow: isInvited ? 'none' : '0 2px 4px rgba(0,0,0,0.02)'
+                            }}
+                          >
+                            {isInvited ? <><CheckCircle2 size={14} /> Invited</> : <><Sparkles size={14} /> Invite to Apply</>}
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex flex-wrap gap-1.5 pl-2">
-                        {candidate.skills.map((skill, sIdx) => (
-                          <span key={sIdx} className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-
-                      <div className="mt-2 pl-2">
-                        <button
-                          onClick={() => setInvitedCandidates(prev => [...prev, candidate.id])}
-                          disabled={isInvited}
-                          className="w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-100 disabled:cursor-not-allowed"
-                          style={{
-                            background: isInvited ? '#ecfdf5' : '#f8fafc',
-                            color: isInvited ? '#059669' : '#475569',
-                            border: `1px solid ${isInvited ? '#a7f3d0' : '#e2e8f0'}`,
-                            boxShadow: isInvited ? 'none' : '0 2px 4px rgba(0,0,0,0.02)'
-                          }}
-                        >
-                          {isInvited ? <><CheckCircle2 size={14} /> Invited</> : <><Sparkles size={14} /> Invite to Apply</>}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })})()}
+                    );
+                  })
+                })()}
               </div>
             </div>
           </div>

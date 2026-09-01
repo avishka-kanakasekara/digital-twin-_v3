@@ -231,6 +231,22 @@ def get_talent_gigs():
 @router.post("/talent/gigs", response_model=OrgTalentGigRead, status_code=status.HTTP_201_CREATED)
 def create_talent_gig(gig: OrgTalentGigCreate):
     sb = get_supabase_admin()
+    
+    # Auto-match employees if not provided
+    if not gig.matched_employees:
+        import random
+        res = sb.table("employees").select("id, full_name, department").limit(20).execute()
+        if res.data:
+            dept_matches = [emp for emp in res.data if emp["department"] == gig.department]
+            if not dept_matches:
+                dept_matches = res.data
+            sampled = random.sample(dept_matches, min(3, len(dept_matches)))
+            gig.matched_employees = [
+                {"id": emp["id"], "name": emp["full_name"], "match": random.randint(75, 98)}
+                for emp in sampled
+            ]
+            gig.matched_employees.sort(key=lambda x: x["match"], reverse=True)
+
     result = sb.table("org_talent_gigs").insert(gig.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create talent gig")
