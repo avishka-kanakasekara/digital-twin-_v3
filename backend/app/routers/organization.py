@@ -19,7 +19,7 @@ from app.schemas.organization import (
     OrgStrategyVisionResponse, OrgAIReadinessResponse,
     OrgCapabilityResponse, OrgTransformationResponse,
     OrgTalentApplicationRead, OrgTalentApplicationCreate, OrgTalentApplicationUpdate,
-    TeamBuilderOptimizationRequest,
+    TeamBuilderOptimizationRequest, RiskProfile, InterventionEffectiveness
 )
 import sys
 import os
@@ -27,6 +27,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.
 from organization.workforce_forecasting.forecast_engine import forecast_headcount_loss, rank_skill_shortages
 from organization.workforce_forecasting.burnout_calculator import calculate_average_burnout
 from organization.team_builder.optimization_engine import optimize_team
+from organization.at_risk.risk_model import predict_attrition_risk, calculate_intervention_effectiveness
 
 
 router = APIRouter(
@@ -423,7 +424,29 @@ def optimize_team_builder(request: TeamBuilderOptimizationRequest):
     
     return options
 
+@router.get("/talent/risks", response_model=List[RiskProfile])
+def get_risk_profiles():
+    sb = get_supabase_admin()
+    
+    # Fetch active employees
+    res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
+    employees = res.data
+    
+    # Run uplift modeling engine
+    risk_profiles = predict_attrition_risk(employees)
+    
+    return risk_profiles
 
+@router.get("/interventions/effectiveness", response_model=List[InterventionEffectiveness])
+def get_intervention_effectiveness():
+    sb = get_supabase_admin()
+    
+    # Fetch active employees to seed the ML insights
+    res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
+    employees = res.data
+    
+    effectiveness_data = calculate_intervention_effectiveness(employees)
+    return effectiveness_data
 
 # --- Strategy OKRs ---
 

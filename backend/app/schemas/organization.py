@@ -159,6 +159,24 @@ class TeamBuilderOptimizationRequest(BaseModel):
     core_competencies: List[str] = []
     context: Optional[str] = None
 
+class RiskProfile(BaseModel):
+    employee_id: str
+    risk_level: str
+    risk_score: float
+    primary_factor: str
+    burnout_probability: float
+    compensation_satisfaction: float
+    career_stagnation_score: float
+    last_1_on_1: str
+    ai_retention_suggestion: str
+
+class InterventionEffectiveness(BaseModel):
+    role_group: str
+    intervention_name: str
+    risk_reduction_percentage: int
+    description: str
+    theme_color: str
+
 class OrgOKRBase(BaseModel):
     title: str
     owner: str
