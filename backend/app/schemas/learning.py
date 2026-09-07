@@ -122,3 +122,18 @@ class WeeklyScheduleResponse(BaseModel):
 class MonthlyHoursResponse(BaseModel):
     month: str
     hours: int = 0
+
+
+class SkillGapItem(BaseModel):
+    skill: str
+    current_level: int = 0
+    target_level: int = 0
+    gap: int = 0
+    priority: str = "Medium"
+    category: str | None = None
+    color: str | None = None
+
+
+class SkillGapsResponse(BaseModel):
+    target_role: str | None = None
+    gaps: list[SkillGapItem] = []

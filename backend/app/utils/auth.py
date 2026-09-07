@@ -1,20 +1,17 @@
 """
 JWT authentication utilities — encode/decode tokens, password hashing, FastAPI dependency.
+Uses Supabase as the database backend.
 """
 
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from app.config import settings
-from app.database import get_db
-from app.models.employee import Employee
+from app.database import get_supabase_admin
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -52,10 +49,9 @@ def decode_token(token: str) -> dict:
         )
 
 
-async def get_current_employee(
+def get_current_employee(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: AsyncSession = Depends(get_db),
-) -> Employee:
+) -> dict:
     """FastAPI dependency — extracts and validates the current employee from JWT."""
     if not credentials:
         raise HTTPException(
@@ -71,27 +67,25 @@ async def get_current_employee(
             detail="Invalid token payload",
         )
 
-    result = await db.execute(
-        select(Employee).where(Employee.id == UUID(employee_id))
-    )
-    employee = result.scalar_one_or_none()
-    if not employee:
+    sb = get_supabase_admin()
+    result = sb.table("employees").select("*").eq("id", employee_id).execute()
+
+    if not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Employee not found",
         )
 
-    return employee
+    return result.data[0]
 
 
-async def get_optional_employee(
+def get_optional_employee(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: AsyncSession = Depends(get_db),
-) -> Employee | None:
+) -> dict | None:
     """Optional auth — returns None if no token provided."""
     if not credentials:
         return None
     try:
-        return await get_current_employee(credentials, db)
+        return get_current_employee(credentials)
     except HTTPException:
         return None

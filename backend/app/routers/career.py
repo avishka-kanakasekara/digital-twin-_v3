@@ -1,19 +1,17 @@
 from __future__ import annotations
 """
 Career Coach router — goals, roadmaps, readiness, market trends.
+Uses Supabase as the database backend.
 """
 
+import uuid
+from fastapi import APIRouter, HTTPException
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-
-from app.database import get_db
-from app.models.career import CareerGoal, CareerRoadmapStep
-from app.models.skill import Skill
+from app.database import get_supabase_admin
 from app.schemas.career import (
     CareerGoalCreate,
     CareerGoalResponse,
+    CareerRoadmapStepResponse,
     SkillGapResponse,
     MarketTrendResponse,
     CareerRecommendationResponse,
@@ -25,99 +23,148 @@ router = APIRouter(prefix="/api/career", tags=["Career Coach"])
 # ─── Career Goals ──────────────────────────────────────────────
 
 @router.get("/{employee_id}/goal", response_model=CareerGoalResponse | None)
-def get_active_career_goal(employee_id: str, db: Session = Depends(get_db)):
+def get_active_career_goal(employee_id: str):
     """Get the current active career goal for an employee."""
-    result = db.execute(
-        select(CareerGoal)
-        .where(CareerGoal.employee_id == employee_id, CareerGoal.is_active == True)
-    )
-    goal = result.scalar_one_or_none()
-    if not goal:
+    sb = get_supabase_admin()
+
+    result = sb.table("career_goals").select("*").eq(
+        "employee_id", employee_id
+    ).eq("is_active", True).execute()
+
+    if not result.data:
         return None
+    goal = result.data[0]
 
     # Load roadmap steps
-    steps_result = db.execute(
-        select(CareerRoadmapStep)
-        .where(CareerRoadmapStep.career_goal_id == goal.id)
-        .order_by(CareerRoadmapStep.step_order)
+    steps_result = sb.table("career_roadmap_steps").select("*").eq(
+        "career_goal_id", goal["id"]
+    ).order("step_order").execute()
+
+    goal_response = CareerGoalResponse(
+        id=goal["id"],
+        target_role=goal["target_role"],
+        timeline=goal.get("timeline"),
+        focus_area=goal.get("focus_area"),
+        target_industry=goal.get("target_industry"),
+        readiness_score=goal.get("readiness_score", 0),
+        is_active=goal.get("is_active", True),
     )
-    goal_dict = CareerGoalResponse.model_validate(goal)
-    goal_dict.roadmap_steps = [
-        {"id": s.id, "step_order": s.step_order, "title": s.title,
-         "status": s.status, "description": s.description}
-        for s in steps_result.scalars().all()
+    goal_response.roadmap_steps = [
+        CareerRoadmapStepResponse(
+            id=s["id"],
+            step_order=s["step_order"],
+            title=s["title"],
+            status="completed" if s.get("status") == "achieved" else s.get("status", "upcoming"),
+            description=s.get("description"),
+        )
+        for s in (steps_result.data or [])
     ]
-    return goal_dict
+    return goal_response
+
+
+@router.get("/{employee_id}/roadmap", response_model=list[CareerRoadmapStepResponse])
+def get_career_roadmap(employee_id: str):
+    """Get roadmap steps for the active career goal."""
+    sb = get_supabase_admin()
+
+    goal_result = sb.table("career_goals").select("id").eq(
+        "employee_id", employee_id
+    ).eq("is_active", True).execute()
+    if not goal_result.data:
+        return []
+
+    goal_id = goal_result.data[0]["id"]
+    steps_result = sb.table("career_roadmap_steps").select("*").eq(
+        "career_goal_id", goal_id
+    ).order("step_order").execute()
+
+    return [
+        CareerRoadmapStepResponse(
+            id=s["id"],
+            step_order=s["step_order"],
+            title=s["title"],
+            status="completed" if s.get("status") == "achieved" else s.get("status", "upcoming"),
+            description=s.get("description"),
+        )
+        for s in (steps_result.data or [])
+    ]
 
 
 @router.post("/{employee_id}/goal", response_model=CareerGoalResponse, status_code=201)
-def set_career_goal(
-    employee_id: str, data: CareerGoalCreate, db: Session = Depends(get_db)
-):
+def set_career_goal(employee_id: str, data: CareerGoalCreate):
     """Create or update the active career goal."""
-    # Deactivate any existing active goal
-    existing = db.execute(
-        select(CareerGoal)
-        .where(CareerGoal.employee_id == employee_id, CareerGoal.is_active == True)
-    )
-    for old in existing.scalars().all():
-        old.is_active = False
+    sb = get_supabase_admin()
+
+    # Deactivate any existing active goals
+    existing = sb.table("career_goals").select("id").eq(
+        "employee_id", employee_id
+    ).eq("is_active", True).execute()
+    for old in existing.data or []:
+        sb.table("career_goals").update({"is_active": False}).eq("id", old["id"]).execute()
 
     # Create new goal
-    goal = CareerGoal(
-        employee_id=employee_id,
+    goal_id = str(uuid.uuid4())
+    goal_data = {
+        "id": goal_id,
+        "employee_id": employee_id,
+        "target_role": data.target_role,
+        "timeline": data.timeline,
+        "focus_area": data.focus_area,
+        "target_industry": data.target_industry,
+        "readiness_score": 65,  # Placeholder — ML model in Phase 4
+    }
+    sb.table("career_goals").insert(goal_data).execute()
+
+    # Auto-generate roadmap steps
+    steps = _generate_roadmap_steps(data.target_role)
+    for i, step_data in enumerate(steps):
+        sb.table("career_roadmap_steps").insert({
+            "id": str(uuid.uuid4()),
+            "career_goal_id": goal_id,
+            "step_order": i + 1,
+            "title": step_data["title"],
+            "status": step_data["status"],
+            "description": step_data.get("description"),
+        }).execute()
+
+    return CareerGoalResponse(
+        id=goal_id,
         target_role=data.target_role,
         timeline=data.timeline,
         focus_area=data.focus_area,
         target_industry=data.target_industry,
+        readiness_score=65,
+        is_active=True,
     )
-    db.add(goal)
-    db.flush()
-
-    # Auto-generate roadmap steps based on target role
-    steps = _generate_roadmap_steps(data.target_role)
-    for i, step_data in enumerate(steps):
-        step = CareerRoadmapStep(
-            career_goal_id=goal.id,
-            step_order=i + 1,
-            title=step_data["title"],
-            status=step_data["status"],
-            description=step_data.get("description"),
-        )
-        db.add(step)
-
-    # TODO: Compute readiness score with ML model (Phase 4)
-    goal.readiness_score = 65  # Placeholder
-
-    return goal
 
 
 # ─── Skill Gaps (Career-specific) ─────────────────────────────
 
 @router.get("/{employee_id}/skill-gaps", response_model=list[SkillGapResponse])
-def get_career_skill_gaps(employee_id: str, db: Session = Depends(get_db)):
+def get_career_skill_gaps(employee_id: str):
     """Skill gap analysis relative to the active career goal."""
+    sb = get_supabase_admin()
+
     # Get target role
-    goal = db.execute(
-        select(CareerGoal)
-        .where(CareerGoal.employee_id == employee_id, CareerGoal.is_active == True)
-    )
-    active_goal = goal.scalar_one_or_none()
+    goal_result = sb.table("career_goals").select("target_role").eq(
+        "employee_id", employee_id
+    ).eq("is_active", True).execute()
+    active_goal = goal_result.data[0] if goal_result.data else None
 
     # Get employee skills
-    skills = db.execute(
-        select(Skill).where(Skill.employee_id == employee_id)
-    )
-    skill_map = {s.name: s for s in skills.scalars().all()}
+    skills_result = sb.table("skills").select("name, proficiency").eq(
+        "employee_id", employee_id
+    ).execute()
+    skill_map = {s["name"]: s for s in (skills_result.data or [])}
 
-    # Define required skills per role (hardcoded for now — ML model in Phase 4)
-    target_role = active_goal.target_role if active_goal else "Cloud Architect"
+    # Define required skills per role
+    target_role = active_goal["target_role"] if active_goal else "Cloud Architect"
     required_skills = _get_role_requirements(target_role)
 
     gaps = []
     for req in required_skills:
         current = skill_map.get(req["name"])
-        current_level = current.proficiency if current else 0
+        current_level = current["proficiency"] if current else 0
         target_level = req["target"]
         gap = max(0, target_level - current_level)
         if gap > 0:
@@ -138,7 +185,7 @@ def get_career_skill_gaps(employee_id: str, db: Session = Depends(get_db)):
 # ─── Career Recommendations ───────────────────────────────────
 
 @router.get("/{employee_id}/recommendations", response_model=list[CareerRecommendationResponse])
-def get_career_recommendations(employee_id: str, db: Session = Depends(get_db)):
+def get_career_recommendations(employee_id: str):
     """AI-recommended learning for career goal. (Placeholder — ML model in Phase 4)."""
     return [
         CareerRecommendationResponse(
@@ -161,7 +208,7 @@ def get_career_recommendations(employee_id: str, db: Session = Depends(get_db)):
 # ─── Readiness Score ───────────────────────────────────────────
 
 @router.post("/{employee_id}/readiness")
-def compute_readiness(employee_id: str, db: Session = Depends(get_db)):
+def compute_readiness(employee_id: str):
     """Compute career readiness score. (Placeholder — ML model in Phase 4)."""
     # TODO: Replace with trained XGBoost model
     return {"readiness_score": 65, "model": "placeholder", "note": "ML model coming in Phase 4"}
@@ -171,11 +218,11 @@ def compute_readiness(employee_id: str, db: Session = Depends(get_db)):
 
 @router.get("/market-trends", response_model=list[MarketTrendResponse])
 def get_market_trends():
-    """Get market demand trends for skills. (Placeholder — scraper in Phase 6)."""
+    """Get market demand trends for skills."""
     return [
-        MarketTrendResponse(skill="Kubernetes", demand_change="+14%", trend="rising", category="Platform Eng."),
-        MarketTrendResponse(skill="GenAI Architecture", demand_change="+45%", trend="rising", category="Data / Cloud Eng."),
-        MarketTrendResponse(skill="React & Next.js", demand_change="Stable", trend="stable", category="Frontend"),
+        MarketTrendResponse(skill="Kubernetes", category="Platform Eng.", trend="+14%", color="#059669"),
+        MarketTrendResponse(skill="GenAI Architecture", category="Data / Cloud Eng.", trend="+45%", color="#059669"),
+        MarketTrendResponse(skill="React & Next.js", category="Frontend", trend="Stable", color="#64748b"),
     ]
 
 

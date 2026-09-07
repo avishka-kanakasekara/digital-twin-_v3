@@ -97,12 +97,6 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  const toggleRoleSkill = (skill: string) => {
-    setNewRole(prev => ({
-      ...prev,
-      req: prev.req.includes(skill) ? prev.req.filter(s => s !== skill) : [...prev.req, skill]
-    }));
-  };
 
   return (
     <div className="flex flex-col gap-6 relative w-full h-full pb-4 overflow-x-hidden">

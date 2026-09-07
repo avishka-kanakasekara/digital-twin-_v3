@@ -23,7 +23,7 @@ export interface TeamOption {
 }
 
 export const TeamBuilder: React.FC = () => {
-  const { skills, users, roles, projectTypes } = useSettings();
+  const { skills, projectTypes } = useSettings();
   const [headcount, setHeadcount] = useState(4);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(['AWS', 'Node.js', 'Figma']);
   const [projectType, setProjectType] = useState(projectTypes[0] || 'New Product Development');
@@ -43,77 +43,51 @@ export const TeamBuilder: React.FC = () => {
     setSelectedSkills(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
     setTeamGenerated(false);
     setConfirmedTeam(null);
     
-    setTimeout(() => {
-      // Find all active users and attach their role's skills
-      const activeUsers = users
-        .filter(u => u.status === 'Active')
-        .map(u => {
-          const roleDef = roles.find(r => r.title === u.role);
-          const userSkills = roleDef ? roleDef.req : [];
-          
-          // Calculate skill match percentage against selected skills
-          const matchedSkills = userSkills.filter(s => selectedSkills.includes(s));
-          const matchPercent = selectedSkills.length > 0 
-            ? Math.round((matchedSkills.length / selectedSkills.length) * 100) 
-            : 100;
-            
-          return {
-            id: u.id,
-            name: u.name,
-            role: u.role,
-            dept: u.dept,
-            skills: userSkills,
-            match: Math.min(matchPercent + Math.floor(Math.random() * 20), 100) // fuzzy match
-          };
-        });
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/organization/talent/team-builder/optimize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          project_type: projectType,
+          headcount: headcount,
+          core_competencies: selectedSkills,
+          context: "Context not yet used in backend but passed"
+        })
+      });
 
-      // If no users, we can't generate teams
-      if (activeUsers.length === 0) {
-        setIsGenerating(false);
-        return; // Alternatively, show an error message
+      if (!response.ok) {
+        throw new Error('Failed to generate teams');
       }
 
-      const actualHeadcount = Math.min(headcount, activeUsers.length);
+      const options = await response.json();
       
-      // Algorithm for Option A: High Collaboration (Cross-functional)
-      // Sort by department diversity (randomized for mockup)
-      const optionAUsers = [...activeUsers].sort(() => 0.5 - Math.random()).slice(0, actualHeadcount);
-      
-      const optionA: TeamOption = {
-        id: 'opt_a_' + Date.now(),
-        name: 'Option A: High Collaboration',
-        successRate: 94,
-        compatibilityScore: 96,
-        skillBalance: 88,
-        performancePrediction: 92,
-        rationale: 'Excellent cross-departmental synergy and strong past collaboration factors.',
-        members: optionAUsers.map(u => ({ id: u.id, name: u.name, role: u.role, match: u.match, skills: u.skills }))
-      };
+      // Map API response to frontend camelCase keys expected by UI if they differ.
+      const mappedOptions = options.map((opt: any) => ({
+        id: opt.id,
+        name: opt.name,
+        successRate: opt.success_rate || opt.successRate,
+        compatibilityScore: opt.compatibility_score || opt.compatibilityScore,
+        skillBalance: opt.skill_balance || opt.skillBalance,
+        performancePrediction: opt.performance_prediction || opt.performancePrediction,
+        rationale: opt.rationale,
+        members: opt.members
+      }));
 
-      // Algorithm for Option B: Highest Skill Match
-      // Sort by absolute highest match score
-      const optionBUsers = [...activeUsers].sort((a, b) => b.match - a.match).slice(0, actualHeadcount);
-      
-      const optionB: TeamOption = {
-        id: 'opt_b_' + Date.now(),
-        name: 'Option B: Highest Skill Match',
-        successRate: 88,
-        compatibilityScore: 75,
-        skillBalance: 99,
-        performancePrediction: 85,
-        rationale: 'Maximum technical skill coverage based on role requirements.',
-        members: optionBUsers.map(u => ({ id: u.id, name: u.name, role: u.role, match: u.match, skills: u.skills }))
-      };
-
-      setGeneratedOptions([optionA, optionB]);
-      setIsGenerating(false);
+      setGeneratedOptions(mappedOptions);
       setTeamGenerated(true);
-    }, 2000);
+    } catch (error) {
+      console.error("Error generating teams:", error);
+      // Fallback or show error message if API fails
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleConfirm = (teamId: string) => {

@@ -1,14 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
-import { BrainCircuit, Activity, Calendar, Compass, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
+import { BrainCircuit, Activity, Calendar, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
 import { TwinChatModal } from '../../components/TwinChatModal';
-
-import { mockRiskyEmployees } from '../../dummy/organization/radarData';
+import api from '../../lib/api';
 
 export const AtRiskRadar: React.FC = () => {
   const [searchQuery] = useState('');
   const [chattingEmployee, setChattingEmployee] = useState<{ name: string; role: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [atRiskEmployees, setAtRiskEmployees] = useState<any[]>([]);
+  const [interventionEffectiveness, setInterventionEffectiveness] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.organization.getRiskProfiles().then(data => {
+      setAtRiskEmployees(data.map((d: any) => ({
+        name: d.employee_id,
+        role: d.primary_factor,
+        dept: 'At-Risk Employee',
+        urgency: d.risk_level === 'Critical' ? 'High' : d.risk_level === 'High' ? 'Moderate' : 'Low',
+        burnoutScore: `${Math.round(d.burnout_probability * 100)}%`,
+        attritionRisk: Math.round(d.risk_score),
+        perfCurrent: `${Math.round(d.career_stagnation_score * 100)}%`,
+        aiSuggestion: d.ai_retention_suggestion,
+        last1on1: d.last_1_on_1,
+      })));
+    }).catch(console.error);
+    
+    api.organization.getInterventionEffectiveness().then(data => {
+      setInterventionEffectiveness(data);
+    }).catch(console.error);
+  }, []);
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -17,10 +38,9 @@ export const AtRiskRadar: React.FC = () => {
     }, 4000);
   };
 
-  const filteredEmployees = mockRiskyEmployees.filter(emp => 
+  const filteredEmployees = atRiskEmployees.filter(emp =>
     emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.role.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    emp.dept.toLowerCase().includes(searchQuery.toLowerCase())
+    emp.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -74,54 +94,21 @@ export const AtRiskRadar: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-4">
-              
-              {/* Engineering Roles */}
-              <div className="p-4 bg-indigo-50/80 backdrop-blur-md rounded-2xl border border-indigo-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1.5 h-full bg-indigo-400 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest">Engineering Roles</span>
-                <div className="flex justify-between items-center mt-2.5">
-                  <span className="text-sm font-black text-slate-800">1:1 Check-ins</span>
-                  <span className="text-xs font-bold text-indigo-700 bg-white/60 backdrop-blur-sm border border-indigo-200 px-2.5 py-1 rounded-lg shadow-sm">-18% Risk</span>
+              {interventionEffectiveness.map((item, index) => (
+                <div key={index} className={`p-4 bg-${item.theme_color}-50/80 backdrop-blur-md rounded-2xl border border-${item.theme_color}-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(var(--color-${item.theme_color}-500),0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group`}>
+                  <div className={`absolute right-0 top-0 w-1.5 h-full bg-${item.theme_color}-400 opacity-80 group-hover:opacity-100 transition-opacity`}></div>
+                  <span className={`text-[10px] font-extrabold text-${item.theme_color}-600 uppercase tracking-widest`}>{item.role_group}</span>
+                  <div className="flex justify-between items-center mt-2.5">
+                    <span className="text-sm font-black text-slate-800">{item.intervention_name}</span>
+                    <span className={`text-xs font-bold text-${item.theme_color}-700 bg-white/60 backdrop-blur-sm border border-${item.theme_color}-200 px-2.5 py-1 rounded-lg shadow-sm`}>-{item.risk_reduction_percentage}% Risk</span>
+                  </div>
+                  <p className={`text-[10px] text-${item.theme_color}-500/80 font-bold mt-2 uppercase tracking-wide`}>{item.description}</p>
                 </div>
-                <p className="text-[10px] text-indigo-500/80 font-bold mt-2 uppercase tracking-wide">Highest historical ROI</p>
-              </div>
-
-              {/* Sales Roles */}
-              <div className="p-4 bg-rose-50/80 backdrop-blur-md rounded-2xl border border-rose-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(244,63,94,0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1.5 h-full bg-rose-400 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                <span className="text-[10px] font-extrabold text-rose-600 uppercase tracking-widest">Sales Roles</span>
-                <div className="flex justify-between items-center mt-2.5">
-                  <span className="text-sm font-black text-slate-800">Quota Adjustment</span>
-                  <span className="text-xs font-bold text-rose-700 bg-white/60 backdrop-blur-sm border border-rose-200 px-2.5 py-1 rounded-lg shadow-sm">-22% Risk</span>
-                </div>
-                <p className="text-[10px] text-rose-500/80 font-bold mt-2 uppercase tracking-wide">Effective if done early</p>
-              </div>
-
-              {/* Design Roles */}
-              <div className="p-4 bg-teal-50/80 backdrop-blur-md rounded-2xl border border-teal-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(20,184,166,0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1.5 h-full bg-teal-400 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                <span className="text-[10px] font-extrabold text-teal-700 uppercase tracking-widest">Design Roles</span>
-                <div className="flex justify-between items-center mt-2.5">
-                  <span className="text-sm font-black text-slate-800">Role/Project Shift</span>
-                  <span className="text-xs font-bold text-teal-800 bg-white/60 backdrop-blur-sm border border-teal-200 px-2.5 py-1 rounded-lg shadow-sm">-15% Risk</span>
-                </div>
-                <p className="text-[10px] text-teal-600/80 font-bold mt-2 uppercase tracking-wide">Counteracts burnout</p>
-              </div>
-
+              ))}
             </div>
           </Card>
 
-          {/* System Learning */}
-          <Card className="p-6 bg-gradient-to-br from-indigo-50 to-white border-indigo-100 flex flex-col gap-3 shadow-sm rounded-3xl relative overflow-hidden group hover:shadow-md transition-all">
-            <div className="absolute -top-10 -right-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all duration-500"></div>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 opacity-70"></div>
-            <h3 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wide z-10 text-indigo-900">
-              <Compass size={16} className="text-indigo-500 animate-pulse" /> System Learning
-            </h3>
-            <p className="text-sm text-slate-600 leading-relaxed font-medium z-10">
-              Every action you log on this page feeds back into the causal ML model, making future recommendations more accurate.
-            </p>
-          </Card>
+
         </div>
 
         {/* Right Column: Urgent Interventions Queue */}
@@ -140,15 +127,15 @@ export const AtRiskRadar: React.FC = () => {
 
             <div className="flex flex-col gap-5">
               {filteredEmployees.map((emp) => (
-                <div key={emp.name} className="relative flex items-center gap-4 lg:gap-8 p-4 bg-white rounded-xl border border-subtle hover:border-gray-300 hover:shadow-md transition-all duration-200 group">
+                <div key={emp.name} className="relative flex items-center justify-between gap-2 lg:gap-6 p-4 bg-white rounded-xl border border-subtle hover:border-gray-300 hover:shadow-md transition-all duration-200 group">
                   
                   {/* Glowing floating edge indicator */}
                   <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 rounded-r-md shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}></div>
 
                   {/* 1. Avatar & Info (Fixed width ensures metrics align perfectly across all rows) */}
-                  <div className="flex items-center gap-3.5 w-[200px] lg:w-[240px] shrink-0 pl-2">
+                  <div className="flex items-center gap-3.5 w-[160px] lg:w-[220px] shrink-0 pl-2">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[13px] font-bold shadow-sm ${emp.urgency === 'High' ? 'bg-warning' : emp.urgency === 'Moderate' ? 'bg-info' : 'bg-danger'}`}>
-                      {emp.name.split(' ').map(n=>n[0]).join('')}
+                      {emp.name.split(' ').map((n: string) => n[0]).join('')}
                     </div>
                     <div className="flex flex-col">
                       <h4 className="font-semibold text-primary text-sm whitespace-nowrap">{emp.name}</h4>
@@ -157,7 +144,7 @@ export const AtRiskRadar: React.FC = () => {
                   </div>
 
                   {/* 2. Metrics (Clean whitespace layout, no cluttered boxes) */}
-                  <div className="flex flex-1 items-center gap-6 lg:gap-12">
+                  <div className="flex flex-1 items-center gap-4 lg:gap-8">
                     
                     <div className="flex flex-col">
                       <span className="text-[10px] text-tertiary font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">
