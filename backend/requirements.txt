@@ -5,11 +5,8 @@ pydantic==2.8.2
 pydantic-settings==2.4.0
 python-dotenv==1.1.1
 
-# Database — SQLite (local dev) + PostgreSQL (production)
-sqlalchemy==2.0.41
-alembic==1.16.3
-# asyncpg==0.31.0        # Uncomment when using PostgreSQL
-# psycopg2-binary==2.9.10  # Uncomment when using PostgreSQL
+# Database — Supabase (hosted PostgreSQL)
+supabase==2.15.1
 
 # Auth
 python-jose[cryptography]==3.5.0
@@ -22,3 +19,15 @@ httpx==0.28.1
 
 # Cache & Queue
 redis==5.2.0
+
+# ── Knowledge Intelligence Pipeline ──────────────────────────
+# Google Gemini AI — structured extraction (new SDK)
+google-genai>=1.0.0
+
+# Document extraction
+PyPDF2>=3.0.0          # PDF text extraction
+python-docx>=1.1.0     # DOCX text extraction
+
+# MIME type detection from magic bytes (optional — graceful fallback if libmagic not installed)
+# Requires: brew install libmagic (macOS) or apt-get install libmagic1 (Linux)
+python-magic>=0.4.27

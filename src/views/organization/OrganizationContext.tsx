@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import { 
   Briefcase, 
@@ -6,10 +6,54 @@ import {
   ChevronRight, Flag, Bot, Cpu, Layers, Rocket, AlertTriangle, Activity
 } from 'lucide-react';
 
-import { mockOKRs, mockAIReadiness, mockCapabilities, mockTransformations } from '../../dummy/organization/contextData';
+import { mockAIReadiness, mockCapabilities, mockTransformations, mockOKRs } from '../../dummy/organization/contextData';
+import api from '../../lib/api';
+
+const defaultVision = {
+  vision_text: "To build Sri Lanka's leading digital workforce platform powered by Predictive AI, connecting talent seamlessly and reducing turnover.",
+  tech_app_features: ["Predictive Attrition Risk", "AI Digital Twin Copilot", "Skill Gap Analytics"],
+  tech_team_goals: ["Achieve 99.9% API uptime", "Migrate 100% workloads to Supabase Cloud", "Automate performance reviews"],
+  habits: ["Daily 10-min standups", "Weekly peer code reviews", "Continuous learning & upskilling"]
+};
 
 export const OrganizationContext: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'strategy' | 'ai' | 'capability' | 'transformation'>('strategy');
+  const [okrs, setOkrs] = useState<any[]>(mockOKRs);
+  const [vision, setVision] = useState<any>(defaultVision);
+  const [aiReadiness, setAiReadiness] = useState<any>(mockAIReadiness);
+  const [capabilities, setCapabilities] = useState<any[]>(mockCapabilities);
+  const [transformations, setTransformations] = useState<any[]>(mockTransformations);
+
+  useEffect(() => {
+    api.organization.getOKRs().then(data => {
+      if (data && data.length > 0) {
+        setOkrs(data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          owner: d.owner,
+          progress: d.progress,
+          status: d.status === 'At Risk' ? 'at-risk' : 'on-track',
+          initiatives: (d.initiatives || []).map((i: any) => typeof i === 'string' ? i : i.title),
+        })));
+      }
+    }).catch(console.error);
+
+    api.organization.getStrategyVision().then(data => {
+      if (data && data.length > 0) setVision(data[0]);
+    }).catch(console.error);
+
+    api.organization.getAIReadiness().then(data => {
+      if (data && data.length > 0) setAiReadiness(data[0]);
+    }).catch(console.error);
+
+    api.organization.getCapabilities().then(data => {
+      if (data && data.length > 0) setCapabilities(data);
+    }).catch(console.error);
+
+    api.organization.getTransformations().then(data => {
+      if (data && data.length > 0) setTransformations(data);
+    }).catch(console.error);
+  }, []);
 
   const tabs = [
     { id: 'strategy', label: 'Business Goals', icon: Target, desc: 'The strategic targets, KPIs, and ESG goals the company is aiming to achieve.' },
@@ -84,18 +128,11 @@ export const OrganizationContext: React.FC = () => {
               <Card className="glass-panel p-6 flex flex-col gap-4 border border-[var(--border-subtle)] transition-all duration-300 hover:-translate-y-1 hover:shadow-md" style={{ borderTopWidth: '4px', borderTopColor: 'var(--color-info)'}}>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-[var(--bg-main)] rounded-lg flex items-center justify-center text-info shadow-sm border border-[var(--border-subtle)]"><Target size={16}/></div>
-                  <h3 className="text-base font-bold text-primary">Vision & KPIs</h3>
+                  <h3 className="text-base font-bold text-primary">Company Vision</h3>
                 </div>
-                <p className="text-sm text-secondary font-medium leading-relaxed bg-[var(--bg-main)]/50 p-3 rounded-lg border border-[var(--border-subtle)]">
-                  Make our App the number 1 choice for local shops by next year.
+                <p className="text-sm text-secondary font-medium leading-relaxed bg-[var(--bg-main)]/50 p-3 rounded-lg border border-[var(--border-subtle)] h-full">
+                  {vision?.vision_text || 'Loading vision...'}
                 </p>
-                <div className="mt-auto pt-4 border-t border-[var(--border-subtle)]">
-                  <p className="text-[10px] font-bold text-tertiary uppercase tracking-wider mb-2">Main Targets</p>
-                  <ul className="text-xs text-primary font-bold space-y-2">
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-success"/> Reach 10,000 active users</li>
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-success"/> Get 5-star ratings from 90% of users</li>
-                  </ul>
-                </div>
               </Card>
 
               <Card className="glass-panel p-6 flex flex-col gap-4 border border-[var(--border-subtle)] transition-all duration-300 hover:-translate-y-1 hover:shadow-md" style={{ borderTopWidth: '4px', borderTopColor: 'var(--color-secondary)'}}>
@@ -107,15 +144,17 @@ export const OrganizationContext: React.FC = () => {
                   <div>
                     <p className="text-[10px] font-bold text-tertiary uppercase tracking-wider mb-2">App Features</p>
                     <ul className="text-xs text-primary font-semibold space-y-2">
-                      <li className="flex items-center gap-2"><div className="rounded-full bg-secondary" style={{ width: '6px', height: '6px' }}></div> Auto-sort user messages</li>
-                      <li className="flex items-center gap-2"><div className="rounded-full bg-secondary" style={{ width: '6px', height: '6px' }}></div> Make the app safe and easy to use</li>
+                      {vision?.tech_app_features?.map((f: string, i: number) => (
+                        <li key={i} className="flex items-center gap-2"><div className="rounded-full bg-secondary" style={{ width: '6px', height: '6px' }}></div> {f}</li>
+                      ))}
                     </ul>
                   </div>
                   <div className="pt-3 border-t border-[var(--border-subtle)]">
                     <p className="text-[10px] font-bold text-tertiary uppercase tracking-wider mb-2">Team Goals</p>
                     <ul className="text-xs text-primary font-semibold space-y-2">
-                      <li className="flex items-center gap-2"><div className="rounded-full bg-secondary" style={{ width: '6px', height: '6px' }}></div> Move all our files to the Cloud</li>
-                      <li className="flex items-center gap-2"><div className="rounded-full bg-secondary" style={{ width: '6px', height: '6px' }}></div> Work faster as a team</li>
+                      {vision?.tech_team_goals?.map((g: string, i: number) => (
+                        <li key={i} className="flex items-center gap-2"><div className="rounded-full bg-secondary" style={{ width: '6px', height: '6px' }}></div> {g}</li>
+                      ))}
                     </ul>
                   </div>
                 </div>
@@ -127,18 +166,12 @@ export const OrganizationContext: React.FC = () => {
                   <h3 className="text-base font-bold text-primary">Good Habits</h3>
                 </div>
                 <ul className="text-xs text-primary font-semibold space-y-2 mt-1">
-                  <li className="flex items-start gap-2 bg-[var(--bg-main)]/50 p-2.5 rounded-lg border border-[var(--border-subtle)]">
-                    <div className="mt-1 rounded-sm bg-success shrink-0" style={{ width: '6px', height: '6px' }}></div>
-                    <span>Plant 100 trees this year</span>
-                  </li>
-                  <li className="flex items-start gap-2 bg-[var(--bg-main)]/50 p-2.5 rounded-lg border border-[var(--border-subtle)]">
-                    <div className="mt-1 rounded-sm bg-success shrink-0" style={{ width: '6px', height: '6px' }}></div>
-                    <span>Give everyone equal chances</span>
-                  </li>
-                  <li className="flex items-start gap-2 bg-[var(--bg-main)]/50 p-2.5 rounded-lg border border-[var(--border-subtle)]">
-                    <div className="mt-1 rounded-sm bg-success shrink-0" style={{ width: '6px', height: '6px' }}></div>
-                    <span>Stop using plastic in the office</span>
-                  </li>
+                  {vision?.habits?.map((h: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 bg-[var(--bg-main)]/50 p-2.5 rounded-lg border border-[var(--border-subtle)]">
+                      <div className="mt-1 rounded-sm bg-success shrink-0" style={{ width: '6px', height: '6px' }}></div>
+                      <span>{h}</span>
+                    </li>
+                  ))}
                 </ul>
               </Card>
             </div>
@@ -155,7 +188,7 @@ export const OrganizationContext: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-3" style={{ gap: '24px' }}>
-                {mockOKRs.map((okr) => (
+                {okrs.map((okr) => (
                   <Card key={okr.id} className="flex flex-col group transition-all duration-300 hover:shadow-xl rounded-3xl overflow-hidden bg-white/90 backdrop-blur-xl" style={{ padding: '0', border: '1px solid #e0e7ff', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
                     
                     {/* Top Section */}
@@ -202,7 +235,7 @@ export const OrganizationContext: React.FC = () => {
                       <div className="flex flex-col flex-1" style={{ gap: '12px' }}>
                         <p style={{ fontSize: '9px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8' }}>Key Initiatives</p>
                         <ul className="flex flex-col" style={{ gap: '12px' }}>
-                          {okr.initiatives.map((init, idx) => (
+                          {okr.initiatives.map((init: string, idx: number) => (
                             <li key={idx} className="flex items-start" style={{ gap: '8px' }}>
                               <CheckCircle size={14} style={{ marginTop: '2px', color: okr.progress > 50 ? '#10b981' : '#94a3b8' }} className="shrink-0" />
                               <span style={{ fontSize: '13px', fontWeight: '700', color: '#475569', lineHeight: '1.4' }}>{init}</span>
@@ -243,18 +276,18 @@ export const OrganizationContext: React.FC = () => {
                 <div className="flex items-center rounded-2xl bg-white/60 shadow-sm shrink-0" style={{ border: '1px solid #f1f5f9', padding: '16px 24px', gap: '24px' }}>
                   <div className="text-center flex flex-col items-center">
                     <span className="text-3xl font-black tracking-tighter" style={{ color: '#4f46e5' }}>
-                      {mockAIReadiness.overallScore}
+                      {aiReadiness?.overall_score || 0}
                     </span>
                     <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mt-1">Overall Score</span>
                   </div>
                   <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
                   <div className="text-center flex flex-col items-center">
-                    <span className="text-xl font-black tracking-tight" style={{ color: '#334155' }}>{mockAIReadiness.literacyScore}</span>
+                    <span className="text-xl font-black tracking-tight" style={{ color: '#334155' }}>{aiReadiness?.literacy_score || 0}</span>
                     <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mt-1">Literacy</span>
                   </div>
                   <div style={{ width: '1px', height: '40px', backgroundColor: '#e2e8f0' }}></div>
                   <div className="text-center flex flex-col items-center">
-                    <span className="text-xl font-black tracking-tight" style={{ color: '#334155' }}>{mockAIReadiness.adoptionScore}</span>
+                    <span className="text-xl font-black tracking-tight" style={{ color: '#334155' }}>{aiReadiness?.adoption_score || 0}</span>
                     <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 mt-1">Adoption</span>
                   </div>
                 </div>
@@ -272,7 +305,7 @@ export const OrganizationContext: React.FC = () => {
                 </div>
                 
                 <div className="flex flex-col" style={{ padding: '16px', gap: '12px' }}>
-                  {mockAIReadiness.automationOpportunities.map((opp, idx) => (
+                  {aiReadiness?.automation_opportunities?.map((opp: any, idx: number) => (
                     <div key={idx} className="group flex items-center justify-between rounded-2xl hover:bg-slate-50 transition-all duration-300" style={{ padding: '12px 16px', border: '1px solid #f8fafc', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
                       <div className="flex items-center" style={{ gap: '16px' }}>
                         <div className="rounded-full flex items-center justify-center shrink-0 text-white shadow-sm" style={{ width: '28px', height: '28px', background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)' }}>
@@ -321,7 +354,7 @@ export const OrganizationContext: React.FC = () => {
                 </div>
                 
                 <div className="flex flex-col" style={{ padding: '16px', gap: '12px' }}>
-                  {mockAIReadiness.deptProjects.map((dp, idx) => {
+                  {aiReadiness?.dept_projects?.map((dp: any, idx: number) => {
                     const gradients = [
                       'linear-gradient(135deg, #10b981 0%, #047857 100%)', // Emerald
                       'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', // Blue
@@ -366,7 +399,7 @@ export const OrganizationContext: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-2" style={{ gap: '24px' }}>
-              {mockCapabilities.map((cap, idx) => (
+              {capabilities.map((cap, idx) => (
                 <Card key={idx} className="flex flex-col group transition-all duration-300 hover:shadow-xl rounded-3xl overflow-hidden bg-white/90 backdrop-blur-xl" style={{ padding: '0', border: '1px solid #e0e7ff', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
                   
                   {/* Top Section */}
@@ -453,7 +486,7 @@ export const OrganizationContext: React.FC = () => {
             </div>
             
             <div className="flex flex-col gap-5">
-              {mockTransformations.map((trans) => (
+              {transformations.map((trans) => (
                 <Card key={trans.id} className="p-0 flex flex-col group transition-all duration-300 hover:shadow-xl rounded-2xl border border-slate-200 overflow-hidden bg-white/90 backdrop-blur-md">
                   <div className="flex flex-col">
                     {/* Top Section */}
@@ -512,7 +545,7 @@ export const OrganizationContext: React.FC = () => {
                         <div className="absolute top-4 bottom-4 bg-slate-200 -z-10 rounded-full" style={{ left: '15px', width: '2px' }}></div>
                         
                         <div className="flex flex-col gap-4">
-                          {trans.milestones.map((ms, idx) => (
+                          {trans.milestones.map((ms: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-4 transition-all duration-300 group">
                               <div className="rounded-full flex items-center justify-center shrink-0 shadow-sm border-2 relative z-10 transition-colors bg-white" style={{ 
                                   width: '32px',

@@ -1,12 +1,13 @@
 import React from 'react';
-import { Brain, Sparkles } from 'lucide-react';
+import { Brain, Sparkles, RefreshCw } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip } from 'recharts';
 
 interface AIReadinessProps {
   data: any;
+  onRefresh?: () => void;
 }
 
-export const AIReadiness: React.FC<AIReadinessProps> = ({ data }) => {
+export const AIReadiness: React.FC<AIReadinessProps> = ({ data, onRefresh }) => {
   return (
     <div style={{
       background: 'rgba(255,255,255,0.8)',
@@ -29,15 +30,31 @@ export const AIReadiness: React.FC<AIReadinessProps> = ({ data }) => {
           </h3>
           <p style={{ fontSize: '11px', color: '#475569' }}>Maturity across 8 AI dimensions</p>
         </div>
-        <div style={{
-          width: '52px', height: '52px', borderRadius: '14px',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 0 20px rgba(59,130,246,0.25)',
-        }}>
-          <span style={{ fontSize: '18px', fontWeight: 900, color: 'white', lineHeight: 1 }}>
-            {data.overallScore}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '52px', height: '52px', borderRadius: '14px',
+            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 20px rgba(59,130,246,0.25)',
+          }}>
+            <span style={{ fontSize: '18px', fontWeight: 900, color: 'white', lineHeight: 1 }}>
+              {data.overallScore}
+            </span>
+          </div>
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              style={{
+                padding: '8px', borderRadius: '8px',
+                background: 'rgba(59,130,246,0.1)', color: '#3b82f6',
+                border: '1px solid rgba(59,130,246,0.2)', cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              title="Refresh AI Readiness"
+            >
+              <RefreshCw size={16} />
+            </button>
+          )}
         </div>
       </div>
 

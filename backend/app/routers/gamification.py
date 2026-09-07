@@ -1,25 +1,14 @@
 from __future__ import annotations
 """
 Gamification router — XP, leaderboard, challenges, achievements, rewards.
+Uses Supabase as the database backend.
 """
 
-
+import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import select, func, desc
+from fastapi import APIRouter, HTTPException, status
 
-from app.database import get_db
-from app.models.employee import Employee
-from app.models.gamification import (
-    GamificationProfile,
-    XPTransaction,
-    Achievement,
-    EmployeeAchievement,
-    Challenge,
-    ChallengeProgress,
-)
-from app.models.reward import RewardItem, RewardClaim
+from app.database import get_supabase_admin
 from app.schemas.gamification import (
     GamificationProfileResponse,
     LeaderboardEntry,
@@ -28,6 +17,7 @@ from app.schemas.gamification import (
     AchievementResponse,
     XPTransactionResponse,
     RecentActivityResponse,
+    StreakResponse,
     StreakCalendarDay,
     RewardItemResponse,
 )
@@ -35,51 +25,70 @@ from app.schemas.gamification import (
 router = APIRouter(prefix="/api/gamification", tags=["Gamification"])
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_dt(dt_str: str | None) -> datetime | None:
+    """Parse an ISO datetime string from Supabase into a timezone-aware datetime."""
+    if not dt_str:
+        return None
+    try:
+        # Supabase returns ISO format: 2024-01-15T10:30:00+00:00
+        dt = datetime.fromisoformat(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
 # ─── Player Profile ───────────────────────────────────────────
 
 @router.get("/{employee_id}/profile", response_model=GamificationProfileResponse)
-def get_gamification_profile(employee_id: str, db: Session = Depends(get_db)):
+def get_gamification_profile(employee_id: str):
     """Get gamification profile for an employee."""
-    result = db.execute(
-        select(GamificationProfile).where(GamificationProfile.employee_id == employee_id)
-    )
-    profile = result.scalar_one_or_none()
-    if not profile:
+    sb = get_supabase_admin()
+
+    result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
+    if not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gamification profile not found")
+    profile = result.data[0]
 
     # Get employee name
-    emp_result = db.execute(select(Employee).where(Employee.id == employee_id))
-    emp = emp_result.scalar_one_or_none()
+    emp_result = sb.table("employees").select("full_name, initials, department").eq("id", employee_id).execute()
+    emp = emp_result.data[0] if emp_result.data else {}
 
     # Count total players
-    total = db.execute(select(func.count()).select_from(GamificationProfile)).scalar_one()
+    total_result = sb.table("gamification_profiles").select("id", count="exact").execute()
+    total = total_result.count or 0
 
     # Count dept players
     dept_count = 0
-    if emp and emp.department:
-        dept_q = (
-            select(func.count())
-            .select_from(GamificationProfile)
-            .join(Employee, Employee.id == GamificationProfile.employee_id)
-            .where(Employee.department == emp.department)
+    if emp.get("department"):
+        dept_result = (
+            sb.table("gamification_profiles")
+            .select("id, employees!inner(department)", count="exact")
+            .eq("employees.department", emp["department"])
+            .execute()
         )
-        dept_count = db.execute(dept_q).scalar_one()
+        dept_count = dept_result.count or 0
 
     return GamificationProfileResponse(
         employee_id=employee_id,
-        name=emp.full_name if emp else "",
-        initials=emp.initials if emp else "",
-        level=profile.level,
-        xp=profile.xp,
-        next_level_xp=profile.next_level_xp,
-        total_xp_earned=profile.total_xp_earned,
-        company_rank=profile.company_rank,
-        department_rank=profile.department_rank,
+        name=emp.get("full_name", ""),
+        initials=emp.get("initials", ""),
+        level=profile.get("level", 1),
+        xp=profile.get("xp", 0),
+        next_level_xp=profile.get("next_level_xp", 1000),
+        total_xp_earned=profile.get("total_xp_earned", 0),
+        company_rank=profile.get("company_rank"),
+        department_rank=profile.get("department_rank"),
         total_players=total,
         department_players=dept_count,
-        streak_days=profile.streak_days,
-        longest_streak=profile.longest_streak,
-        title=profile.title,
+        streak_days=profile.get("streak_days", 0),
+        longest_streak=profile.get("longest_streak", 0),
+        title=profile.get("title", "Newcomer"),
     )
 
 
@@ -90,35 +99,36 @@ def get_leaderboard(
     department: str | None = None,
     limit: int = 10,
     current_employee_id: str | None = None,
-    db: Session = Depends(get_db),
 ):
     """Get company or department leaderboard."""
-    query = (
-        select(GamificationProfile, Employee)
-        .join(Employee, Employee.id == GamificationProfile.employee_id)
-        .order_by(desc(GamificationProfile.total_xp_earned))
-    )
+    sb = get_supabase_admin()
+
+    # We need to join gamification_profiles with employees
+    # Supabase PostgREST supports foreign key joins
+    query = sb.table("gamification_profiles").select(
+        "*, employees!inner(id, full_name, initials, department)"
+    ).order("total_xp_earned", desc=True).limit(limit)
 
     if department:
-        query = query.where(Employee.department == department)
+        query = query.eq("employees.department", department)
 
-    query = query.limit(limit)
-    result = db.execute(query)
-    rows = result.all()
+    result = query.execute()
+    rows = result.data or []
 
     entries = []
-    for rank, (profile, emp) in enumerate(rows, start=1):
+    for rank, row in enumerate(rows, start=1):
+        emp = row.get("employees", {})
         badge = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else "⭐"
         entries.append(LeaderboardEntry(
             rank=rank,
-            name=emp.full_name,
-            initials=emp.initials or "",
-            level=profile.level,
-            xp=profile.total_xp_earned,
-            department=emp.department or "",
+            name=emp.get("full_name", ""),
+            initials=emp.get("initials", ""),
+            level=row.get("level", 1),
+            xp=row.get("total_xp_earned", 0),
+            department=emp.get("department", ""),
             badge=badge,
             trend="up",  # TODO: compute from XP history
-            is_me=(str(emp.id) == str(current_employee_id)) if current_employee_id else False,
+            is_me=(str(emp.get("id")) == str(current_employee_id)) if current_employee_id else False,
         ))
 
     return entries
@@ -127,48 +137,50 @@ def get_leaderboard(
 # ─── Challenges ────────────────────────────────────────────────
 
 @router.get("/{employee_id}/challenges", response_model=list[ChallengeResponse])
-def get_challenges(employee_id: str, db: Session = Depends(get_db)):
+def get_challenges(employee_id: str):
     """Get active challenges with employee progress."""
-    challenges = db.execute(
-        select(Challenge).where(Challenge.is_active == True).order_by(Challenge.end_date)
-    )
-    result = []
-    for ch in challenges.scalars().all():
+    sb = get_supabase_admin()
+
+    challenges = sb.table("challenges").select("*").eq("is_active", True).order("end_date").execute()
+
+    result_list = []
+    for ch in challenges.data or []:
         # Get progress for this employee
-        prog_result = db.execute(
-            select(ChallengeProgress)
-            .where(ChallengeProgress.challenge_id == ch.id, ChallengeProgress.employee_id == employee_id)
-        )
-        prog = prog_result.scalar_one_or_none()
+        prog_result = sb.table("challenge_progress").select("*").eq(
+            "challenge_id", ch["id"]
+        ).eq("employee_id", employee_id).execute()
+        prog = prog_result.data[0] if prog_result.data else None
 
         # Count participants
-        part_count = db.execute(
-            select(func.count()).where(ChallengeProgress.challenge_id == ch.id)
-        ).scalar_one()
+        part_result = sb.table("challenge_progress").select("id", count="exact").eq(
+            "challenge_id", ch["id"]
+        ).execute()
+        part_count = part_result.count or 0
 
         # Calculate days left
         days_left = 0
-        if ch.end_date:
-            delta = ch.end_date - datetime.now(timezone.utc)
+        end_date = _parse_dt(ch.get("end_date"))
+        if end_date:
+            delta = end_date - _utc_now()
             days_left = max(0, delta.days)
 
-        result.append(ChallengeResponse(
-            id=ch.id,
-            title=ch.title,
-            description=ch.description,
-            xp_reward=ch.xp_reward,
-            bonus_badge=ch.bonus_badge,
-            difficulty=ch.difficulty,
-            type=ch.type,
-            category=ch.category,
-            color=ch.color,
+        result_list.append(ChallengeResponse(
+            id=ch["id"],
+            title=ch["title"],
+            description=ch.get("description"),
+            xp_reward=ch.get("xp_reward", 0),
+            bonus_badge=ch.get("bonus_badge"),
+            difficulty=ch.get("difficulty"),
+            type=ch.get("type"),
+            category=ch.get("category"),
+            color=ch.get("color"),
             days_left=days_left,
-            progress=prog.progress if prog else 0,
+            progress=prog["progress"] if prog else 0,
             participants=part_count,
-            is_active=ch.is_active,
+            is_active=ch.get("is_active", True),
         ))
 
-    return result
+    return result_list
 
 
 @router.post("/{employee_id}/challenges/{challenge_id}/progress")
@@ -176,60 +188,86 @@ def update_challenge_progress(
     employee_id: str,
     challenge_id: str,
     data: ChallengeProgressUpdate,
-    db: Session = Depends(get_db),
 ):
     """Update challenge progress for an employee. Auto-enrolls if not yet enrolled."""
-    # Find or create progress entry
-    result = db.execute(
-        select(ChallengeProgress)
-        .where(ChallengeProgress.employee_id == employee_id, ChallengeProgress.challenge_id == challenge_id)
-    )
-    prog = result.scalar_one_or_none()
+    sb = get_supabase_admin()
 
-    if not prog:
-        prog = ChallengeProgress(employee_id=employee_id, challenge_id=challenge_id)
-        db.add(prog)
+    # Find existing progress entry
+    prog_result = sb.table("challenge_progress").select("*").eq(
+        "employee_id", employee_id
+    ).eq("challenge_id", challenge_id).execute()
 
-    prog.progress = min(100, data.progress)
+    if not prog_result.data:
+        # Auto-enroll
+        prog_data = {
+            "id": str(uuid.uuid4()),
+            "employee_id": employee_id,
+            "challenge_id": challenge_id,
+            "progress": min(100, data.progress),
+        }
+        sb.table("challenge_progress").insert(prog_data).execute()
+        prog = prog_data
+    else:
+        prog = prog_result.data[0]
+        new_progress = min(100, data.progress)
+        sb.table("challenge_progress").update({"progress": new_progress}).eq(
+            "id", prog["id"]
+        ).execute()
+        prog["progress"] = new_progress
+
+    completed = prog.get("completed", False)
 
     # Auto-complete and award XP
-    if prog.progress >= 100 and not prog.completed:
-        prog.completed = True
-        prog.completed_at = datetime.now(timezone.utc)
+    if prog["progress"] >= 100 and not completed:
+        sb.table("challenge_progress").update({
+            "completed": True,
+            "completed_at": _utc_now().isoformat(),
+        }).eq("id", prog["id"]).execute()
 
         # Get challenge XP reward
-        ch_result = db.execute(select(Challenge).where(Challenge.id == challenge_id))
-        challenge = ch_result.scalar_one_or_none()
-        if challenge:
-            _add_xp(db, employee_id, challenge.xp_reward, f"Challenge: {challenge.title}", "challenge", "🎯")
+        ch_result = sb.table("challenges").select("xp_reward, title").eq("id", challenge_id).execute()
+        if ch_result.data:
+            challenge = ch_result.data[0]
+            _add_xp(sb, employee_id, challenge["xp_reward"], f"Challenge: {challenge['title']}", "challenge", "🎯")
 
-    return {"status": "updated", "progress": prog.progress, "completed": prog.completed}
+        completed = True
+
+    return {"status": "updated", "progress": prog["progress"], "completed": completed}
 
 
 # ─── Achievements ──────────────────────────────────────────────
 
 @router.get("/{employee_id}/achievements", response_model=list[AchievementResponse])
-def get_achievements(employee_id: str, db: Session = Depends(get_db)):
+def get_achievements(employee_id: str):
     """Get all achievements with unlock status for an employee."""
-    all_achievements = db.execute(select(Achievement).order_by(Achievement.name))
-    unlocked = db.execute(
-        select(EmployeeAchievement).where(EmployeeAchievement.employee_id == employee_id)
-    )
-    unlocked_map = {str(ea.achievement_id): ea.unlocked_at for ea in unlocked.scalars().all()}
+    sb = get_supabase_admin()
+
+    all_achievements = sb.table("achievements").select("*").order("name").execute()
+    unlocked_result = sb.table("employee_achievements").select("achievement_id, unlocked_at").eq(
+        "employee_id", employee_id
+    ).execute()
+
+    unlocked_map = {ea["achievement_id"]: ea["unlocked_at"] for ea in (unlocked_result.data or [])}
 
     result = []
-    for ach in all_achievements.scalars().all():
-        is_unlocked = str(ach.id) in unlocked_map
-        unlocked_date = unlocked_map.get(str(ach.id))
+    for ach in all_achievements.data or []:
+        is_unlocked = ach["id"] in unlocked_map
+        unlocked_at = unlocked_map.get(ach["id"])
+        unlocked_date = None
+        if unlocked_at:
+            dt = _parse_dt(unlocked_at)
+            if dt:
+                unlocked_date = dt.strftime("%b %Y")
+
         result.append(AchievementResponse(
-            id=ach.id,
-            name=ach.name,
-            description=ach.description,
-            emoji=ach.emoji,
-            xp_value=ach.xp_value,
-            rarity=ach.rarity,
+            id=ach["id"],
+            name=ach["name"],
+            description=ach.get("description"),
+            emoji=ach.get("emoji"),
+            xp_value=ach.get("xp_value", 0),
+            rarity=ach.get("rarity"),
             unlocked=is_unlocked,
-            unlocked_date=unlocked_date.strftime("%b %Y") if unlocked_date else None,
+            unlocked_date=unlocked_date,
         ))
 
     return result
@@ -238,22 +276,22 @@ def get_achievements(employee_id: str, db: Session = Depends(get_db)):
 # ─── XP History ────────────────────────────────────────────────
 
 @router.get("/{employee_id}/xp-history")
-def get_xp_history(employee_id: str, months: int = 6, db: Session = Depends(get_db)):
+def get_xp_history(employee_id: str, months: int = 6):
     """Get monthly XP aggregation for charts."""
-    # Get XP transactions for last N months
-    since = datetime.now(timezone.utc) - timedelta(days=months * 30)
-    result = db.execute(
-        select(XPTransaction)
-        .where(XPTransaction.employee_id == employee_id, XPTransaction.created_at >= since)
-        .order_by(XPTransaction.created_at)
-    )
-    transactions = result.scalars().all()
+    sb = get_supabase_admin()
+
+    since = (_utc_now() - timedelta(days=months * 30)).isoformat()
+    result = sb.table("xp_transactions").select("amount, created_at").eq(
+        "employee_id", employee_id
+    ).gte("created_at", since).order("created_at").execute()
 
     # Aggregate by month
     monthly: dict[str, int] = {}
-    for tx in transactions:
-        month_key = tx.created_at.strftime("%b")
-        monthly[month_key] = monthly.get(month_key, 0) + tx.amount
+    for tx in result.data or []:
+        dt = _parse_dt(tx["created_at"])
+        if dt:
+            month_key = dt.strftime("%b")
+            monthly[month_key] = monthly.get(month_key, 0) + tx["amount"]
 
     return [{"month": m, "xp": xp} for m, xp in monthly.items()]
 
@@ -261,32 +299,33 @@ def get_xp_history(employee_id: str, months: int = 6, db: Session = Depends(get_
 # ─── Recent Activity ───────────────────────────────────────────
 
 @router.get("/{employee_id}/activity", response_model=list[RecentActivityResponse])
-def get_recent_activity(employee_id: str, limit: int = 10, db: Session = Depends(get_db)):
+def get_recent_activity(employee_id: str, limit: int = 10):
     """Get recent XP activity feed."""
-    result = db.execute(
-        select(XPTransaction)
-        .where(XPTransaction.employee_id == employee_id)
-        .order_by(desc(XPTransaction.created_at))
-        .limit(limit)
-    )
-    transactions = result.scalars().all()
+    sb = get_supabase_admin()
+
+    result = sb.table("xp_transactions").select("*").eq(
+        "employee_id", employee_id
+    ).order("created_at", desc=True).limit(limit).execute()
 
     activities = []
-    for tx in transactions:
-        # Compute relative time
-        delta = datetime.now(timezone.utc) - tx.created_at
-        if delta.total_seconds() < 3600:
-            time_str = f"{int(delta.total_seconds() / 60)}m ago"
-        elif delta.total_seconds() < 86400:
-            time_str = f"{int(delta.total_seconds() / 3600)}h ago"
+    for tx in result.data or []:
+        dt = _parse_dt(tx["created_at"])
+        if dt:
+            delta = _utc_now() - dt
+            if delta.total_seconds() < 3600:
+                time_str = f"{int(delta.total_seconds() / 60)}m ago"
+            elif delta.total_seconds() < 86400:
+                time_str = f"{int(delta.total_seconds() / 3600)}h ago"
+            else:
+                time_str = f"{delta.days}d ago"
         else:
-            time_str = f"{delta.days}d ago"
+            time_str = "Unknown"
 
         activities.append(RecentActivityResponse(
-            action=tx.reason or "XP earned",
-            xp=tx.amount,
+            action=tx.get("reason") or "XP earned",
+            xp=tx["amount"],
             time=time_str,
-            emoji=tx.emoji or "⚡",
+            emoji=tx.get("emoji") or "⚡",
         ))
 
     return activities
@@ -294,83 +333,99 @@ def get_recent_activity(employee_id: str, limit: int = 10, db: Session = Depends
 
 # ─── Streak Calendar ──────────────────────────────────────────
 
-@router.get("/{employee_id}/streak", response_model=list[StreakCalendarDay])
-def get_streak_calendar(employee_id: str, days: int = 42, db: Session = Depends(get_db)):
+@router.get("/{employee_id}/streak", response_model=StreakResponse)
+def get_streak_calendar(employee_id: str, days: int = 42):
     """Get activity streak calendar data (last N days)."""
-    since = datetime.now(timezone.utc) - timedelta(days=days)
-    result = db.execute(
-        select(XPTransaction)
-        .where(XPTransaction.employee_id == employee_id, XPTransaction.created_at >= since)
-    )
-    transactions = result.scalars().all()
+    sb = get_supabase_admin()
 
-    # Build a map of day → XP earned
+    profile_result = sb.table("gamification_profiles").select("streak_days, longest_streak").eq(
+        "employee_id", employee_id
+    ).execute()
+    profile = profile_result.data[0] if profile_result.data else {}
+
+    since = (_utc_now() - timedelta(days=days)).isoformat()
+    result = sb.table("xp_transactions").select("amount, created_at").eq(
+        "employee_id", employee_id
+    ).gte("created_at", since).execute()
+
     daily_xp: dict[str, int] = {}
-    for tx in transactions:
-        day_key = tx.created_at.strftime("%Y-%m-%d")
-        daily_xp[day_key] = daily_xp.get(day_key, 0) + tx.amount
+    for tx in result.data or []:
+        dt = _parse_dt(tx["created_at"])
+        if dt:
+            day_key = dt.strftime("%Y-%m-%d")
+            daily_xp[day_key] = daily_xp.get(day_key, 0) + tx["amount"]
 
-    # Generate calendar
     calendar = []
     for i in range(days - 1, -1, -1):
-        d = datetime.now(timezone.utc) - timedelta(days=i)
+        d = _utc_now() - timedelta(days=i)
         day_str = d.strftime("%Y-%m-%d")
         xp = daily_xp.get(day_str, 0)
         intensity = 3 if xp >= 200 else 2 if xp >= 100 else 1 if xp > 0 else 0
         calendar.append(StreakCalendarDay(date=day_str, intensity=intensity))
 
-    return calendar
+    return StreakResponse(
+        streak_days=profile.get("streak_days", 0),
+        longest_streak=profile.get("longest_streak", 0),
+        calendar=calendar,
+    )
 
 
 # ─── Reward Store ──────────────────────────────────────────────
 
 @router.get("/rewards", response_model=list[RewardItemResponse])
-def get_rewards(db: Session = Depends(get_db)):
+def get_rewards():
     """Get all available reward items."""
-    result = db.execute(select(RewardItem).order_by(RewardItem.cost))
-    return result.scalars().all()
+    sb = get_supabase_admin()
+    result = sb.table("reward_items").select("*").order("cost").execute()
+    return result.data
 
 
 @router.post("/{employee_id}/rewards/{reward_id}/claim")
-def claim_reward(employee_id: str, reward_id: str, db: Session = Depends(get_db)):
+def claim_reward(employee_id: str, reward_id: str):
     """Claim a reward — deducts XP from the employee's balance."""
+    sb = get_supabase_admin()
+
     # Get gamification profile
-    gam = db.execute(
-        select(GamificationProfile).where(GamificationProfile.employee_id == employee_id)
-    )
-    profile = gam.scalar_one_or_none()
-    if not profile:
+    gam_result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
+    if not gam_result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    profile = gam_result.data[0]
 
     # Get reward
-    rew = db.execute(select(RewardItem).where(RewardItem.id == reward_id))
-    reward = rew.scalar_one_or_none()
-    if not reward:
+    rew_result = sb.table("reward_items").select("*").eq("id", reward_id).execute()
+    if not rew_result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Reward not found")
-    if not reward.available:
+    reward = rew_result.data[0]
+
+    if not reward.get("available", True):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Reward not available")
-    if profile.xp < reward.cost:
+    if profile["xp"] < reward["cost"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Insufficient XP")
 
     # Check if already claimed
-    existing = db.execute(
-        select(RewardClaim).where(RewardClaim.employee_id == employee_id, RewardClaim.reward_id == reward_id)
-    )
-    if existing.scalar_one_or_none():
+    existing = sb.table("reward_claims").select("id").eq(
+        "employee_id", employee_id
+    ).eq("reward_id", reward_id).execute()
+    if existing.data:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Reward already claimed")
 
     # Deduct XP and create claim
-    profile.xp -= reward.cost
-    claim = RewardClaim(employee_id=employee_id, reward_id=reward_id)
-    db.add(claim)
+    new_xp = profile["xp"] - reward["cost"]
+    sb.table("gamification_profiles").update({"xp": new_xp}).eq("id", profile["id"]).execute()
 
-    return {"status": "claimed", "reward": reward.name, "xp_remaining": profile.xp}
+    sb.table("reward_claims").insert({
+        "id": str(uuid.uuid4()),
+        "employee_id": employee_id,
+        "reward_id": reward_id,
+    }).execute()
+
+    return {"status": "claimed", "reward": reward["name"], "xp_remaining": new_xp}
 
 
 # ─── XP Helper ─────────────────────────────────────────────────
 
 def _add_xp(
-    db: Session,
+    sb,
     employee_id: str,
     amount: int,
     reason: str,
@@ -379,40 +434,48 @@ def _add_xp(
 ):
     """Internal helper: add XP to an employee and handle level-ups."""
     # Create transaction
-    tx = XPTransaction(
-        employee_id=employee_id,
-        amount=amount,
-        reason=reason,
-        category=category,
-        emoji=emoji,
-    )
-    db.add(tx)
+    sb.table("xp_transactions").insert({
+        "id": str(uuid.uuid4()),
+        "employee_id": employee_id,
+        "amount": amount,
+        "reason": reason,
+        "category": category,
+        "emoji": emoji,
+    }).execute()
 
     # Update profile
-    result = db.execute(
-        select(GamificationProfile).where(GamificationProfile.employee_id == employee_id)
-    )
-    profile = result.scalar_one_or_none()
-    if not profile:
+    result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
+    if not result.data:
         return
+    profile = result.data[0]
 
-    profile.xp += amount
-    profile.total_xp_earned += amount
-    profile.last_activity = datetime.now(timezone.utc)
+    new_xp = profile["xp"] + amount
+    total_xp = profile["total_xp_earned"] + amount
+    level = profile["level"]
+    next_level_xp = profile["next_level_xp"]
 
     # Level-up check
-    while profile.xp >= profile.next_level_xp:
-        profile.level += 1
-        profile.next_level_xp = int(1000 * (1.15 ** (profile.level - 1)))
+    while new_xp >= next_level_xp:
+        level += 1
+        next_level_xp = int(1000 * (1.15 ** (level - 1)))
 
     # Update title based on level
-    if profile.level >= 20:
-        profile.title = "Legend"
-    elif profile.level >= 15:
-        profile.title = "AI Pioneer"
-    elif profile.level >= 10:
-        profile.title = "Expert"
-    elif profile.level >= 5:
-        profile.title = "Rising Star"
+    if level >= 20:
+        title = "Legend"
+    elif level >= 15:
+        title = "AI Pioneer"
+    elif level >= 10:
+        title = "Expert"
+    elif level >= 5:
+        title = "Rising Star"
     else:
-        profile.title = "Newcomer"
+        title = "Newcomer"
+
+    sb.table("gamification_profiles").update({
+        "xp": new_xp,
+        "total_xp_earned": total_xp,
+        "level": level,
+        "next_level_xp": next_level_xp,
+        "title": title,
+        "last_activity": _utc_now().isoformat(),
+    }).eq("id", profile["id"]).execute()

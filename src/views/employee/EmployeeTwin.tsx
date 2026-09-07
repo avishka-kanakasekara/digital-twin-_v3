@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Bot, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDigitalTwin } from './hooks/useDigitalTwin';
@@ -6,27 +6,27 @@ import { EmployeeSelector } from '../../components/EmployeeSelector';
 
 // Components
 import { IdentityProfile } from './components/twin/IdentityProfile';
-import { TwinSummary } from './components/twin/TwinSummary';
 import { SkillsIntelligence } from './components/twin/SkillsIntelligence';
 import { AIReadiness } from './components/twin/AIReadiness';
 import { KnowledgeSources } from './components/twin/KnowledgeSources';
 import { ProjectsIntelligence } from './components/twin/ProjectsIntelligence';
 import { PersonalAnalytics } from './components/twin/PersonalAnalytics';
 import { GamificationBoard } from './components/twin/GamificationBoard';
-import { AIRecommendations } from './components/twin/AIRecommendations';
-import { AICareerAssistant } from '../../components/chat/AICareerAssistant';
+
 
 const EmployeeTwin: React.FC = () => {
   const navigate = useNavigate();
-  const [isChatOpen, setIsChatOpen] = useState(false);
+
   
   const {
     profile, updateProfile,
-    projects, addProject, updateProjectProgress,
-    knowledge, uploadKnowledgeSource,
+    projects, addProject, updateProjectProgress, deleteProject,
+    getProjectTasks, addTask, updateTask, deleteTask,
+    knowledge, uploadKnowledgeSource, refreshAllData, refreshAIReadiness,
     gamification, completeMission,
-    skillsData, aiReadiness, twinSummary, twinMemory,
-    personalAnalytics, aiRecommendations
+    updateSkill, deleteSkill,
+    skillsData, aiReadiness,
+    personalAnalytics, personalAnalyticsAI
   } = useDigitalTwin();
 
   return (
@@ -103,50 +103,33 @@ const EmployeeTwin: React.FC = () => {
       <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8 space-y-6">
 
         {/* Row 1: Hero Profile */}
-        <IdentityProfile profile={profile} onUpdate={updateProfile} twinHealth={twinSummary.twinHealth} />
+        <IdentityProfile profile={profile} onUpdate={updateProfile} />
 
         {/* Row 2: Asymmetric Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* Left Column — Main Content (8 cols) */}
           <div className="lg:col-span-8 space-y-6">
-            <SkillsIntelligence skillsData={skillsData} />
-            <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} />
+            <SkillsIntelligence skillsData={skillsData} updateSkill={updateSkill} deleteSkill={deleteSkill} />
+            <ProjectsIntelligence projects={projects} onAddProject={addProject} onUpdateStatus={updateProjectProgress} onDeleteProject={deleteProject} getProjectTasks={getProjectTasks} addTask={addTask} updateTask={updateTask} deleteTask={deleteTask} />
             <GamificationBoard gamification={gamification} onCompleteMission={completeMission} />
-            <PersonalAnalytics analytics={personalAnalytics} />
+            <PersonalAnalytics analytics={personalAnalytics} personalAnalyticsAI={personalAnalyticsAI} />
           </div>
 
           {/* Right Column — Sidebar (4 cols) */}
           <div className="lg:col-span-4 space-y-6">
-            <TwinSummary summary={twinSummary} />
-            <AIReadiness data={aiReadiness} />
-            <KnowledgeSources sources={knowledge} onUpload={uploadKnowledgeSource} />
-            <AIRecommendations recommendations={aiRecommendations} />
+            <AIReadiness data={aiReadiness} onRefresh={refreshAIReadiness} />
+            <KnowledgeSources
+              sources={knowledge}
+              onUpload={uploadKnowledgeSource}
+              onPipelineComplete={refreshAllData}
+            />
           </div>
 
         </div>
       </div>
 
-      {/* Floating Chat Button */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-8 right-8 z-50 flex items-center justify-center rounded-2xl transition-all"
-        style={{
-          width: '56px', height: '56px',
-          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-          boxShadow: '0 0 25px rgba(59,130,246,0.35), 0 4px 15px rgba(0,0,0,0.1)',
-          border: '1px solid rgba(59,130,246,0.3)',
-        }}
-      >
-        <Bot size={24} color="white" />
-      </button>
 
-      {/* Chatbot Overlay */}
-      <AICareerAssistant
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        twinMemory={twinMemory}
-      />
     </div>
   );
 };

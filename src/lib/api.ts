@@ -170,11 +170,92 @@ export const employeeAPI = {
   getProjects: (id: string) =>
     fetchAPI<{ current: any[]; completed: any[] }>(`/api/employees/${id}/projects`),
   
+  createProject: (id: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateProject: (id: string, projectId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteProject: (id: string, projectId: string) =>
+    fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}`, {
+      method: 'DELETE',
+    }),
+  
+  getTasks: (id: string, projectId: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/projects/${projectId}/tasks`),
+  
+  createTask: (id: string, projectId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  
+  updateTask: (id: string, projectId: string, taskId: string, data: any) =>
+    fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  
+  deleteTask: (id: string, projectId: string, taskId: string) =>
+    fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
+      method: 'DELETE',
+    }),
+  
+  getAIReadiness: (id: string) =>
+    fetchAPI<{
+      overallScore: number;
+      breakdown: Array<{ category: string; score: number }>;
+      recommendation: { action: string; message: string; impact: string };
+      analysisSummary: string;
+    }>(`/api/employees/${id}/ai-readiness`),
+  
+  sendAIChatMessage: (id: string, message: string, history: Array<{ role: string; content: string }>) =>
+    fetchAPI<{ response: string; sources: string[] }>(`/api/employees/${id}/ai-chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+  
+  getPersonalAnalytics: (id: string) =>
+    fetchAPI<{
+      insights: Array<{ category: string; title: string; description: string; impact: string; actionable: boolean }>;
+      productivity_trends: Array<{ period: string; score: number; key_achievements: string[] }>;
+      skill_growth: Array<{ skill_name: string; current_level: number; target_level: number; growth_rate: number; trajectory: string; category: string; recent_projects: string[] }>;
+      recommendations: string[];
+      overall_score: number;
+    }>(`/api/employees/${id}/personal-analytics`),
+  
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
   
   getRecognitions: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/recognitions`),
+  
+  getCertifications: (id: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/certifications`),
+  
+  getAnalytics: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/analytics`),
+  
+  getSkillsGrouped: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/skills-grouped`),
+  
+  getTwinMemory: (id: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/twin-memory`),
+  
+  getCollaboration: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/collaboration`),
+  
+  getProjectPrediction: (id: string) =>
+    fetchAPI<any>(`/api/employees/${id}/project-prediction`),
+  
+  getAIRecommendations: (id: string) =>
+    fetchAPI<any[]>(`/api/employees/${id}/ai-recommendations`),
 };
 
 // ==================== GAMIFICATION ====================
@@ -237,8 +318,14 @@ export const gamificationAPI = {
   getProfile: (employeeId: string) =>
     fetchAPI<GamificationProfile>(`/api/gamification/${employeeId}/profile`),
   
-  getLeaderboard: (params?: { dept?: string; limit?: number }) =>
-    fetchAPI<any[]>(`/api/gamification/leaderboard?${new URLSearchParams(params as any).toString()}`),
+  getLeaderboard: (params?: { department?: string; limit?: number; current_employee_id?: string }) =>
+    fetchAPI<any[]>(
+      `/api/gamification/leaderboard?${new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+        )
+      ).toString()}`
+    ),
   
   getChallenges: (employeeId: string) =>
     fetchAPI<{ challenges: Challenge[]; progress: ChallengeProgress[] }>(`/api/gamification/${employeeId}/challenges`),
@@ -349,8 +436,14 @@ export const learningAPI = {
   getFeed: (employeeId: string) =>
     fetchAPI<any[]>(`/api/learning/${employeeId}/feed`),
   
-  getCourses: (params?: { search?: string; category?: string; level?: string }) =>
-    fetchAPI<Course[]>(`/api/learning/courses?${new URLSearchParams(params as any).toString()}`),
+  getCourses: (params?: { search?: string; level?: string; employee_id?: string }) =>
+    fetchAPI<Course[]>(
+      `/api/learning/courses?${new URLSearchParams(
+        Object.fromEntries(
+          Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+        )
+      ).toString()}`
+    ),
   
   enrollCourse: (employeeId: string, courseId: string) =>
     fetchAPI<any>(`/api/learning/${employeeId}/courses/${courseId}/enroll`, {
@@ -467,12 +560,136 @@ export interface OrganizationScenario {
   created_at: string;
 }
 
+export interface InnovationIdea {
+  id: string;
+  title: string;
+  author_initials: string;
+  author_bg: string;
+  description: string;
+  full_description: string;
+  roi: string;
+  timeline: string;
+  budget: string;
+  risks: string;
+  team_required: string;
+  impact_score: number;
+  feasibility: string;
+  status: string;
+  patent_pending: boolean;
+  created_at: string;
+}
+
+export interface InnovationCommunity {
+  id: string;
+  name: string;
+  members: number;
+  joined: boolean;
+  icon: string;
+  bg_class: string;
+}
+
+export interface RiskProfile {
+  id: string;
+  employee_id: string;
+  risk_level: string; // 'High', 'Medium', 'Low'
+  risk_score: number;
+  primary_factor: string;
+  burnout_probability: number;
+  compensation_satisfaction: number;
+  career_stagnation_score: number;
+  last_1_on_1: string;
+  ai_retention_suggestion: string;
+}
+
+export interface TalentMatch {
+  id: string;
+  role_title: string;
+  department: string;
+  required_skills: string[];
+  matched_employees: {
+    employee_id: string;
+    match_score: number;
+    skill_gap: string[];
+  }[];
+  urgency: string; // 'High', 'Normal'
+}
+
 export const organizationAPI = {
   getHistory: (params?: { limit?: number }) =>
     fetchAPI<OrganizationMetric[]>(`/api/organization/history?${new URLSearchParams(params as any || {}).toString()}`),
     
   getScenarios: (params?: { limit?: number }) =>
     fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios?${new URLSearchParams(params as any || {}).toString()}`),
+    
+  // Innovation Hub Endpoints
+  getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
+  scoreIdea: (data: { title: string, description: string }) => fetchAPI<{ impact: string, impact_score: number, feasibility: string, similar: number }>('/api/organization/innovation/score', { method: 'POST', body: JSON.stringify(data) }),
+  submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/innovation/ideas', { method: 'POST', body: JSON.stringify(data) }),
+  approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/innovation/ideas/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'Approved' }) }),
+  getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
+  
+  // Risk & Talent Endpoints
+  getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
+  getInterventionEffectiveness: () => fetchAPI<any[]>('/api/organization/interventions/effectiveness'),
+  runSimulation: (data: any) => fetchAPI<any[]>('/api/organization/simulation/run', { method: 'POST', body: JSON.stringify(data) }),
+  getGigs: () => fetchAPI<any[]>('/api/organization/talent/gigs'),
+  getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
+  getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
+
+  // Strategy
+  getOKRs: () => fetchAPI<any[]>('/api/organization/strategy/okrs'),
+  getStrategyVision: () => fetchAPI<any[]>('/api/organization/strategy/vision'),
+  getAIReadiness: () => fetchAPI<any[]>('/api/organization/strategy/ai-readiness'),
+  getCapabilities: () => fetchAPI<any[]>('/api/organization/strategy/capabilities'),
+  getTransformations: () => fetchAPI<any[]>('/api/organization/strategy/transformations'),
+  getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
+
+  // Applications
+  getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
+    fetchAPI<any[]>(`/api/organization/talent/applications?${new URLSearchParams(
+      Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+    ).toString()}`),
+
+  submitApplication: (data: { opportunity_id: string; opportunity_type: string; opportunity_title: string; applicant_employee_id?: string }) =>
+    fetchAPI<any>('/api/organization/talent/applications', {
+      method: 'POST',
+      body: JSON.stringify({ status: 'Under Review', ...data }),
+    }),
+
+  updateApplicationStatus: (id: string, status: string) =>
+    fetchAPI<any>(`/api/organization/talent/applications/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+};
+
+// ==================== DEPARTMENTS ====================
+
+export interface Department {
+  id: string;
+  name: string;
+  region: string;
+  function: string;
+  headcount: number;
+  open_positions: number;
+  allocated_budget: number;
+  actual_spend: number;
+  performance_score: number;
+  target_score: number;
+  enps: number;
+  attrition_rate: number;
+  risk_level: string;
+}
+
+export const departmentsAPI = {
+  list: (params?: { region?: string; function?: string; risk_level?: string; limit?: number }) =>
+    fetchAPI<Department[]>(`/api/departments?${new URLSearchParams(
+      Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+    ).toString()}`),
+
+  get: (id: string) => fetchAPI<Department>(`/api/departments/${id}`),
+
+  getSummary: () => fetchAPI<any>('/api/departments/summary'),
 };
 
 export default {
@@ -482,4 +699,111 @@ export default {
   learning: learningAPI,
   career: careerAPI,
   organization: organizationAPI,
+  departments: departmentsAPI,
+};
+
+// ==================== KNOWLEDGE INTELLIGENCE ====================
+
+export interface KnowledgeSource {
+  id: string;
+  employee_id: string;
+  name: string;
+  original_filename?: string;
+  type?: string;
+  source_type?: string;
+  status: string;
+  processing_stage?: string;
+  file_size?: number;
+  mime_type?: string;
+  coverage: number;
+  skills_extracted: number;
+  projects_found: number;
+  confidence: number;
+  connected: boolean;
+  error_code?: string;
+  error_message?: string;
+  analysis_result?: {
+    skills_count?: number;
+    projects_count?: number;
+    certifications_count?: number;
+    experience_count?: number;
+    education_count?: number;
+  };
+  last_synced?: string;
+  processed_at?: string;
+  created_at?: string;
+}
+
+export interface KnowledgeUploadResponse {
+  source_id: string;
+  status: string;
+  message: string;
+  skills_added: number;
+  skills_updated: number;
+  projects_added: number;
+  certifications_added: number;
+  conflicts: number;
+}
+
+export interface KnowledgeChangeEvent {
+  id: string;
+  operation: string;
+  entity_type: string;
+  entity_key: string;
+  old_value?: any;
+  new_value?: any;
+  confidence?: number;
+  reason?: string;
+  evidence_text?: string;
+  requires_approval: boolean;
+  approval_status?: string;
+  created_at?: string;
+}
+
+async function uploadFileToAPI(endpoint: string, file: File): Promise<any> {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const token = localStorage.getItem('auth_token');
+  const formData = new FormData();
+  formData.append('file', file);
+  const headers: HeadersInit = {
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+  const response = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export const knowledgeAPI = {
+  upload: (employeeId: string, file: File): Promise<KnowledgeUploadResponse> =>
+    uploadFileToAPI(`/api/employees/${employeeId}/knowledge-sources/upload`, file),
+
+  uploadSync: (employeeId: string, file: File): Promise<KnowledgeUploadResponse> =>
+    uploadFileToAPI(`/api/employees/${employeeId}/knowledge-sources/upload-sync`, file),
+
+  list: (employeeId: string): Promise<KnowledgeSource[]> =>
+    fetchAPI<KnowledgeSource[]>(`/api/employees/${employeeId}/knowledge-sources`),
+
+  get: (employeeId: string, sourceId: string): Promise<KnowledgeSource> =>
+    fetchAPI<KnowledgeSource>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}`),
+
+  reprocess: (employeeId: string, sourceId: string): Promise<any> =>
+    fetchAPI<any>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}/reprocess`, {
+      method: 'POST',
+    }),
+
+  deleteSource: (employeeId: string, sourceId: string): Promise<void> =>
+    fetchAPI<void>(`/api/employees/${employeeId}/knowledge-sources/${sourceId}`, {
+      method: 'DELETE',
+    }),
+
+  getChanges: (employeeId: string, sourceId: string): Promise<KnowledgeChangeEvent[]> =>
+    fetchAPI<KnowledgeChangeEvent[]>(
+      `/api/employees/${employeeId}/knowledge-sources/${sourceId}/changes`
+    ),
+
+  getChangeHistory: (employeeId: string): Promise<KnowledgeChangeEvent[]> =>
+    fetchAPI<KnowledgeChangeEvent[]>(`/api/employees/${employeeId}/knowledge/change-history`),
 };
