@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
-import { Lightbulb, Network, BrainCircuit, Rocket, TrendingUp, Sparkles, ChevronRight, Share2, X, Wallet, Users, AlertTriangle, FileText } from 'lucide-react';
+import { Lightbulb, BrainCircuit, Rocket, TrendingUp, Sparkles, ChevronRight, X, Wallet, Users, AlertTriangle, FileText } from 'lucide-react';
 import api from '../../lib/api';
 
 export const InnovationHub: React.FC = () => {
@@ -10,7 +10,6 @@ export const InnovationHub: React.FC = () => {
   const [scoreResult, setScoreResult] = useState<{ impact: string, feasibility: string, similar: number } | null>(null);
   const [expandedIdeaId, setExpandedIdeaId] = useState<string | null>(null);
   const [ideas, setIdeas] = useState<any[]>([]);
-  const [communities, setCommunities] = useState<any[]>([]);
   const [reviewIdeaId, setReviewIdeaId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,17 +32,6 @@ export const InnovationHub: React.FC = () => {
         patentPending: d.patent_pending,
       })));
     }).catch(console.error);
-
-    api.organization.getCommunities().then(data => {
-      setCommunities(data.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        members: d.members,
-        joined: d.joined,
-        icon: d.icon,
-        bgClass: d.bg_class,
-      })));
-    }).catch(console.error);
   }, []);
 
   const handleApprove = (e: React.MouseEvent, id: string) => {
@@ -55,17 +43,21 @@ export const InnovationHub: React.FC = () => {
     setExpandedIdeaId(null);
   };
 
-  const handleScoreIdea = () => {
+  const handleScoreIdea = async () => {
     if (!ideaTitle || !ideaDesc) return;
     setIsScoring(true);
-    setTimeout(() => {
-      setIsScoring(false);
+    try {
+      const result = await api.organization.scoreIdea({ title: ideaTitle, description: ideaDesc });
       setScoreResult({
-        impact: 'High',
-        feasibility: '82%',
-        similar: 2
+        impact: result.impact,
+        feasibility: result.feasibility,
+        similar: result.similar
       });
-    }, 1500);
+    } catch (error) {
+      console.error("Failed to score idea:", error);
+    } finally {
+      setIsScoring(false);
+    }
   };
 
   const getAuthorGradient = (bgString: string) => {
@@ -74,11 +66,6 @@ export const InnovationHub: React.FC = () => {
     return 'linear-gradient(135deg, #64748b 0%, #334155 100%)';
   };
 
-  const getCommunityGradient = (bgString: string) => {
-    if (bgString.includes('info')) return 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)';
-    if (bgString.includes('primary')) return 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)';
-    return 'linear-gradient(135deg, #64748b 0%, #334155 100%)';
-  };
 
   return (
     <div className="flex flex-col gap-8 relative pb-4" style={{ paddingBottom: '3rem' }}>
@@ -262,42 +249,7 @@ export const InnovationHub: React.FC = () => {
             </div>
           </Card>
 
-          <Card className="p-6 flex flex-col gap-6 relative overflow-hidden shadow-2xl rounded-3xl transition-all duration-300" style={{ backgroundColor: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)' }}>
-            <div className="absolute rounded-full" style={{ bottom: 0, left: 0, width: '16rem', height: '16rem', backgroundColor: 'rgba(165, 180, 252, 0.1)', filter: 'blur(40px)' }}></div>
 
-            <div className="relative z-10">
-              <h3 className="font-extrabold text-base uppercase tracking-wide flex items-center gap-2" style={{ color: '#0f172a' }}>
-                <div className="p-2 rounded-xl shadow-lg" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #9333ea 100%)' }}><Network size={20} className="text-white" /></div>
-                Communities of Practice
-              </h3>
-              <p className="font-extrabold uppercase tracking-widest mt-2" style={{ fontSize: '11px', color: '#64748b', marginLeft: '3rem' }}>Knowledge sharing across the organization</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-6 relative z-10 mt-2">
-              {communities.map((community) => (
-                <div key={community.id} className="p-6 rounded-3xl flex flex-col gap-4 shadow-md transition-all duration-300" style={{ backgroundColor: 'rgba(255,255,255,0.9)', border: '1px solid #f1f5f9' }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg" style={{ background: getCommunityGradient(community.bgClass) }}>
-                      {community.icon === 'TrendingUp' && <TrendingUp size={20} className="text-white" />}
-                      {community.icon === 'Share2' && <Share2 size={20} className="text-white" />}
-                    </div>
-                    <div>
-                      <h4 className="font-extrabold text-base" style={{ color: '#0f172a' }}>{community.name}</h4>
-                      <p className="text-xs font-bold mt-1" style={{ color: '#64748b' }}>{community.members} Active Members</p>
-                    </div>
-                  </div>
-
-                  <button className="mt-2 w-full shadow-md rounded-full font-extrabold text-sm px-8 py-3 transition-all duration-300 border-none cursor-pointer whitespace-nowrap" style={{
-                    backgroundColor: community.joined ? '#eef2ff' : '#f8fafc',
-                    color: community.joined ? '#4f46e5' : '#334155',
-                    border: `1px solid ${community.joined ? '#c7d2fe' : '#e2e8f0'}`
-                  }}>
-                    {community.joined ? 'Joined' : 'Join Community'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </Card>
 
         </div>
 
@@ -308,35 +260,38 @@ export const InnovationHub: React.FC = () => {
         const idea = ideas.find(i => i.id === reviewIdeaId);
         if (!idea) return null;
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 transition-opacity duration-300" style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(12px)' }}>
-            <div className="bg-white rounded-[2rem] max-w-4xl w-full shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] relative overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200/50 flex flex-col max-h-[90vh]">
-              
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 transition-opacity duration-300" style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(24px)' }}>
+            <div className="bg-white/70 backdrop-blur-3xl rounded-[2.5rem] max-w-4xl w-full shadow-[0_30px_80px_-15px_rgba(0,0,0,0.5)] relative overflow-hidden animate-in zoom-in-95 duration-300 border border-white/80 flex flex-col max-h-[90vh]">
+              {/* Decorative Glowing Orbs behind the content */}
+              <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-400/20 rounded-full blur-[80px] pointer-events-none"></div>
+              <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-emerald-400/20 rounded-full blur-[80px] pointer-events-none"></div>
+
               {/* Premium Light Header */}
-              <div className="relative px-8 pt-10 pb-8 shrink-0 bg-white border-b border-slate-100">
-                <button 
+              <div className="relative px-8 sm:px-12 pt-12 pb-10 shrink-0 bg-white/40 border-b border-white/50 backdrop-blur-md">
+                <button
                   onClick={() => setReviewIdeaId(null)}
-                  className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600 z-20 cursor-pointer"
+                  className="absolute top-6 right-6 w-10 h-10 flex items-center justify-center rounded-full bg-slate-50/50 hover:bg-slate-100/80 backdrop-blur-sm transition-colors text-slate-500 hover:text-slate-700 z-20 cursor-pointer"
                 >
                   <X size={20} />
                 </button>
-                
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-extrabold text-3xl shrink-0 shadow-lg" style={{ background: getAuthorGradient(idea.authorBg) }}>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[1.25rem] flex items-center justify-center text-white font-extrabold text-2xl sm:text-3xl shrink-0 shadow-[0_8px_20px_rgba(0,0,0,0.15)]" style={{ background: getAuthorGradient(idea.authorBg) }}>
                     {idea.authorInitials}
                   </div>
-                  <div className="flex-1 pr-8">
-                    <h2 className="text-3xl font-extrabold text-slate-900 mb-3 tracking-tight">{idea.title}</h2>
+                  <div className="flex-1 pr-8 w-full">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-4 tracking-tight leading-tight">{idea.title}</h2>
                     <div className="flex flex-wrap gap-2.5">
-                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 flex items-center gap-1.5 shadow-sm">
-                        <TrendingUp size={14} className="text-emerald-500"/> Impact: {idea.impactScore}/100
+                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-100/50 border border-emerald-300/50 flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                        <TrendingUp size={14} className="text-emerald-500" /> Impact: {idea.impactScore}/100
                       </span>
-                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 flex items-center gap-1.5 shadow-sm">
-                        <BrainCircuit size={14} className="text-blue-500"/> Feasibility: {idea.feasibility}
+                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-100/50 border border-blue-300/50 flex items-center gap-1.5 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                        <BrainCircuit size={14} className="text-blue-500" /> Feasibility: {idea.feasibility}
                       </span>
-                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm" style={{ 
-                        backgroundColor: idea.status === 'Approved' ? '#ecfdf5' : '#f8fafc', 
-                        color: idea.status === 'Approved' ? '#047857' : '#475569', 
-                        border: `1px solid ${idea.status === 'Approved' ? '#6ee7b7' : '#cbd5e1'}` 
+                      <span className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm backdrop-blur-md" style={{
+                        backgroundColor: idea.status === 'Approved' ? 'rgba(236, 253, 245, 0.7)' : 'rgba(248, 250, 252, 0.7)',
+                        color: idea.status === 'Approved' ? '#047857' : '#475569',
+                        border: `1px solid ${idea.status === 'Approved' ? 'rgba(110, 231, 183, 0.6)' : 'rgba(203, 213, 225, 0.6)'}`
                       }}>
                         {idea.status}
                       </span>
@@ -344,85 +299,85 @@ export const InnovationHub: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
               {/* Scrollable Body */}
-              <div className="px-8 py-8 overflow-y-auto flex-1 relative bg-slate-50/30">
-                <div className="space-y-8">
-                  
+              <div className="px-8 sm:px-12 py-10 overflow-y-auto flex-1 relative bg-transparent">
+                <div className="space-y-10 relative z-10">
+
                   {/* Summary */}
-                  <div>
-                    <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <FileText size={16} className="text-indigo-400"/> Executive Summary
+                  <div className="w-full">
+                    <h3 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <FileText size={16} className="text-indigo-500" /> Executive Summary
                     </h3>
-                    <div className="p-6 sm:p-8 rounded-[1.5rem] bg-white border border-slate-200/60 shadow-sm leading-relaxed text-slate-600 font-medium text-[15px]">
+                    <div className="p-6 sm:p-8 rounded-[1.5rem] bg-white/60 border border-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] leading-relaxed text-slate-700 font-medium text-[15px] transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
                       {idea.fullDescription}
                     </div>
                   </div>
-                  
+
                   {/* Grid Stats */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="p-6 rounded-[1.5rem] bg-white border border-slate-200/60 shadow-sm flex items-center gap-5 transition-all hover:shadow-md hover:border-slate-300">
-                      <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                        <Wallet size={24}/>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                    <div className="p-6 sm:p-8 rounded-[1.5rem] bg-white/60 border border-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex items-center gap-6 transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-1">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/30">
+                        <Wallet size={24} />
                       </div>
                       <div>
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Required Investment</h3>
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Required Investment</h3>
                         <p className="font-black text-slate-900 text-2xl tracking-tight">{idea.budget}</p>
                       </div>
                     </div>
-                    
-                    <div className="p-6 rounded-[1.5rem] bg-white border border-slate-200/60 shadow-sm flex items-center gap-5 transition-all hover:shadow-md hover:border-slate-300">
-                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                        <Users size={24}/>
+
+                    <div className="p-6 sm:p-8 rounded-[1.5rem] bg-white/60 border border-white/80 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] flex items-center gap-6 transition-all hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-1">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30">
+                        <Users size={24} />
                       </div>
                       <div>
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Resource Allocation</h3>
+                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Resource Allocation</h3>
                         <p className="font-bold text-slate-800 text-[15px] leading-snug">{idea.teamRequired}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Risks */}
-                  <div>
-                    <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                      <AlertTriangle size={16} className="text-amber-500"/> Risk Analysis
+                  <div className="w-full">
+                    <h3 className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <AlertTriangle size={16} className="text-amber-500" /> Risk Analysis
                     </h3>
-                    <div className="p-6 rounded-[1.5rem] border bg-amber-50/40 border-amber-200/80 shadow-sm flex gap-4 items-start">
-                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0 text-amber-600">
+                    <div className="p-6 sm:p-8 rounded-[1.5rem] border bg-amber-50/60 backdrop-blur-xl border-amber-200/80 shadow-[0_8px_30px_rgba(245,158,11,0.08)] flex gap-5 items-start transition-all hover:shadow-[0_8px_30px_rgba(245,158,11,0.15)]">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center shrink-0 text-white shadow-lg shadow-amber-500/30">
                         <AlertTriangle size={20} />
                       </div>
                       <div className="pt-2 flex-1">
-                        <p className="font-bold text-amber-900 text-[15px]">{idea.risks}</p>
+                        <p className="font-bold text-amber-950 text-[15px]">{idea.risks}</p>
                       </div>
                     </div>
                   </div>
-                  
+
                 </div>
               </div>
-              
+
               {/* Fixed Footer */}
-              <div className="p-6 bg-white border-t border-slate-100 shrink-0 flex justify-end gap-4 relative z-20">
-                <button 
+              <div className="px-8 sm:px-12 py-6 bg-white/60 backdrop-blur-2xl border-t border-white/80 shrink-0 flex flex-wrap justify-end gap-4 relative z-20">
+                <button
                   onClick={() => setReviewIdeaId(null)}
-                  className="px-8 py-3.5 rounded-2xl text-[14px] font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="px-8 py-3.5 rounded-2xl text-[14px] font-extrabold bg-white/80 border border-slate-200/80 text-slate-600 hover:bg-white hover:shadow-md transition-all cursor-pointer backdrop-blur-md"
                 >
                   Dismiss Review
                 </button>
                 {idea.status !== 'Approved' && (
-                  <button 
+                  <button
                     onClick={() => {
-                      handleApprove({ stopPropagation: () => {} } as any, idea.id);
+                      handleApprove({ stopPropagation: () => { } } as any, idea.id);
                       setReviewIdeaId(null);
                     }}
-                    className="px-8 py-3.5 rounded-2xl text-[14px] font-bold text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50 hover:-translate-y-0.5 transition-all cursor-pointer flex items-center gap-2"
+                    className="px-8 py-3.5 rounded-2xl text-[14px] font-extrabold text-white shadow-xl shadow-indigo-500/40 hover:shadow-indigo-500/60 hover:-translate-y-1 transition-all cursor-pointer flex items-center gap-2 border border-white/20"
                     style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}
                   >
-                    <Sparkles size={18}/> 
+                    <Sparkles size={18} />
                     Authorize Proposal
                   </button>
                 )}
               </div>
-              
+
             </div>
           </div>
         );

@@ -6,26 +6,36 @@ import {
   ChevronRight, Flag, Bot, Cpu, Layers, Rocket, AlertTriangle, Activity
 } from 'lucide-react';
 
+import { mockAIReadiness, mockCapabilities, mockTransformations, mockOKRs } from '../../dummy/organization/contextData';
 import api from '../../lib/api';
+
+const defaultVision = {
+  vision_text: "To build Sri Lanka's leading digital workforce platform powered by Predictive AI, connecting talent seamlessly and reducing turnover.",
+  tech_app_features: ["Predictive Attrition Risk", "AI Digital Twin Copilot", "Skill Gap Analytics"],
+  tech_team_goals: ["Achieve 99.9% API uptime", "Migrate 100% workloads to Supabase Cloud", "Automate performance reviews"],
+  habits: ["Daily 10-min standups", "Weekly peer code reviews", "Continuous learning & upskilling"]
+};
 
 export const OrganizationContext: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'strategy' | 'ai' | 'capability' | 'transformation'>('strategy');
-  const [okrs, setOkrs] = useState<any[]>([]);
-  const [vision, setVision] = useState<any>(null);
-  const [aiReadiness, setAiReadiness] = useState<any>(null);
-  const [capabilities, setCapabilities] = useState<any[]>([]);
-  const [transformations, setTransformations] = useState<any[]>([]);
+  const [okrs, setOkrs] = useState<any[]>(mockOKRs);
+  const [vision, setVision] = useState<any>(defaultVision);
+  const [aiReadiness, setAiReadiness] = useState<any>(mockAIReadiness);
+  const [capabilities, setCapabilities] = useState<any[]>(mockCapabilities);
+  const [transformations, setTransformations] = useState<any[]>(mockTransformations);
 
   useEffect(() => {
     api.organization.getOKRs().then(data => {
-      setOkrs(data.map((d: any) => ({
-        id: d.id,
-        title: d.title,
-        owner: d.owner,
-        progress: d.progress,
-        status: d.status === 'At Risk' ? 'at-risk' : 'on-track',
-        initiatives: (d.initiatives || []).map((i: any) => typeof i === 'string' ? i : i.title),
-      })));
+      if (data && data.length > 0) {
+        setOkrs(data.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          owner: d.owner,
+          progress: d.progress,
+          status: d.status === 'At Risk' ? 'at-risk' : 'on-track',
+          initiatives: (d.initiatives || []).map((i: any) => typeof i === 'string' ? i : i.title),
+        })));
+      }
     }).catch(console.error);
 
     api.organization.getStrategyVision().then(data => {
@@ -37,11 +47,11 @@ export const OrganizationContext: React.FC = () => {
     }).catch(console.error);
 
     api.organization.getCapabilities().then(data => {
-      setCapabilities(data);
+      if (data && data.length > 0) setCapabilities(data);
     }).catch(console.error);
 
     api.organization.getTransformations().then(data => {
-      setTransformations(data);
+      if (data && data.length > 0) setTransformations(data);
     }).catch(console.error);
   }, []);
 

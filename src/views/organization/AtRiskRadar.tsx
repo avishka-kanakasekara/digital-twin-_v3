@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
-import { BrainCircuit, Activity, Calendar, Compass, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
+import { BrainCircuit, Activity, Calendar, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
 import { TwinChatModal } from '../../components/TwinChatModal';
 import api from '../../lib/api';
 
@@ -9,6 +9,7 @@ export const AtRiskRadar: React.FC = () => {
   const [chattingEmployee, setChattingEmployee] = useState<{ name: string; role: string } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [atRiskEmployees, setAtRiskEmployees] = useState<any[]>([]);
+  const [interventionEffectiveness, setInterventionEffectiveness] = useState<any[]>([]);
 
   useEffect(() => {
     api.organization.getRiskProfiles().then(data => {
@@ -23,6 +24,10 @@ export const AtRiskRadar: React.FC = () => {
         aiSuggestion: d.ai_retention_suggestion,
         last1on1: d.last_1_on_1,
       })));
+    }).catch(console.error);
+    
+    api.organization.getInterventionEffectiveness().then(data => {
+      setInterventionEffectiveness(data);
     }).catch(console.error);
   }, []);
 
@@ -89,54 +94,21 @@ export const AtRiskRadar: React.FC = () => {
             </div>
 
             <div className="flex flex-col gap-4">
-              
-              {/* Engineering Roles */}
-              <div className="p-4 bg-indigo-50/80 backdrop-blur-md rounded-2xl border border-indigo-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1.5 h-full bg-indigo-400 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-widest">Engineering Roles</span>
-                <div className="flex justify-between items-center mt-2.5">
-                  <span className="text-sm font-black text-slate-800">1:1 Check-ins</span>
-                  <span className="text-xs font-bold text-indigo-700 bg-white/60 backdrop-blur-sm border border-indigo-200 px-2.5 py-1 rounded-lg shadow-sm">-18% Risk</span>
+              {interventionEffectiveness.map((item, index) => (
+                <div key={index} className={`p-4 bg-${item.theme_color}-50/80 backdrop-blur-md rounded-2xl border border-${item.theme_color}-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(var(--color-${item.theme_color}-500),0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group`}>
+                  <div className={`absolute right-0 top-0 w-1.5 h-full bg-${item.theme_color}-400 opacity-80 group-hover:opacity-100 transition-opacity`}></div>
+                  <span className={`text-[10px] font-extrabold text-${item.theme_color}-600 uppercase tracking-widest`}>{item.role_group}</span>
+                  <div className="flex justify-between items-center mt-2.5">
+                    <span className="text-sm font-black text-slate-800">{item.intervention_name}</span>
+                    <span className={`text-xs font-bold text-${item.theme_color}-700 bg-white/60 backdrop-blur-sm border border-${item.theme_color}-200 px-2.5 py-1 rounded-lg shadow-sm`}>-{item.risk_reduction_percentage}% Risk</span>
+                  </div>
+                  <p className={`text-[10px] text-${item.theme_color}-500/80 font-bold mt-2 uppercase tracking-wide`}>{item.description}</p>
                 </div>
-                <p className="text-[10px] text-indigo-500/80 font-bold mt-2 uppercase tracking-wide">Highest historical ROI</p>
-              </div>
-
-              {/* Sales Roles */}
-              <div className="p-4 bg-rose-50/80 backdrop-blur-md rounded-2xl border border-rose-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(244,63,94,0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1.5 h-full bg-rose-400 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                <span className="text-[10px] font-extrabold text-rose-600 uppercase tracking-widest">Sales Roles</span>
-                <div className="flex justify-between items-center mt-2.5">
-                  <span className="text-sm font-black text-slate-800">Quota Adjustment</span>
-                  <span className="text-xs font-bold text-rose-700 bg-white/60 backdrop-blur-sm border border-rose-200 px-2.5 py-1 rounded-lg shadow-sm">-22% Risk</span>
-                </div>
-                <p className="text-[10px] text-rose-500/80 font-bold mt-2 uppercase tracking-wide">Effective if done early</p>
-              </div>
-
-              {/* Design Roles */}
-              <div className="p-4 bg-teal-50/80 backdrop-blur-md rounded-2xl border border-teal-200/60 shadow-sm hover:shadow-[0_8px_30px_rgba(20,184,166,0.15)] hover:-translate-y-1 transition-all cursor-default relative overflow-hidden group">
-                <div className="absolute right-0 top-0 w-1.5 h-full bg-teal-400 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                <span className="text-[10px] font-extrabold text-teal-700 uppercase tracking-widest">Design Roles</span>
-                <div className="flex justify-between items-center mt-2.5">
-                  <span className="text-sm font-black text-slate-800">Role/Project Shift</span>
-                  <span className="text-xs font-bold text-teal-800 bg-white/60 backdrop-blur-sm border border-teal-200 px-2.5 py-1 rounded-lg shadow-sm">-15% Risk</span>
-                </div>
-                <p className="text-[10px] text-teal-600/80 font-bold mt-2 uppercase tracking-wide">Counteracts burnout</p>
-              </div>
-
+              ))}
             </div>
           </Card>
 
-          {/* System Learning */}
-          <Card className="p-6 bg-gradient-to-br from-indigo-50 to-white border-indigo-100 flex flex-col gap-3 shadow-sm rounded-3xl relative overflow-hidden group hover:shadow-md transition-all">
-            <div className="absolute -top-10 -right-10 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all duration-500"></div>
-            <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 opacity-70"></div>
-            <h3 className="text-sm font-bold flex items-center gap-2 uppercase tracking-wide z-10 text-indigo-900">
-              <Compass size={16} className="text-indigo-500 animate-pulse" /> System Learning
-            </h3>
-            <p className="text-sm text-slate-600 leading-relaxed font-medium z-10">
-              Every action you log on this page feeds back into the causal ML model, making future recommendations more accurate.
-            </p>
-          </Card>
+
         </div>
 
         {/* Right Column: Urgent Interventions Queue */}

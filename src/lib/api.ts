@@ -859,12 +859,15 @@ export const organizationAPI = {
     
   // Innovation Hub Endpoints
   getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
+  scoreIdea: (data: { title: string, description: string }) => fetchAPI<{ impact: string, impact_score: number, feasibility: string, similar: number }>('/api/organization/innovation/score', { method: 'POST', body: JSON.stringify(data) }),
   submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/innovation/ideas', { method: 'POST', body: JSON.stringify(data) }),
   approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/innovation/ideas/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'Approved' }) }),
   getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
   
   // Risk & Talent Endpoints
   getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
+  getInterventionEffectiveness: () => fetchAPI<any[]>('/api/organization/interventions/effectiveness'),
+  runSimulation: (data: any) => fetchAPI<any[]>('/api/organization/simulation/run', { method: 'POST', body: JSON.stringify(data) }),
   getGigs: () => fetchAPI<any[]>('/api/organization/talent/gigs'),
   getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
   getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
@@ -876,6 +879,24 @@ export const organizationAPI = {
   getCapabilities: () => fetchAPI<any[]>('/api/organization/strategy/capabilities'),
   getTransformations: () => fetchAPI<any[]>('/api/organization/strategy/transformations'),
   getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
+
+  // Applications
+  getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
+    fetchAPI<any[]>(`/api/organization/talent/applications?${new URLSearchParams(
+      Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+    ).toString()}`),
+
+  submitApplication: (data: { opportunity_id: string; opportunity_type: string; opportunity_title: string; applicant_employee_id?: string }) =>
+    fetchAPI<any>('/api/organization/talent/applications', {
+      method: 'POST',
+      body: JSON.stringify({ status: 'Under Review', ...data }),
+    }),
+
+  updateApplicationStatus: (id: string, status: string) =>
+    fetchAPI<any>(`/api/organization/talent/applications/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };
 
 // ==================== DEPARTMENTS ====================

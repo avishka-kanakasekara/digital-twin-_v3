@@ -91,6 +91,16 @@ class OrgInnovationIdeaRead(OrgInnovationIdeaBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class IdeaScoreRequest(BaseModel):
+    title: str
+    description: str
+
+class IdeaScoreResponse(BaseModel):
+    impact: str
+    impact_score: int
+    feasibility: str
+    similar: int
+
 class OrgInnovationCommunityBase(BaseModel):
     name: str
     members: int
@@ -152,6 +162,42 @@ class OrgTeamBuilderOptionBase(BaseModel):
 class OrgTeamBuilderOptionRead(OrgTeamBuilderOptionBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
+
+class TeamBuilderOptimizationRequest(BaseModel):
+    project_type: str
+    headcount: int
+    core_competencies: List[str] = []
+    context: Optional[str] = None
+
+class RiskProfile(BaseModel):
+    employee_id: str
+    risk_level: str
+    risk_score: float
+    primary_factor: str
+    burnout_probability: float
+    compensation_satisfaction: float
+    career_stagnation_score: float
+    last_1_on_1: str
+    ai_retention_suggestion: str
+
+class InterventionEffectiveness(BaseModel):
+    role_group: str
+    intervention_name: str
+    risk_reduction_percentage: int
+    description: str
+    theme_color: str
+
+class SimulationRequest(BaseModel):
+    headcountChange: float
+    salaryChange: float
+    remoteDays: float
+    trainingBudget: float
+    restructuringLevel: float
+    isSnapshot: bool = False
+
+# Simulation returns a dictionary of string keys to float values per month
+class SimulationResult(BaseModel):
+    pass # In FastAPI we can just return List[Dict[str, Any]] for simplicity if it's dynamic
 
 class OrgOKRBase(BaseModel):
     title: str
@@ -322,3 +368,24 @@ class OrgOKRUpdate(BaseModel):
     progress: Optional[int] = None
     status: Optional[str] = None
     initiatives: Optional[List[Dict[str, Any]]] = None
+
+
+# ==================== TALENT APPLICATIONS ====================
+
+class OrgTalentApplicationBase(BaseModel):
+    applicant_employee_id: Optional[str] = None   # null = anonymous / manager-posted
+    opportunity_id: str                            # gig or mentor id
+    opportunity_type: str                          # "gig" | "mentoring"
+    opportunity_title: str
+    status: str = "Under Review"                  # Under Review | Accepted | Rejected
+
+class OrgTalentApplicationCreate(OrgTalentApplicationBase):
+    pass
+
+class OrgTalentApplicationRead(OrgTalentApplicationBase):
+    id: str
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class OrgTalentApplicationUpdate(BaseModel):
+    status: Optional[str] = None
