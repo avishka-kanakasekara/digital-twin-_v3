@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase, Lightbulb } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
-import { useOrganizationMetrics, useOrganizationScenarios } from '../../hooks/useOrganization';
+import { useOrganizationScenarios } from '../../hooks/useOrganization';
 import api from '../../lib/api';
 
 export const OrgSimulator: React.FC = () => {
@@ -15,20 +15,11 @@ export const OrgSimulator: React.FC = () => {
   const [snapshotData, setSnapshotData] = useState<any[] | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   
-  const { metrics } = useOrganizationMetrics();
   const { scenarios } = useOrganizationScenarios();
 
   // Use fetched scenarios or fallback
   const simData = scenarios || [];
 
-  // Base metrics from the most recent historical month
-  const latestMonth = metrics && metrics.length > 0 ? metrics[metrics.length - 1] : null;
-  const baseProductivity = latestMonth?.overallProductivityScore || 90;
-  const baseHealth = (latestMonth?.enps || 50) + 40; // Approx mapping to 0-100
-  const baseCapacity = 100;
-  const baseAttrition = parseFloat(latestMonth?.voluntaryAttritionRate || '2') * 4;
-  const baseCsat = parseFloat(latestMonth?.csat || '85');
-  const baseRevenue = parseFloat(latestMonth?.revenue || '15000000') / 1000000; // In Millions
 
   const handleRunSimulation = async () => {
     setIsSimulating(true);

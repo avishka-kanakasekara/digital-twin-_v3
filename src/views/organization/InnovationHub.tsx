@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
-import { Lightbulb, Network, BrainCircuit, Rocket, TrendingUp, Sparkles, ChevronRight, Share2, X, Wallet, Users, AlertTriangle, FileText } from 'lucide-react';
+import { Lightbulb, BrainCircuit, Rocket, TrendingUp, Sparkles, ChevronRight, X, Wallet, Users, AlertTriangle, FileText } from 'lucide-react';
 import api from '../../lib/api';
 
 export const InnovationHub: React.FC = () => {
@@ -10,7 +10,6 @@ export const InnovationHub: React.FC = () => {
   const [scoreResult, setScoreResult] = useState<{ impact: string, feasibility: string, similar: number } | null>(null);
   const [expandedIdeaId, setExpandedIdeaId] = useState<string | null>(null);
   const [ideas, setIdeas] = useState<any[]>([]);
-  const [communities, setCommunities] = useState<any[]>([]);
   const [reviewIdeaId, setReviewIdeaId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,17 +30,6 @@ export const InnovationHub: React.FC = () => {
         feasibility: d.feasibility,
         status: d.status,
         patentPending: d.patent_pending,
-      })));
-    }).catch(console.error);
-
-    api.organization.getCommunities().then(data => {
-      setCommunities(data.map((d: any) => ({
-        id: d.id,
-        name: d.name,
-        members: d.members,
-        joined: d.joined,
-        icon: d.icon,
-        bgClass: d.bg_class,
       })));
     }).catch(console.error);
   }, []);
@@ -78,11 +66,6 @@ export const InnovationHub: React.FC = () => {
     return 'linear-gradient(135deg, #64748b 0%, #334155 100%)';
   };
 
-  const getCommunityGradient = (bgString: string) => {
-    if (bgString.includes('info')) return 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)';
-    if (bgString.includes('primary')) return 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)';
-    return 'linear-gradient(135deg, #64748b 0%, #334155 100%)';
-  };
 
   return (
     <div className="flex flex-col gap-8 relative pb-4" style={{ paddingBottom: '3rem' }}>

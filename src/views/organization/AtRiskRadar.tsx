@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
-import { BrainCircuit, Activity, Calendar, Compass, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
+import { BrainCircuit, Activity, Calendar, UserCheck, CheckCircle2, X, Target } from 'lucide-react';
 import { TwinChatModal } from '../../components/TwinChatModal';
 import api from '../../lib/api';
 

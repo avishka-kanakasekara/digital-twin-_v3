@@ -69,18 +69,6 @@ export const TalentMarketplace: React.FC = () => {
     }
   };
 
-  const handleApply = async (gig: any) => {
-    if (hasApplied(gig.id)) return;
-    setApplyingId(gig.id);
-    try {
-      await api.organization.submitApplication({ opportunity_id: gig.id, opportunity_type: 'gig', opportunity_title: gig.title });
-      fetchApplications();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setApplyingId(null);
-    }
-  };
 
   const handleRequestMentorship = async (mentor: any) => {
     if (hasApplied(mentor.id)) return;
@@ -145,11 +133,6 @@ export const TalentMarketplace: React.FC = () => {
     }
   };
 
-  const statusStyle: Record<string, { bg: string; color: string; border: string }> = {
-    'Under Review': { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
-    'Accepted': { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
-    'Rejected': { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
-  };
 
   const relativeTime = (iso: string) => {
     const diff = Date.now() - new Date(iso).getTime();
@@ -624,7 +607,7 @@ export const TalentMarketplace: React.FC = () => {
                   const sortedCandidates = [...allCandidates].sort((a, b) => b.match - a.match);
                   const displayCandidates = showTopMatchOnly ? [sortedCandidates[0]] : sortedCandidates;
 
-                  return displayCandidates.map((candidate, idx) => {
+                  return displayCandidates.map((candidate) => {
                     const isInvited = invitedCandidates.includes(candidate.id);
                     return (
                       <div key={candidate.id} className="p-4 rounded-[20px] border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all flex flex-col gap-3 group relative overflow-hidden">
@@ -647,7 +630,7 @@ export const TalentMarketplace: React.FC = () => {
                         </div>
 
                         <div className="flex flex-wrap gap-1.5 pl-2">
-                          {candidate.skills.map((skill, sIdx) => (
+                          {candidate.skills.map((skill: string, sIdx: number) => (
                             <span key={sIdx} className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
                               {skill}
                             </span>

@@ -23,7 +23,7 @@ export interface TeamOption {
 }
 
 export const TeamBuilder: React.FC = () => {
-  const { skills, users, roles, projectTypes } = useSettings();
+  const { skills, projectTypes } = useSettings();
   const [headcount, setHeadcount] = useState(4);
   const [selectedSkills, setSelectedSkills] = useState<string[]>(['AWS', 'Node.js', 'Figma']);
   const [projectType, setProjectType] = useState(projectTypes[0] || 'New Product Development');
