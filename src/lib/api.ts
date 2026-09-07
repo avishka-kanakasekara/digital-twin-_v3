@@ -630,6 +630,7 @@ export const organizationAPI = {
   // Risk & Talent Endpoints
   getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
   getInterventionEffectiveness: () => fetchAPI<any[]>('/api/organization/interventions/effectiveness'),
+  runSimulation: (data: any) => fetchAPI<any[]>('/api/organization/simulation/run', { method: 'POST', body: JSON.stringify(data) }),
   getGigs: () => fetchAPI<any[]>('/api/organization/talent/gigs'),
   getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
   getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),

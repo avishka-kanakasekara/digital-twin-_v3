@@ -177,6 +177,18 @@ class InterventionEffectiveness(BaseModel):
     description: str
     theme_color: str
 
+class SimulationRequest(BaseModel):
+    headcountChange: float
+    salaryChange: float
+    remoteDays: float
+    trainingBudget: float
+    restructuringLevel: float
+    isSnapshot: bool = False
+
+# Simulation returns a dictionary of string keys to float values per month
+class SimulationResult(BaseModel):
+    pass # In FastAPI we can just return List[Dict[str, Any]] for simplicity if it's dynamic
+
 class OrgOKRBase(BaseModel):
     title: str
     owner: str

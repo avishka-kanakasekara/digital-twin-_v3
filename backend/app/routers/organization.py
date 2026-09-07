@@ -19,7 +19,8 @@ from app.schemas.organization import (
     OrgStrategyVisionResponse, OrgAIReadinessResponse,
     OrgCapabilityResponse, OrgTransformationResponse,
     OrgTalentApplicationRead, OrgTalentApplicationCreate, OrgTalentApplicationUpdate,
-    TeamBuilderOptimizationRequest, RiskProfile, InterventionEffectiveness
+    TeamBuilderOptimizationRequest, RiskProfile, InterventionEffectiveness,
+    SimulationRequest
 )
 import sys
 import os
@@ -28,6 +29,7 @@ from organization.workforce_forecasting.forecast_engine import forecast_headcoun
 from organization.workforce_forecasting.burnout_calculator import calculate_average_burnout
 from organization.team_builder.optimization_engine import optimize_team
 from organization.at_risk.risk_model import predict_attrition_risk, calculate_intervention_effectiveness
+from organization.simulation.causal_simulator import run_causal_simulation
 
 
 router = APIRouter(
@@ -447,6 +449,20 @@ def get_intervention_effectiveness():
     
     effectiveness_data = calculate_intervention_effectiveness(employees)
     return effectiveness_data
+
+@router.post("/simulation/run")
+def run_simulation(request: SimulationRequest):
+    sb = get_supabase_admin()
+    
+    # Fetch historical metrics to seed the simulation baseline
+    res = sb.table("organization_metrics").select("*").order("month", desc=False).execute()
+    historical_metrics = res.data
+    
+    params = request.model_dump()
+    
+    # Run causal inference engine
+    simulation_results = run_causal_simulation(params, historical_metrics, request.isSnapshot)
+    return simulation_results
 
 # --- Strategy OKRs ---
 
