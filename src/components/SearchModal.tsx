@@ -85,42 +85,41 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
           onClick={onClose}
         />
         
-        <div className="relative bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]">
+        <div className="relative bg-white/70 backdrop-blur-3xl border border-white/80 w-full max-w-4xl rounded-3xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.15)] overflow-hidden animate-fade-in flex flex-col max-h-[85vh]">
           
           {/* Search Input Area */}
-          <div className="flex items-center p-6 border-b border-[var(--border-subtle)] bg-white/90">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--color-primary-light)] to-white flex items-center justify-center shadow-inner shrink-0 border border-white">
-              <Search size={28} className="text-primary drop-shadow-sm" />
-            </div>
+          <div className="flex items-center gap-4 px-6 py-5 border-b border-white/50 bg-white/40 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-64 h-32 bg-blue-400/20 rounded-full blur-3xl pointer-events-none -translate-x-1/2 -translate-y-1/2"></div>
+            <Search size={26} className="text-blue-600 shrink-0 relative z-10" strokeWidth={2.5} />
             <input 
               type="text" 
-              className="flex-1 h-14 px-5 text-2xl outline-none bg-transparent placeholder:text-tertiary font-semibold text-[var(--text-primary)] tracking-tight"
-              placeholder="Search by name, skills, or semantic queries (e.g. 'cloud security')..."
+              className="flex-1 min-w-0 h-12 px-2 text-[22px] outline-none bg-transparent placeholder:text-slate-400 font-semibold text-slate-800 tracking-tight relative z-10"
+              placeholder="Search employees, skills, or semantic concepts..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
             />
-            <div className="flex items-center gap-3 shrink-0">
-              <kbd className="hidden sm:inline-flex items-center justify-center h-8 px-2.5 text-[10px] font-extrabold text-secondary bg-[var(--bg-main)] border border-[var(--border-subtle)] rounded-lg shadow-sm uppercase tracking-wider">ESC</kbd>
+            <div className="flex items-center gap-4 shrink-0 pl-4 border-l border-white/50">
+              <kbd className="hidden sm:inline-flex items-center justify-center h-6 px-2 text-[10px] font-extrabold text-slate-400 bg-slate-100/50 border border-slate-200/50 rounded shadow-sm uppercase tracking-wider">ESC</kbd>
               <button 
                 onClick={onClose}
-                className="w-12 h-12 rounded-xl hover:bg-danger-light text-secondary hover:text-danger transition-all bg-white shadow-sm border border-[var(--border-subtle)] hover:border-danger/30 flex items-center justify-center hover:shadow group"
+                className="w-8 h-8 rounded-full hover:bg-rose-100/80 text-slate-400 hover:text-rose-500 transition-all flex items-center justify-center group"
               >
-                <X size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                <X size={20} className="group-hover:rotate-90 transition-transform duration-300" strokeWidth={2.5} />
               </button>
             </div>
           </div>
 
           {/* Structured Filters Bar */}
-          <div className="flex items-center gap-4 p-4 bg-[var(--bg-main)]/50 border-b border-[var(--border-subtle)] overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-            <div className="flex items-center gap-2 text-xs font-bold text-secondary uppercase tracking-wider pl-2 shrink-0">
-              <Filter size={14} /> Filters
+          <div className="flex items-center gap-4 p-4 bg-slate-50/40 border-b border-white/50 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider pl-2 shrink-0">
+              <Filter size={14} strokeWidth={2.5} /> Filters
             </div>
             
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] shadow-sm shrink-0 hover:border-primary transition-colors">
-              <Building size={14} className="text-tertiary" />
+            <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-white shadow-sm shrink-0 hover:border-blue-200 transition-colors">
+              <Building size={14} className="text-slate-400" />
               <select 
-                className="text-sm font-semibold text-primary outline-none bg-transparent cursor-pointer appearance-none pr-4"
+                className="text-sm font-semibold text-slate-700 outline-none bg-transparent cursor-pointer appearance-none pr-4"
                 value={filterDept}
                 onChange={(e) => setFilterDept(e.target.value)}
               >
@@ -128,10 +127,10 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
               </select>
             </div>
 
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[var(--border-subtle)] shadow-sm shrink-0 hover:border-primary transition-colors">
-              <MapPin size={14} className="text-tertiary" />
+            <div className="flex items-center gap-2 bg-white/80 px-3 py-1.5 rounded-lg border border-white shadow-sm shrink-0 hover:border-blue-200 transition-colors">
+              <MapPin size={14} className="text-slate-400" />
               <select 
-                className="text-sm font-semibold text-primary outline-none bg-transparent cursor-pointer appearance-none pr-4"
+                className="text-sm font-semibold text-slate-700 outline-none bg-transparent cursor-pointer appearance-none pr-4"
                 value={filterLocation}
                 onChange={(e) => setFilterLocation(e.target.value)}
               >

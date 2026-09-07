@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain, Settings, LogOut, Bell, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Target, Briefcase, Lightbulb, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
 import { GlobalAIChatbot } from './chat/GlobalAIChatbot';
@@ -13,7 +13,6 @@ export const Layout: React.FC = () => {
 
   const orgNavItems = [
     { name: 'Executive Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
-    { name: 'Strategy & Context', path: '/context', icon: <Target size={20} /> },
     { name: 'Workforce Intelligence', path: '/workforce', icon: <BarChart3 size={20} /> },
     { name: 'Organization Health', path: '/radar', icon: <AlertTriangle size={20} /> },
     { name: 'Team Builder', path: '/team-builder', icon: <Users2 size={20} /> },
@@ -110,27 +109,44 @@ export const Layout: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden m-4 ml-0">
-        <header className="h-16 glass rounded-lg mb-4 flex items-center justify-between px-6 border border-[var(--border-color)]">
-          <div className="text-sm text-tertiary">Organization Overview</div>
-          <div className="flex items-center gap-4">
+        <header className="h-[72px] glass rounded-2xl mb-4 flex items-center justify-between px-6 border border-white/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] relative overflow-hidden bg-white/40 backdrop-blur-xl">
+          <div className="absolute top-0 left-0 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="absolute bottom-0 right-0 w-48 h-48 bg-purple-400/10 rounded-full blur-3xl pointer-events-none"></div>
+          
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="flex items-center justify-center w-10 h-10 rounded-[12px] bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/20 text-white group-hover:scale-105 transition-transform duration-500">
+              <BrainCircuit size={20} strokeWidth={2.5} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h2 className="text-[16px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">Organization Digital Twin</h2>
+                <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200/60 text-emerald-700 text-[9px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> AI Active
+                </span>
+              </div>
+              <p className="text-[11px] font-semibold text-slate-500 mt-0.5 tracking-wide">Real-time predictive workforce intelligence models</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 relative z-10">
             <button 
               onClick={() => setIsSearchOpen(true)}
-              className="w-72 h-10 rounded-lg bg-[var(--bg-main)] border border-[var(--border-subtle)] px-3 flex items-center justify-between text-sm text-tertiary hover:border-primary hover:text-secondary transition-all cursor-pointer shadow-sm group"
+              className="w-72 h-10 rounded-xl bg-white/70 border-2 border-white px-3 flex items-center justify-between text-sm text-slate-400 hover:border-blue-100 hover:text-slate-600 hover:shadow-[0_4px_15px_rgba(59,130,246,0.15)] hover:bg-white transition-all cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.03)] group"
             >
               <div className="flex items-center gap-2 overflow-hidden mr-2">
-                <Search size={16} className="shrink-0 group-hover:text-primary transition-colors"/> 
-                <span className="truncate whitespace-nowrap">Search employees, skills...</span>
+                <Search size={16} className="shrink-0 group-hover:text-blue-500 transition-colors"/> 
+                <span className="truncate whitespace-nowrap font-medium text-[13px]">Search insights, employees, skills...</span>
               </div>
               <div className="shrink-0 flex items-center">
-                <kbd className="hidden sm:flex items-center justify-center h-5 px-2 text-[10px] font-bold bg-white border border-[var(--border-subtle)] rounded shadow-sm text-secondary uppercase tracking-wider">Ctrl K</kbd>
+                <kbd className="hidden sm:flex items-center justify-center h-5 px-2 text-[10px] font-extrabold bg-slate-100/50 border border-slate-200/50 rounded-md shadow-sm text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50/50 group-hover:border-blue-100 transition-colors uppercase tracking-wider">Ctrl K</kbd>
               </div>
             </button>
             <button 
               onClick={() => setIsNotificationsOpen(true)}
-              className="w-10 h-10 rounded-full bg-[var(--bg-main)] flex items-center justify-center text-secondary hover:text-primary transition-colors shadow-sm border border-transparent hover:border-[var(--border-subtle)] relative"
+              className="w-10 h-10 rounded-xl bg-white/70 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 hover:border-rose-100 transition-all shadow-[0_2px_10px_rgba(0,0,0,0.03)] border-2 border-white relative group"
             >
-              <AlertTriangle size={18} />
-              <span className="absolute top-2 right-2.5 w-2 h-2 bg-danger rounded-full border border-white"></span>
+              <Bell size={18} className="group-hover:animate-swing" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white shadow-[0_0_8px_rgba(244,63,94,0.6)]"></span>
             </button>
           </div>
         </header>

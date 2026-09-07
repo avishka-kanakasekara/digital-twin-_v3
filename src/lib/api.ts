@@ -621,6 +621,9 @@ export const organizationAPI = {
   getScenarios: (params?: { limit?: number }) =>
     fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios?${new URLSearchParams(params as any || {}).toString()}`),
     
+  getAnomalies: () =>
+    fetchAPI<any[]>('/api/organization/anomalies'),
+    
   // Innovation Hub Endpoints
   getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
   scoreIdea: (data: { title: string, description: string }) => fetchAPI<{ impact: string, impact_score: number, feasibility: string, similar: number }>('/api/organization/innovation/score', { method: 'POST', body: JSON.stringify(data) }),
@@ -629,6 +632,7 @@ export const organizationAPI = {
   getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
   
   // Risk & Talent Endpoints
+  getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
   getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
   getInterventionEffectiveness: () => fetchAPI<any[]>('/api/organization/interventions/effectiveness'),
   runSimulation: (data: any) => fetchAPI<any[]>('/api/organization/simulation/run', { method: 'POST', body: JSON.stringify(data) }),
@@ -636,13 +640,6 @@ export const organizationAPI = {
   getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
   getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
 
-  // Strategy
-  getOKRs: () => fetchAPI<any[]>('/api/organization/strategy/okrs'),
-  getStrategyVision: () => fetchAPI<any[]>('/api/organization/strategy/vision'),
-  getAIReadiness: () => fetchAPI<any[]>('/api/organization/strategy/ai-readiness'),
-  getCapabilities: () => fetchAPI<any[]>('/api/organization/strategy/capabilities'),
-  getTransformations: () => fetchAPI<any[]>('/api/organization/strategy/transformations'),
-  getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
 
   // Applications
   getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
