@@ -369,14 +369,26 @@ export const TalentMarketplace: React.FC = () => {
                 <div className="text-center py-6 text-slate-400 text-sm font-medium">No applications yet.</div>
               ) : (
                 applications.slice(0, 5).map(app => {
-                  const s = statusStyle[app.status] || statusStyle['Under Review'];
+                  const getStatusClass = (status: string) => {
+                    if (status === 'Accepted') return 'bg-emerald-100 text-emerald-700 border-none';
+                    if (status === 'Rejected') return 'bg-red-100 text-red-700 border-none';
+                    return 'bg-amber-100 text-amber-700 border-none';
+                  };
                   return (
-                    <div key={app.id} onClick={() => setSelectedApp(app)} className="flex items-center justify-between p-5 rounded-2xl shadow-md border hover:-translate-y-1 hover:shadow-lg transition-all cursor-pointer group" style={{ backgroundColor: 'white', borderColor: 'rgba(226, 232, 240, 0.8)' }}>
-                      <div className="flex-1 pr-4">
-                        <h4 className="text-[14px] font-black tracking-tight group-hover:text-emerald-600 transition-colors truncate" style={{ color: '#1e293b' }}>{app.opportunity_title}</h4>
-                        <p className="text-[11px] font-extrabold mt-1.5 uppercase tracking-wider" style={{ color: '#94a3b8' }}>{relativeTime(app.created_at)} • {app.opportunity_type === 'gig' ? 'Gig' : 'Mentoring'}</p>
+                    <div key={app.id} onClick={() => setSelectedApp(app)} className="flex items-center justify-between p-5 rounded-2xl shadow-sm hover:shadow-md border border-slate-100 hover:border-slate-200 hover:-translate-y-0.5 transition-all cursor-pointer group bg-white">
+                      <div className="flex-1 pr-4 flex flex-col justify-center">
+                        <h4 className="text-[15px] font-bold tracking-tight text-slate-800 group-hover:text-emerald-600 transition-colors leading-snug mb-1">{app.opportunity_title}</h4>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                          <span>{relativeTime(app.created_at)}</span>
+                          <span>•</span>
+                          <span className={app.opportunity_type === 'mentoring' ? 'text-indigo-500' : 'text-slate-500'}>{app.opportunity_type === 'gig' ? 'GIG' : 'MENTORING'}</span>
+                        </p>
                       </div>
-                      <span className="shrink-0 inline-flex items-center text-[10px] font-black px-3.5 py-1.5 rounded-full shadow-sm uppercase tracking-widest" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{app.status}</span>
+                      <div className="shrink-0 flex items-center">
+                        <span className={`inline-flex items-center justify-center text-[10px] font-black px-3.5 py-1.5 rounded-full uppercase tracking-wider ${getStatusClass(app.status)}`}>
+                          {app.status}
+                        </span>
+                      </div>
                     </div>
                   );
                 })

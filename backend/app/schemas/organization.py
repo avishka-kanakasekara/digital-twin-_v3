@@ -153,6 +153,12 @@ class OrgTeamBuilderOptionRead(OrgTeamBuilderOptionBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
 
+class TeamBuilderOptimizationRequest(BaseModel):
+    project_type: str
+    headcount: int
+    core_competencies: List[str] = []
+    context: Optional[str] = None
+
 class OrgOKRBase(BaseModel):
     title: str
     owner: str

@@ -19,12 +19,15 @@ from app.schemas.organization import (
     OrgStrategyVisionResponse, OrgAIReadinessResponse,
     OrgCapabilityResponse, OrgTransformationResponse,
     OrgTalentApplicationRead, OrgTalentApplicationCreate, OrgTalentApplicationUpdate,
+    TeamBuilderOptimizationRequest,
 )
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ml", "src"))
 from organization.workforce_forecasting.forecast_engine import forecast_headcount_loss, rank_skill_shortages
 from organization.workforce_forecasting.burnout_calculator import calculate_average_burnout
+from organization.team_builder.optimization_engine import optimize_team
+
 
 router = APIRouter(
     prefix="/api/organization",
@@ -378,6 +381,48 @@ def delete_team_builder_option(id: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Team builder option not found")
     return None
+
+@router.post("/talent/team-builder/optimize", response_model=List[OrgTeamBuilderOptionRead])
+def optimize_team_builder(request: TeamBuilderOptimizationRequest):
+    sb = get_supabase_admin()
+    
+    # Fetch active employees
+    res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
+    employees = res.data
+    # We will fetch actual skills for these employees from the `skills` table
+    try:
+        employee_ids = [emp["id"] for emp in employees]
+        if employee_ids:
+            res_skills = sb.table("skills").select("employee_id, name").in_("employee_id", employee_ids).execute()
+            skills_data = res_skills.data if res_skills.data else []
+            
+            # Map skills to employees
+            skills_map = {}
+            for row in skills_data:
+                emp_id = row["employee_id"]
+                if emp_id not in skills_map:
+                    skills_map[emp_id] = []
+                skills_map[emp_id].append(row["name"])
+                
+            for emp in employees:
+                emp["skills"] = skills_map.get(emp["id"], [])
+        else:
+            for emp in employees:
+                emp["skills"] = []
+    except Exception as e:
+        print(f"Skills table fetch failed: {e}. Using empty skills.")
+        for emp in employees:
+            emp["skills"] = []
+            
+    # Run optimization engine
+    options = optimize_team(
+        employees=employees,
+        headcount=request.headcount,
+        required_skills=request.core_competencies
+    )
+    
+    return options
+
 
 
 # --- Strategy OKRs ---
