@@ -11,6 +11,7 @@ from app.schemas.organization import (
     OrganizationScenarioRead, OrganizationScenarioCreate, OrganizationScenarioUpdate,
     OrgInnovationIdeaRead, OrgInnovationIdeaCreate, OrgInnovationIdeaUpdate,
     OrgInnovationCommunityRead, OrgInnovationCommunityCreate, OrgInnovationCommunityUpdate,
+    IdeaScoreRequest, IdeaScoreResponse,
     OrgAtRiskEmployeeRead, OrgAtRiskEmployeeCreate, OrgAtRiskEmployeeUpdate,
     OrgTalentGigRead, OrgTalentGigCreate, OrgTalentGigUpdate,
     OrgTalentMentorRead, OrgTalentMentorCreate, OrgTalentMentorUpdate,
@@ -30,6 +31,7 @@ from organization.workforce_forecasting.burnout_calculator import calculate_aver
 from organization.team_builder.optimization_engine import optimize_team
 from organization.at_risk.risk_model import predict_attrition_risk, calculate_intervention_effectiveness
 from organization.simulation.causal_simulator import run_causal_simulation
+from innovation.nlp_scoring import score_idea
 
 
 router = APIRouter(
@@ -125,6 +127,18 @@ def get_innovation_ideas():
     sb = get_supabase_admin()
     result = sb.table("org_innovation_ideas").select("*").execute()
     return result.data
+
+@router.post("/innovation/score", response_model=IdeaScoreResponse)
+def score_innovation_idea(request: IdeaScoreRequest):
+    sb = get_supabase_admin()
+    # Fetch existing ideas to find similarities
+    ideas_result = sb.table("org_innovation_ideas").select("title, description").execute()
+    db_ideas = ideas_result.data if ideas_result.data else []
+    
+    # Run the classical ML NLP heuristic pipeline
+    score_result = score_idea(request.title, request.description, db_ideas)
+    
+    return score_result
 
 @router.post("/innovation/ideas", response_model=OrgInnovationIdeaRead, status_code=status.HTTP_201_CREATED)
 def create_innovation_idea(idea: OrgInnovationIdeaCreate):

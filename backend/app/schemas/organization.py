@@ -91,6 +91,16 @@ class OrgInnovationIdeaRead(OrgInnovationIdeaBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class IdeaScoreRequest(BaseModel):
+    title: str
+    description: str
+
+class IdeaScoreResponse(BaseModel):
+    impact: str
+    impact_score: int
+    feasibility: str
+    similar: int
+
 class OrgInnovationCommunityBase(BaseModel):
     name: str
     members: int

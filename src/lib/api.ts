@@ -623,6 +623,7 @@ export const organizationAPI = {
     
   // Innovation Hub Endpoints
   getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
+  scoreIdea: (data: { title: string, description: string }) => fetchAPI<{ impact: string, impact_score: number, feasibility: string, similar: number }>('/api/organization/innovation/score', { method: 'POST', body: JSON.stringify(data) }),
   submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/innovation/ideas', { method: 'POST', body: JSON.stringify(data) }),
   approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/innovation/ideas/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'Approved' }) }),
   getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
