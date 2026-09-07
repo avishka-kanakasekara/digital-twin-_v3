@@ -2,19 +2,23 @@ import React, { useState, useEffect } from 'react';
 
 
 import { Modal } from '../../components/Modal';
-import { Users, Target, TrendingUp, ChevronDown, Activity, ExternalLink, HeartPulse, BrainCircuit, Sparkles, AlertTriangle, Calendar, Globe, Briefcase } from 'lucide-react';
+import { Users, Target, TrendingUp, Activity, ExternalLink, HeartPulse, BrainCircuit, Sparkles, AlertTriangle, Download, Share2, RefreshCw, Zap, ShieldAlert } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Link } from 'react-router-dom';
 import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
-import { useOrganizationMetrics } from '../../hooks/useOrganization';
+import { useOrganizationMetrics, useOrganizationAnomalies, useOrganizationSkillShortages, useOrganizationRiskProfiles } from '../../hooks/useOrganization';
 import api from '../../lib/api';
 
 export const Dashboard: React.FC = () => {
-  const [activeFilter, setActiveFilter] = useState('All Departments');
   const [drillDownInfo, setDrillDownInfo] = useState<{ isOpen: boolean; title: string; type: string } | null>(null);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const { metrics, loading } = useOrganizationMetrics();
+  const { anomalies, loading: anomaliesLoading } = useOrganizationAnomalies();
+  const { shortages, loading: shortagesLoading } = useOrganizationSkillShortages();
+  const { riskProfiles, loading: risksLoading } = useOrganizationRiskProfiles();
   
   // Use fetched metrics or fallback to empty array during loading
   const orgHistoryData = metrics || [];
@@ -29,7 +33,27 @@ export const Dashboard: React.FC = () => {
         performanceScore: d.performance_score,
       })));
     }).catch(console.error);
+
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
+
+  const handleSync = () => {
+    setIsSyncing(true);
+    setTimeout(() => {
+      setCurrentTime(new Date());
+      setIsSyncing(false);
+    }, 1500);
+  };
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert('Dashboard link copied to clipboard!');
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
 
 
 
@@ -53,57 +77,37 @@ export const Dashboard: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
               <Activity size={14} className="text-slate-300" />
-              Last Sync: Today, 02:00 AM
+              Last Sync: Today, {currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
             </div>
           </div>
         </div>
+        {/* Quick Actions - Premium Glass Pill */}
+        <div className="flex items-center gap-3 bg-white/60 backdrop-blur-xl p-2 rounded-[24px] shadow-[inset_0_1px_1px_rgba(255,255,255,1),0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 relative z-10">
 
-        {/* Global Filters - Premium Glass Pill */}
-        <div className="flex items-center gap-2.5 bg-white/40 backdrop-blur-md p-1.5 rounded-[20px] shadow-[0_2px_15px_rgb(0,0,0,0.02)] border border-white/60 relative z-10">
-
-          {/* Filter 1: Time */}
-          <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-[14px] shadow-sm border border-slate-100 hover:shadow-[0_4px_12px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all cursor-pointer group">
-            <div className="w-7 h-7 rounded-[10px] bg-indigo-50 flex items-center justify-center text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-colors duration-300">
-              <Calendar size={14} strokeWidth={2.5} />
+          <button onClick={handleSync} disabled={isSyncing} className="relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-white rounded-[16px] shadow-[0_2px_8px_rgb(0,0,0,0.04)] border border-slate-100/50 hover:shadow-[0_8px_20px_rgb(59,130,246,0.15)] hover:-translate-y-0.5 hover:border-blue-100 transition-all duration-300 cursor-pointer group disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-50/0 via-blue-50/50 to-blue-50/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+            <div className="w-8 h-8 rounded-[12px] bg-gradient-to-br from-blue-50 to-blue-100/50 flex items-center justify-center text-blue-600 group-hover:bg-gradient-to-br group-hover:from-blue-500 group-hover:to-indigo-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-blue-500/25 transition-all duration-300 z-10">
+              <RefreshCw size={15} strokeWidth={2.5} className={isSyncing ? "animate-spin text-blue-500" : ""} />
             </div>
-            <select className="text-sm font-extrabold text-slate-700 bg-transparent outline-none cursor-pointer appearance-none pr-2 focus:ring-0">
-              <option>Q2 2026</option>
-              <option>Q1 2026</option>
-              <option>FY 2025</option>
-            </select>
-            <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
-          </div>
+            <span className="text-[13px] font-extrabold text-slate-700 group-hover:text-blue-700 transition-colors z-10 pr-1">{isSyncing ? "Syncing..." : "Sync Now"}</span>
+          </button>
 
-          {/* Filter 2: Org */}
-          <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-[14px] shadow-sm border border-slate-100 hover:shadow-[0_4px_12px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all cursor-pointer group">
-            <div className="w-7 h-7 rounded-[10px] bg-blue-50 flex items-center justify-center text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
-              <Globe size={14} strokeWidth={2.5} />
+          <button onClick={handleShare} className="relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-white rounded-[16px] shadow-[0_2px_8px_rgb(0,0,0,0.04)] border border-slate-100/50 hover:shadow-[0_8px_20px_rgb(139,92,246,0.15)] hover:-translate-y-0.5 hover:border-violet-100 transition-all duration-300 cursor-pointer group">
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-50/0 via-violet-50/50 to-violet-50/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+            <div className="w-8 h-8 rounded-[12px] bg-gradient-to-br from-violet-50 to-violet-100/50 flex items-center justify-center text-violet-600 group-hover:bg-gradient-to-br group-hover:from-violet-500 group-hover:to-purple-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-violet-500/25 transition-all duration-300 z-10">
+              <Share2 size={15} strokeWidth={2.5} />
             </div>
-            <select
-              className="text-sm font-extrabold text-slate-700 bg-transparent outline-none cursor-pointer appearance-none pr-2 focus:ring-0"
-              value={activeFilter}
-              onChange={(e) => setActiveFilter(e.target.value)}
-            >
-              <option>Global Org</option>
-              <option>North America</option>
-              <option>EMEA</option>
-              <option>APAC</option>
-            </select>
-            <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
-          </div>
+            <span className="text-[13px] font-extrabold text-slate-700 group-hover:text-violet-700 transition-colors z-10 pr-1">Share</span>
+          </button>
 
-          {/* Filter 3: Division */}
-          <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white rounded-[14px] shadow-sm border border-slate-100 hover:shadow-[0_4px_12px_rgb(0,0,0,0.05)] hover:-translate-y-0.5 transition-all cursor-pointer group">
-            <div className="w-7 h-7 rounded-[10px] bg-emerald-50 flex items-center justify-center text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors duration-300">
-              <Briefcase size={14} strokeWidth={2.5} />
+          <button onClick={handleExportPDF} className="relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-white rounded-[16px] shadow-[0_2px_8px_rgb(0,0,0,0.04)] border border-slate-100/50 hover:shadow-[0_8px_20px_rgb(16,185,129,0.15)] hover:-translate-y-0.5 hover:border-emerald-100 transition-all duration-300 cursor-pointer group">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-50/0 via-emerald-50/50 to-emerald-50/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+            <div className="w-8 h-8 rounded-[12px] bg-gradient-to-br from-emerald-50 to-emerald-100/50 flex items-center justify-center text-emerald-600 group-hover:bg-gradient-to-br group-hover:from-emerald-500 group-hover:to-teal-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-emerald-500/25 transition-all duration-300 z-10">
+              <Download size={15} strokeWidth={2.5} />
             </div>
-            <select className="text-sm font-extrabold text-slate-700 bg-transparent outline-none cursor-pointer appearance-none pr-2 focus:ring-0">
-              <option>All Divisions</option>
-              <option>Product & Eng</option>
-              <option>GTM</option>
-            </select>
-            <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-600 transition-colors" />
-          </div>
+            <span className="text-[13px] font-extrabold text-slate-700 group-hover:text-emerald-700 transition-colors z-10 pr-1">Export PDF</span>
+          </button>
+
         </div>
       </div>
 
@@ -126,7 +130,9 @@ export const Dashboard: React.FC = () => {
           <div className="relative z-10">
             <p className="text-xs font-bold text-slate-400 mb-0.5">Org Health Score</p>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">92</h3>
+              <h3 className="text-3xl font-black text-slate-800 tracking-tight">
+                {loading ? '...' : (latestMetric?.enps || 92)}
+              </h3>
               <span className="text-sm font-bold text-slate-400">/100</span>
             </div>
           </div>
@@ -219,35 +225,23 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4" style={{ scrollbarWidth: 'thin' }}>
 
-            <div className="p-4 bg-gradient-to-r from-rose-50 to-white border border-rose-100/80 rounded-xl flex gap-3 items-start hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group">
-              <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></div>
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-800">Satisfaction Anomaly Flagged</h4>
-                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">Unsupervised anomaly model detected a statistically significant dip in employee satisfaction (z-score: -2.8).</p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gradient-to-r from-emerald-50 to-white border border-emerald-100/80 rounded-xl flex gap-3 items-start hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group">
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-800">Engineering Velocity Peak</h4>
-                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">Productivity score in Engineering is 92%, driven by recent Agile adoption and automation tools.</p>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-white border border-blue-100/80 rounded-xl flex gap-3 items-start hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group">
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-800">Retention Stabilized</h4>
-                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">Attrition risk has decreased by 1.2% globally following the new wellness initiatives launched in Q1.</p>
-              </div>
-            </div>
+            {anomaliesLoading ? (
+              <div className="text-center text-sm text-slate-500 py-4">Loading anomalies...</div>
+            ) : anomalies && anomalies.length > 0 ? (
+              anomalies.map((anomaly, idx) => (
+                <div key={idx} className={`p-4 bg-gradient-to-r from-${anomaly.color}-50 to-white border border-${anomaly.color}-100/80 rounded-xl flex gap-3 items-start hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group`}>
+                  <div className={`w-8 h-8 rounded-full bg-${anomaly.color}-100 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform`}>
+                    <div className={`w-2.5 h-2.5 rounded-full bg-${anomaly.color}-500 ${anomaly.type === 'negative' ? 'animate-pulse' : ''}`}></div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">{anomaly.title}</h4>
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{anomaly.description}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-sm text-slate-500 py-4">No anomalies detected.</div>
+            )}
 
           </div>
         </div>
@@ -340,6 +334,83 @@ export const Dashboard: React.FC = () => {
           </div>
 
         </div>
+      </div>
+
+      {/* Predictive Analytics Row */}
+      <div className="grid grid-cols-2 gap-6 mt-6">
+        
+        {/* Predictive Skill Shortages */}
+        <div className="bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow">
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-orange-100 text-orange-600"><Zap size={18} /></div>
+              Predictive Skill Shortages
+            </h3>
+            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">Next 12 Months</span>
+          </div>
+          
+          <div className="flex flex-col gap-3">
+            {shortagesLoading ? (
+              <div className="text-center text-sm text-slate-500 py-4">Analyzing workforce skills...</div>
+            ) : shortages && shortages.length > 0 ? (
+              shortages.slice(0, 4).map((shortage, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-orange-50/30 hover:border-orange-100 transition-colors group">
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-700 group-hover:text-orange-700">{shortage.core_skill}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">Impacts {shortage.dept} Department</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-extrabold text-orange-600">{shortage.shortfall_projection} needed</div>
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Risk Score: {shortage.risk_score.toFixed(1)}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-sm text-slate-500 py-4">No critical shortages predicted.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Talent Retention Risks */}
+        <div className="bg-white/60 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-2xl p-6 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow">
+          <div className="flex justify-between items-center mb-5">
+            <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-rose-100 text-rose-600"><ShieldAlert size={18} /></div>
+              Talent Retention Risks
+            </h3>
+            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">High Risk</span>
+          </div>
+          
+          <div className="flex flex-col gap-3">
+            {risksLoading ? (
+              <div className="text-center text-sm text-slate-500 py-4">Evaluating retention probabilities...</div>
+            ) : riskProfiles && riskProfiles.length > 0 ? (
+              riskProfiles.filter(r => r.risk_level === 'High').slice(0, 4).map((risk, idx) => (
+                <div key={idx} className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-rose-50/50 hover:border-rose-100 transition-colors group">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-full bg-gradient-to-br from-rose-50 to-orange-50 border-2 border-white shadow-[0_2px_10px_rgb(244,63,94,0.15)] flex items-center justify-center text-[11px] font-black text-rose-600 relative group-hover:scale-110 transition-transform duration-300">
+                      <div className="absolute 0 top-0 right-0 w-3 h-3 bg-rose-500 border-2 border-white rounded-full animate-pulse"></div>
+                      #{risk.employee_id?.replace('EMP-', '')}
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-[14px] text-slate-800 group-hover:text-rose-600 transition-colors">{risk.primary_factor}</h4>
+                      <p className="text-[12px] font-medium text-slate-500 mt-0.5 max-w-[210px] truncate" title={risk.ai_retention_suggestion}>{risk.ai_retention_suggestion}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex flex-col items-end">
+                    <div className="text-[15px] font-black text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-100 group-hover:bg-rose-500 group-hover:text-white transition-colors duration-300">
+                      {(risk.burnout_probability * 100).toFixed(0)}%
+                    </div>
+                    <div className="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mt-1.5">Burnout Risk</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-sm text-slate-500 py-4">No high retention risks detected.</div>
+            )}
+          </div>
+        </div>
+        
       </div>
 
       {/* Drill-down Modal */}

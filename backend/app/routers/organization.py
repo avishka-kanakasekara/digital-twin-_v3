@@ -16,9 +16,6 @@ from app.schemas.organization import (
     OrgTalentGigRead, OrgTalentGigCreate, OrgTalentGigUpdate,
     OrgTalentMentorRead, OrgTalentMentorCreate, OrgTalentMentorUpdate,
     OrgTeamBuilderOptionRead, OrgTeamBuilderOptionCreate, OrgTeamBuilderOptionUpdate,
-    OrgOKRRead, OrgOKRCreate, OrgOKRUpdate,
-    OrgStrategyVisionResponse, OrgAIReadinessResponse,
-    OrgCapabilityResponse, OrgTransformationResponse,
     OrgTalentApplicationRead, OrgTalentApplicationCreate, OrgTalentApplicationUpdate,
     TeamBuilderOptimizationRequest, RiskProfile, InterventionEffectiveness,
     SimulationRequest
@@ -55,6 +52,33 @@ def get_organization_metrics(limit: int = 100):
     sb = get_supabase_admin()
     result = sb.table("organization_metrics").select("*").order("date").limit(limit).execute()
     return result.data
+
+@router.get("/anomalies")
+def get_organization_anomalies():
+    """Returns detected anomalies. Currently mocked, but ready to be hooked to ML models."""
+    return [
+        {
+            "id": "anom_1",
+            "type": "negative",
+            "title": "Satisfaction Anomaly Flagged",
+            "description": "Unsupervised anomaly model detected a statistically significant dip in employee satisfaction (z-score: -2.8).",
+            "color": "rose"
+        },
+        {
+            "id": "anom_2",
+            "type": "positive",
+            "title": "Engineering Velocity Peak",
+            "description": "Productivity score in Engineering is 92%, driven by recent Agile adoption and automation tools.",
+            "color": "emerald"
+        },
+        {
+            "id": "anom_3",
+            "type": "neutral",
+            "title": "Retention Stabilized",
+            "description": "Attrition risk has decreased by 1.2% globally following the new wellness initiatives launched in Q1.",
+            "color": "blue"
+        }
+    ]
 
 @router.post("/metrics", response_model=OrganizationMetricRead, status_code=status.HTTP_201_CREATED)
 def create_organization_metric(metric: OrganizationMetricCreate):
@@ -204,7 +228,63 @@ def delete_innovation_community(id: str):
     return None
 
 
-# --- At Risk Employees ---
+# --- At Risk Employees & Talent ---
+
+@router.get("/talent/skill-shortages")
+def get_skill_shortages():
+    """Returns predictive skill shortages using real workforce data."""
+    sb = get_supabase_admin()
+    res = sb.table("employees").select("role, department").eq("employment_status", "Active").execute()
+    employees = res.data
+    
+    current_headcount = len(employees)
+    if current_headcount == 0:
+        return []
+        
+    skill_inventory = {}
+    for emp in employees:
+        role = emp.get("role", "Unknown Role")
+        dept = emp.get("department", "General")
+        
+        core_skill_map = {
+            "Software Engineer": "Full-stack Development",
+            "Data Scientist": "Machine Learning",
+            "Data Engineer": "Data Pipeline Architecture",
+            "Account Executive": "B2B Sales",
+            "HR Manager": "Talent Acquisition",
+            "Product Manager": "Agile Methodologies",
+            "UX Designer": "Advanced Prototyping",
+            "DevOps Engineer": "Kubernetes Administration",
+            "Sales Representative": "Client Relations"
+        }
+        core_skill = core_skill_map.get(role, role)
+        
+        if role not in skill_inventory:
+            skill_inventory[role] = {"count": 0, "dept": dept, "core_skill": core_skill}
+        skill_inventory[role]["count"] += 1
+        
+    growth_target = 15.0
+    projected_loss = int(current_headcount * 0.08)
+    
+    raw_shortages = rank_skill_shortages(skill_inventory, growth_target, current_headcount, projected_loss)
+    
+    result = []
+    for s in raw_shortages:
+        gap_value = abs(s["gap"])
+        if gap_value == 0:
+            continue
+            
+        risk_score = min(9.9, gap_value * 1.5)
+        
+        result.append({
+            "core_skill": s["skill"],
+            "dept": s["dept"],
+            "shortfall_projection": gap_value,
+            "risk_score": round(risk_score, 1)
+        })
+        
+    result.sort(key=lambda x: x["shortfall_projection"], reverse=True)
+    return result
 
 @router.get("/talent/risks", response_model=List[OrgAtRiskEmployeeRead])
 def get_at_risk_employees():
@@ -478,66 +558,7 @@ def run_simulation(request: SimulationRequest):
     simulation_results = run_causal_simulation(params, historical_metrics, request.isSnapshot)
     return simulation_results
 
-# --- Strategy OKRs ---
 
-@router.get("/strategy/okrs", response_model=List[OrgOKRRead])
-def get_okrs():
-    sb = get_supabase_admin()
-    result = sb.table("org_okrs").select("*").execute()
-    return result.data
-
-@router.post("/strategy/okrs", response_model=OrgOKRRead, status_code=status.HTTP_201_CREATED)
-def create_okr(okr: OrgOKRCreate):
-    sb = get_supabase_admin()
-    result = sb.table("org_okrs").insert(okr.model_dump()).execute()
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Failed to create OKR")
-    return result.data[0]
-
-@router.put("/strategy/okrs/{id}", response_model=OrgOKRRead)
-def update_okr(id: str, okr: OrgOKRUpdate):
-    sb = get_supabase_admin()
-    update_data = okr.model_dump(exclude_unset=True)
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields provided for update")
-    result = sb.table("org_okrs").update(update_data).eq("id", id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="OKR not found")
-    return result.data[0]
-
-@router.delete("/strategy/okrs/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_okr(id: str):
-    sb = get_supabase_admin()
-    result = sb.table("org_okrs").delete().eq("id", id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="OKR not found")
-    return None
-
-# --- Organization Context & Strategy ---
-
-@router.get("/strategy/vision", response_model=List[OrgStrategyVisionResponse])
-def get_strategy_vision():
-    sb = get_supabase_admin()
-    result = sb.table("org_strategy_vision").select("*").execute()
-    return result.data
-
-@router.get("/strategy/ai-readiness", response_model=List[OrgAIReadinessResponse])
-def get_ai_readiness():
-    sb = get_supabase_admin()
-    result = sb.table("org_ai_readiness").select("*").execute()
-    return result.data
-
-@router.get("/strategy/capabilities", response_model=List[OrgCapabilityResponse])
-def get_capabilities():
-    sb = get_supabase_admin()
-    result = sb.table("org_capabilities").select("*").execute()
-    return result.data
-
-@router.get("/strategy/transformations", response_model=List[OrgTransformationResponse])
-def get_transformations():
-    sb = get_supabase_admin()
-    result = sb.table("org_transformations").select("*").execute()
-    return result.data
 
 @router.get("/talent/skill-shortages")
 def get_skill_shortages():

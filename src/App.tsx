@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './views/organization/Dashboard';
-import { OrganizationContext } from './views/organization/OrganizationContext';
 import { EmployeeTwin } from './views/employee/EmployeeTwin';
 import { OrgSimulator } from './views/organization/OrgSimulator';
 import { AtRiskRadar } from './views/organization/AtRiskRadar';
@@ -22,7 +21,6 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />
-            <Route path="context" element={<OrganizationContext />} />
             <Route path="employee-twin" element={<EmployeeTwin />} />
             <Route path="career-coach" element={<CareerCoach />} />
             <Route path="gamification-hub" element={<GamificationHub />} />

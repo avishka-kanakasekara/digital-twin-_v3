@@ -199,52 +199,7 @@ class SimulationRequest(BaseModel):
 class SimulationResult(BaseModel):
     pass # In FastAPI we can just return List[Dict[str, Any]] for simplicity if it's dynamic
 
-class OrgOKRBase(BaseModel):
-    title: str
-    owner: str
-    progress: int
-    status: str
-    initiatives: List[Dict[str, Any]] = []
 
-class OrgOKRRead(OrgOKRBase):
-    id: str
-    model_config = ConfigDict(from_attributes=True)
-
-# ==================== STRATEGY & CONTEXT ====================
-
-class OrgStrategyVisionResponse(BaseModel):
-    id: str
-    vision_text: str
-    tech_app_features: List[str]
-    tech_team_goals: List[str]
-    habits: List[str]
-    created_at: Optional[datetime] = None
-
-class OrgAIReadinessResponse(BaseModel):
-    id: str
-    overall_score: int
-    literacy_score: int
-    adoption_score: int
-    automation_opportunities: List[Dict[str, Any]]
-    dept_projects: List[Dict[str, Any]]
-    created_at: Optional[datetime] = None
-
-class OrgCapabilityResponse(BaseModel):
-    id: str
-    name: str
-    type: str
-    maturity: int
-    gap: int
-    created_at: Optional[datetime] = None
-
-class OrgTransformationResponse(BaseModel):
-    id: str
-    name: str
-    owner: str
-    progress: int
-    status: str
-    milestones: List[Dict[str, Any]]
-    created_at: Optional[datetime] = None
 
 class OrganizationMetricUpdate(BaseModel):
     month: Optional[str] = None
@@ -359,15 +314,7 @@ class OrgTeamBuilderOptionUpdate(BaseModel):
     rationale: Optional[str] = None
     members: Optional[List[Dict[str, Any]]] = None
 
-class OrgOKRCreate(OrgOKRBase):
-    pass
 
-class OrgOKRUpdate(BaseModel):
-    title: Optional[str] = None
-    owner: Optional[str] = None
-    progress: Optional[int] = None
-    status: Optional[str] = None
-    initiatives: Optional[List[Dict[str, Any]]] = None
 
 
 # ==================== TALENT APPLICATIONS ====================
