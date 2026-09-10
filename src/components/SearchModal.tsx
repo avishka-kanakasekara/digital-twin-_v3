@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, Building, ArrowRight, MapPin, Briefcase, Zap, Filter, Target, MessageSquare } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { TwinChatModal } from './TwinChatModal';
@@ -77,15 +78,15 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[100] flex items-start justify-center pt-24 px-4 sm:px-6">
         <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
+          className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
           onClick={onClose}
         />
         
-        <div className="relative bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-fade-in flex flex-col max-h-[85vh]">
+        <div className="relative bg-white/95 backdrop-blur-xl border border-white/60 w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
           
           {/* Search Input Area */}
           <div className="flex items-center p-6 border-b border-[var(--border-subtle)] bg-white/90">
@@ -244,6 +245,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose }) => 
           employeeRole={chattingEmployee.role} 
         />
       )}
-    </>
+    </>,
+    document.body
   );
 };

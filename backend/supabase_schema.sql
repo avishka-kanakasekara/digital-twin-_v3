@@ -375,6 +375,28 @@ CREATE TABLE IF NOT EXISTS recognitions (
 
 
 -- ──────────────────────────────────────────────────────────────
+-- 19b. PEER RECOMMENDATIONS (colleague → colleague)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS peer_recommendations (
+    id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    from_employee_id  TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    to_employee_id    TEXT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    category          TEXT NOT NULL DEFAULT 'general',
+    skill             TEXT,
+    message           TEXT NOT NULL,
+    rating            INTEGER DEFAULT 5 CHECK (rating IS NULL OR (rating >= 1 AND rating <= 5)),
+    created_at        TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT peer_rec_no_self CHECK (from_employee_id <> to_employee_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_peer_rec_to
+    ON peer_recommendations(to_employee_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_peer_rec_from
+    ON peer_recommendations(from_employee_id, created_at DESC);
+
+
+-- ──────────────────────────────────────────────────────────────
 -- 20. PROJECTS
 -- ──────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS projects (

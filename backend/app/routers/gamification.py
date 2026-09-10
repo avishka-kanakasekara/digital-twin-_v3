@@ -28,6 +28,11 @@ from app.schemas.gamification import (
     SubmitStepRequest,
     EvaluationResponse,
     ManualReviewRequest,
+    RecommendationsResponse,
+    GenerateChallengeRequest,
+    HintRequest,
+    HintResponse,
+    SkillProgressItem,
 )
 from app.services.gamification_engine import (
     award_xp,
@@ -57,6 +62,84 @@ def _parse_dt(dt_str: str | None) -> datetime | None:
         return None
 
 
+def _passed_step_ids(sb, employee_id: str, step_ids: list[str]) -> set[str]:
+    """Return step IDs the employee has passed (latest evaluation)."""
+    if not step_ids:
+        return set()
+
+    latest_sub_by_step: dict[str, dict] = {}
+    for i in range(0, len(step_ids), 80):
+        chunk = step_ids[i : i + 80]
+        subs = (
+            sb.table("submissions")
+            .select("id, step_id, submitted_at")
+            .eq("employee_id", employee_id)
+            .in_("step_id", chunk)
+            .order("submitted_at", desc=True)
+            .execute()
+            .data
+            or []
+        )
+        for sub in subs:
+            sid = sub.get("step_id")
+            if sid and sid not in latest_sub_by_step:
+                latest_sub_by_step[sid] = sub
+
+    sub_ids = [s["id"] for s in latest_sub_by_step.values()]
+    latest_eval_by_sub: dict[str, dict] = {}
+    for i in range(0, len(sub_ids), 80):
+        chunk = sub_ids[i : i + 80]
+        evals = (
+            sb.table("evaluations")
+            .select("submission_id, pass, evaluated_at")
+            .in_("submission_id", chunk)
+            .order("evaluated_at", desc=True)
+            .execute()
+            .data
+            or []
+        )
+        for ev in evals:
+            sid = ev.get("submission_id")
+            if sid and sid not in latest_eval_by_sub:
+                latest_eval_by_sub[sid] = ev
+
+    passed: set[str] = set()
+    for step_id, sub in latest_sub_by_step.items():
+        ev = latest_eval_by_sub.get(sub["id"])
+        if ev and ev.get("pass"):
+            passed.add(step_id)
+    return passed
+
+
+def _compute_streak_from_days(active_days: set[str]) -> tuple[int, int]:
+    """Compute current + longest streak from YYYY-MM-DD activity day keys."""
+    if not active_days:
+        return 0, 0
+    today = _utc_now().date()
+    current = 0
+    cursor = today
+    # Allow streak to count yesterday if no activity yet today
+    if cursor.strftime("%Y-%m-%d") not in active_days:
+        cursor = today - timedelta(days=1)
+    while cursor.strftime("%Y-%m-%d") in active_days:
+        current += 1
+        cursor -= timedelta(days=1)
+
+    longest = 0
+    run = 0
+    sorted_days = sorted(active_days)
+    prev = None
+    for day_str in sorted_days:
+        day = datetime.strptime(day_str, "%Y-%m-%d").date()
+        if prev and day == prev + timedelta(days=1):
+            run += 1
+        else:
+            run = 1
+        longest = max(longest, run)
+        prev = day
+    return current, longest
+
+
 # ─── Player Profile ───────────────────────────────────────────
 
 @router.get("/{employee_id}/profile", response_model=GamificationProfileResponse)
@@ -72,6 +155,33 @@ def get_gamification_profile(employee_id: str):
         refreshed = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
         if refreshed.data:
             profile = refreshed.data[0]
+    except Exception:
+        pass
+
+    # Recompute streak from live XP ledger so hero stats aren't seeded leftovers
+    try:
+        since = (_utc_now() - timedelta(days=180)).isoformat()
+        tx_rows = sb.table("xp_transactions").select("amount, created_at").eq(
+            "employee_id", employee_id
+        ).gte("created_at", since).execute().data or []
+        active_days = set()
+        for tx in tx_rows:
+            if int(tx.get("amount") or 0) <= 0:
+                continue
+            dt = _parse_dt(tx.get("created_at"))
+            if dt:
+                active_days.add(dt.strftime("%Y-%m-%d"))
+        live_streak, live_longest = _compute_streak_from_days(active_days)
+        profile = {
+            **profile,
+            "streak_days": live_streak,
+            "longest_streak": max(live_longest, live_streak),
+        }
+        sb.table("gamification_profiles").update({
+            "streak_days": live_streak,
+            "longest_streak": max(live_longest, live_streak),
+            "updated_at": _utc_now().isoformat(),
+        }).eq("employee_id", employee_id).execute()
     except Exception:
         pass
 
@@ -186,41 +296,124 @@ def get_leaderboard(
 
 @router.get("/{employee_id}/challenges", response_model=list[ChallengeResponse])
 def get_challenges(employee_id: str):
-    """Get active challenges with employee progress."""
+    """Get active challenges with employee progress (batched — no N+1)."""
     sb = get_supabase_admin()
 
-    challenges = sb.table("challenges").select("*").eq("is_active", True).order("end_date").execute()
+    challenges = (
+        sb.table("challenges")
+        .select("*")
+        .eq("is_active", True)
+        .order("end_date")
+        .execute()
+        .data
+        or []
+    )
+    if not challenges:
+        return []
+
+    challenge_ids = [ch["id"] for ch in challenges]
+
+    emp_prog = (
+        sb.table("challenge_progress")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .in_("challenge_id", challenge_ids)
+        .execute()
+        .data
+        or []
+    )
+    prog_by_ch = {p["challenge_id"]: p for p in emp_prog}
+
+    all_prog = (
+        sb.table("challenge_progress")
+        .select("challenge_id")
+        .in_("challenge_id", challenge_ids)
+        .execute()
+        .data
+        or []
+    )
+    part_counts: dict[str, int] = {}
+    for row in all_prog:
+        cid = row.get("challenge_id")
+        if cid:
+            part_counts[cid] = part_counts.get(cid, 0) + 1
+
+    steps = (
+        sb.table("challenge_steps")
+        .select("id, challenge_id")
+        .in_("challenge_id", challenge_ids)
+        .execute()
+        .data
+        or []
+    )
+    steps_by_ch: dict[str, list] = {}
+    all_step_ids: list[str] = []
+    for s in steps:
+        steps_by_ch.setdefault(s["challenge_id"], []).append(s)
+        all_step_ids.append(s["id"])
+
+    passed_by_step: dict[str, bool] = {}
+    if all_step_ids:
+        latest_sub_by_step: dict[str, dict] = {}
+        for i in range(0, len(all_step_ids), 80):
+            chunk = all_step_ids[i : i + 80]
+            subs = (
+                sb.table("submissions")
+                .select("id, step_id, submitted_at")
+                .eq("employee_id", employee_id)
+                .in_("step_id", chunk)
+                .order("submitted_at", desc=True)
+                .execute()
+                .data
+                or []
+            )
+            for sub in subs:
+                sid = sub.get("step_id")
+                if sid and sid not in latest_sub_by_step:
+                    latest_sub_by_step[sid] = sub
+
+        sub_ids = [s["id"] for s in latest_sub_by_step.values()]
+        latest_eval_by_sub: dict[str, dict] = {}
+        for i in range(0, len(sub_ids), 80):
+            chunk = sub_ids[i : i + 80]
+            evals = (
+                sb.table("evaluations")
+                .select("submission_id, pass, evaluated_at")
+                .in_("submission_id", chunk)
+                .order("evaluated_at", desc=True)
+                .execute()
+                .data
+                or []
+            )
+            for ev in evals:
+                sid = ev.get("submission_id")
+                if sid and sid not in latest_eval_by_sub:
+                    latest_eval_by_sub[sid] = ev
+
+        for step_id, sub in latest_sub_by_step.items():
+            ev = latest_eval_by_sub.get(sub["id"])
+            passed_by_step[step_id] = bool(ev and ev.get("pass"))
 
     result_list = []
-    for ch in challenges.data or []:
-        prog_result = sb.table("challenge_progress").select("*").eq(
-            "challenge_id", ch["id"]
-        ).eq("employee_id", employee_id).execute()
-        prog = prog_result.data[0] if prog_result.data else None
+    now = _utc_now()
+    for ch in challenges:
+        cid = ch["id"]
+        ch_steps = steps_by_ch.get(cid, [])
+        prog = prog_by_ch.get(cid)
 
-        part_result = sb.table("challenge_progress").select("id", count="exact").eq(
-            "challenge_id", ch["id"]
-        ).execute()
-        part_count = part_result.count or 0
+        if ch_steps:
+            total = len(ch_steps)
+            passed = sum(1 for s in ch_steps if passed_by_step.get(s["id"]))
+            progress = int((passed / total) * 100) if total else 0
+            completed = total > 0 and passed == total
+        else:
+            progress = prog["progress"] if prog else 0
+            completed = bool(prog.get("completed")) if prog else False
 
         days_left = 0
         end_date = _parse_dt(ch.get("end_date"))
         if end_date:
-            delta = end_date - _utc_now()
-            days_left = max(0, delta.days)
-
-        steps_count_res = sb.table("challenge_steps").select("id", count="exact").eq(
-            "challenge_id", ch["id"]
-        ).execute()
-        has_steps = (steps_count_res.count or 0) > 0
-
-        if has_steps:
-            step_progress, step_completed = _compute_challenge_progress(sb, employee_id, ch["id"])
-            progress = step_progress
-            completed = step_completed
-        else:
-            progress = prog["progress"] if prog else 0
-            completed = prog.get("completed", False) if prog else False
+            days_left = max(0, (end_date - now).days)
 
         result_list.append(ChallengeResponse(
             id=ch["id"],
@@ -235,7 +428,7 @@ def get_challenges(employee_id: str):
             days_left=days_left,
             progress=progress,
             completed=completed,
-            participants=part_count,
+            participants=part_counts.get(cid, 0),
             is_active=ch.get("is_active", True),
         ))
 
@@ -524,15 +717,11 @@ def get_recent_activity(employee_id: str, limit: int = 10):
 
 @router.get("/{employee_id}/streak", response_model=StreakResponse)
 def get_streak_calendar(employee_id: str, days: int = 42):
-    """Get activity streak calendar data (last N days)."""
+    """Get activity streak calendar from live XP transactions (not seeded profile fields)."""
     sb = get_supabase_admin()
+    ensure_profile(sb, employee_id)
 
-    profile_result = sb.table("gamification_profiles").select("streak_days, longest_streak").eq(
-        "employee_id", employee_id
-    ).execute()
-    profile = profile_result.data[0] if profile_result.data else {}
-
-    since = (_utc_now() - timedelta(days=days)).isoformat()
+    since = (_utc_now() - timedelta(days=max(days, 120))).isoformat()
     result = sb.table("xp_transactions").select("amount, created_at").eq(
         "employee_id", employee_id
     ).gte("created_at", since).execute()
@@ -544,7 +733,20 @@ def get_streak_calendar(employee_id: str, days: int = 42):
         dt = _parse_dt(tx["created_at"])
         if dt:
             day_key = dt.strftime("%Y-%m-%d")
-            daily_xp[day_key] = daily_xp.get(day_key, 0) + tx["amount"]
+            daily_xp[day_key] = daily_xp.get(day_key, 0) + int(tx["amount"])
+
+    active_days = {day for day, xp in daily_xp.items() if xp > 0}
+    streak_days, longest_streak = _compute_streak_from_days(active_days)
+
+    # Keep profile in sync with ledger-derived streak so ranks/UI stay consistent
+    try:
+        sb.table("gamification_profiles").update({
+            "streak_days": streak_days,
+            "longest_streak": max(longest_streak, streak_days),
+            "updated_at": _utc_now().isoformat(),
+        }).eq("employee_id", employee_id).execute()
+    except Exception:
+        pass
 
     calendar = []
     for i in range(days - 1, -1, -1):
@@ -552,60 +754,148 @@ def get_streak_calendar(employee_id: str, days: int = 42):
         day_str = d.strftime("%Y-%m-%d")
         xp = daily_xp.get(day_str, 0)
         intensity = 3 if xp >= 200 else 2 if xp >= 100 else 1 if xp > 0 else 0
-        calendar.append(StreakCalendarDay(date=day_str, intensity=intensity))
+        calendar.append(StreakCalendarDay(date=day_str, intensity=intensity, xp=xp))
 
     return StreakResponse(
-        streak_days=profile.get("streak_days", 0),
-        longest_streak=profile.get("longest_streak", 0),
+        streak_days=streak_days,
+        longest_streak=max(longest_streak, streak_days),
         calendar=calendar,
     )
 
 
 @router.get("/{employee_id}/missions")
 def get_daily_missions(employee_id: str):
-    """Daily missions derived from live challenges and today's activity — not fake checkboxes."""
+    """
+    Today's missions from live challenge step progress + today's XP ledger.
+    Does not use seeded challenge_progress rows.
+    """
     sb = get_supabase_admin()
     ensure_profile(sb, employee_id)
 
     today_start = datetime.combine(_utc_now().date(), datetime.min.time()).replace(tzinfo=timezone.utc).isoformat()
-    today_tx = sb.table("xp_transactions").select("category").eq(
+    today_tx = sb.table("xp_transactions").select("amount, category, reason").eq(
         "employee_id", employee_id
-    ).gte("created_at", today_start).execute()
-    cats = {tx.get("category") for tx in (today_tx.data or [])}
+    ).gte("created_at", today_start).execute().data or []
+    cats = {tx.get("category") for tx in today_tx}
+    today_xp = sum(int(tx.get("amount") or 0) for tx in today_tx if int(tx.get("amount") or 0) > 0)
 
-    challenges = sb.table("challenges").select("*").eq("is_active", True).order("end_date").limit(3).execute()
-    missions = []
-    for ch in challenges.data or []:
-        prog = sb.table("challenge_progress").select("progress, completed").eq(
-            "employee_id", employee_id
-        ).eq("challenge_id", ch["id"]).execute()
-        p = prog.data[0] if prog.data else {}
+    challenges = (
+        sb.table("challenges")
+        .select("id, title, xp_reward, end_date, is_active, type, category")
+        .eq("is_active", True)
+        .order("end_date")
+        .execute()
+        .data
+        or []
+    )
+    challenge_ids = [ch["id"] for ch in challenges]
+    steps = []
+    if challenge_ids:
+        steps = (
+            sb.table("challenge_steps")
+            .select("id, challenge_id, step_order, title, xp_value")
+            .in_("challenge_id", challenge_ids)
+            .order("step_order")
+            .execute()
+            .data
+            or []
+        )
+    steps_by_ch: dict[str, list] = {}
+    all_step_ids: list[str] = []
+    for s in steps:
+        steps_by_ch.setdefault(s["challenge_id"], []).append(s)
+        all_step_ids.append(s["id"])
+
+    passed = _passed_step_ids(sb, employee_id, all_step_ids)
+
+    missions: list[dict] = []
+    for ch in challenges:
+        ch_steps = steps_by_ch.get(ch["id"], [])
+        if ch_steps:
+            total = len(ch_steps)
+            passed_n = sum(1 for s in ch_steps if s["id"] in passed)
+            progress = int((passed_n / total) * 100) if total else 0
+            completed = passed_n == total and total > 0
+            next_step = next((s for s in ch_steps if s["id"] not in passed), None)
+            remaining_xp = sum(int(s.get("xp_value") or 0) for s in ch_steps if s["id"] not in passed)
+        else:
+            # Legacy challenges without steps: do NOT trust seeded challenge_progress %.
+            # Only treat as complete when an XP ledger entry proves completion.
+            title = str(ch.get("title") or "")
+            completed = any(
+                title.lower() in str(tx.get("reason") or "").lower()
+                and int(tx.get("amount") or 0) > 0
+                for tx in (
+                    sb.table("xp_transactions")
+                    .select("amount, reason")
+                    .eq("employee_id", employee_id)
+                    .ilike("reason", f"%{title[:40]}%")
+                    .limit(5)
+                    .execute()
+                    .data
+                    or []
+                )
+            ) if title else False
+            progress = 100 if completed else 0
+            next_step = None
+            remaining_xp = 0 if completed else int(ch.get("xp_reward") or 0)
+
+        if completed:
+            continue
+
+        end_dt = _parse_dt(ch.get("end_date"))
+        days_left = max(0, (end_dt - _utc_now()).days) if end_dt else None
         missions.append({
             "id": ch["id"],
             "name": ch["title"],
-            "xp": ch.get("xp_reward", 0),
-            "completed": bool(p.get("completed")),
-            "progress": p.get("progress", 0),
+            "xp": remaining_xp or int(ch.get("xp_reward") or 0),
+            "completed": False,
+            "progress": progress,
             "type": "challenge",
+            "category": ch.get("category"),
+            "days_left": days_left,
+            "next_step": (next_step or {}).get("title"),
+            "steps_passed": sum(1 for s in ch_steps if s["id"] in passed) if ch_steps else 0,
+            "steps_total": len(ch_steps),
         })
 
+    # Prefer soonest deadlines / most in-progress work
+    missions.sort(key=lambda m: (
+        0 if (m.get("progress") or 0) > 0 else 1,
+        m.get("days_left") if m.get("days_left") is not None else 999,
+        -int(m.get("progress") or 0),
+    ))
+    missions = missions[:4]
+
+    checked_in = "daily_login" in cats or any(
+        "daily activity" in str(tx.get("reason") or "").lower() for tx in today_tx
+    )
     missions.append({
         "id": "daily_login",
         "name": "Daily check-in bonus",
         "xp": 25,
-        "completed": "daily_login" in cats,
-        "progress": 100 if "daily_login" in cats else 0,
+        "completed": checked_in,
+        "progress": 100 if checked_in else 0,
         "type": "daily",
+        "detail": f"+{today_xp} XP earned today" if today_xp else "Open the hub to claim today's bonus",
     })
+
+    learned = bool(cats & {"course_completed", "certification_added", "learning", "learning_path"})
     missions.append({
         "id": "learning_today",
         "name": "Complete a learning activity",
         "xp": 150,
-        "completed": "course_completed" in cats or "certification_added" in cats,
-        "progress": 100 if ("course_completed" in cats or "certification_added" in cats) else 0,
+        "completed": learned,
+        "progress": 100 if learned else 0,
         "type": "learning",
+        "detail": "Finish a Learning Hub course or certification",
     })
-    return missions[:5]
+
+    return {
+        "missions": missions,
+        "today_xp": today_xp,
+        "generated_at": _utc_now().isoformat(),
+    }
 
 
 # ─── Reward Store ──────────────────────────────────────────────
@@ -1080,4 +1370,70 @@ def submit_step(employee_id: str, challenge_id: str, step_id: str, data: SubmitS
         feedback=result.feedback,
         xp_awarded=result.xp_awarded,
         status=final_status,
+        criteria=result.criteria,
+        strengths=result.strengths,
+        improvements=result.improvements,
     )
+
+
+# ─── Recommendations ──────────────────────────────────────────
+
+@router.get("/{employee_id}/recommendations", response_model=RecommendationsResponse)
+def get_recommendations(employee_id: str):
+    """Get personalized challenge recommendations based on the employee's Digital Twin."""
+    sb = get_supabase_admin()
+    from app.services.challenge_recommender import get_recommendations as _get_recs
+    result = _get_recs(sb, employee_id)
+    return RecommendationsResponse(**result)
+
+
+# ─── AI Challenge Generation ─────────────────────────────────
+
+@router.post("/admin/challenges/generate")
+def generate_challenge(data: GenerateChallengeRequest):
+    """AI-generate a complete challenge from goal/skill/difficulty. Returns preview for review."""
+    from app.services.challenge_generator import generate_challenge as _gen
+    result = _gen(
+        goal=data.goal,
+        target_skill=data.target_skill,
+        difficulty=data.difficulty,
+        duration=data.duration,
+        style=data.style,
+    )
+    if result.get("error"):
+        raise HTTPException(status_code=422, detail=result["error"])
+    return result
+
+
+# ─── Progressive Hints ────────────────────────────────────────
+
+@router.post("/{employee_id}/challenges/{challenge_id}/steps/{step_id}/hint", response_model=HintResponse)
+def get_step_hint(employee_id: str, challenge_id: str, step_id: str, data: HintRequest):
+    """Get a progressive hint for a challenge step. Higher levels give more guidance but penalize bonus XP."""
+    sb = get_supabase_admin()
+
+    step_res = sb.table("challenge_steps").select("title, instructions, xp_value").eq("id", step_id).execute()
+    if not step_res.data:
+        raise HTTPException(status_code=404, detail="Step not found")
+    step = step_res.data[0]
+
+    hint_level = max(1, min(3, data.hint_level))
+
+    from app.services.challenge_generator import generate_hint
+    result = generate_hint(
+        step_title=step["title"],
+        instructions=step["instructions"],
+        hint_level=hint_level,
+        max_xp=step.get("xp_value", 200),
+    )
+    return HintResponse(**result)
+
+
+# ─── Skill Progress ───────────────────────────────────────────
+
+@router.get("/{employee_id}/skill-progress", response_model=list[SkillProgressItem])
+def get_skill_progress(employee_id: str):
+    """Get employee skill progress data for gamification display."""
+    sb = get_supabase_admin()
+    from app.services.challenge_recommender import get_skill_progress as _get_sp
+    return _get_sp(sb, employee_id)

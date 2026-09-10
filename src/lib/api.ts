@@ -37,7 +37,13 @@ async function fetchAPI<T>(
       throw new Error(message);
     }
 
-    return response.json();
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    const text = await response.text();
+    if (!text) return undefined as T;
+    return JSON.parse(text) as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error('Request timed out. The server may still be processing — refresh in a moment.');
@@ -151,6 +157,101 @@ export interface TwinSummary {
   summary_text: string;
 }
 
+export interface TwinFocusItem {
+  id: string;
+  hub: string;
+  href: string;
+  title: string;
+  detail: string;
+  cta: string;
+  priority: string;
+  done: boolean;
+  action?: string;
+  meta?: string;
+}
+
+export interface TwinCommandCenter {
+  employee_id: string;
+  employee_name?: string;
+  role?: string;
+  department?: string;
+  generated_at: string;
+  checked_in_today: boolean;
+  twin: {
+    health: number;
+    completeness: number;
+    ai_confidence: number;
+    knowledge_freshness: string;
+    knowledge_sources: number;
+    skills: number;
+    projects_total: number;
+    projects_active: number;
+    missing: string[];
+    quality: string;
+  };
+  career: {
+    has_goal: boolean;
+    target_role?: string | null;
+    timeline?: string | null;
+    readiness_score: number;
+    next_action?: { title?: string; description?: string; kind?: string; xp_reward?: number; estimated_hours?: number } | null;
+    top_gap?: { skill?: string; gap?: number; current_level?: number; target_level?: number; priority?: string } | null;
+    open_steps: number;
+  };
+  learning: {
+    courses_completed: number;
+    courses_in_progress: number;
+    active_course?: string | null;
+    active_path?: { id?: string; title?: string; progress?: number } | null;
+    paths: number;
+  };
+  gamification: {
+    level: number;
+    xp: number;
+    next_level_xp: number;
+    title: string;
+    streak_days: number;
+    company_rank?: number | null;
+    rank_pct?: number | null;
+    next_mission?: { id?: string; title?: string; xp?: number; progress?: number } | null;
+    checked_in_today: boolean;
+  };
+  social: {
+    received: number;
+    given: number;
+    latest_from?: string | null;
+  };
+  weekly_focus: TwinFocusItem[];
+  activity: Array<{ amount: number; reason: string; category: string; emoji?: string; created_at?: string }>;
+}
+
+export interface PeerRecommendation {
+  id: string;
+  from_employee_id: string;
+  to_employee_id: string;
+  category: string;
+  skill?: string | null;
+  message: string;
+  rating?: number | null;
+  created_at?: string | null;
+  from_employee_name?: string | null;
+  from_employee_role?: string | null;
+  from_employee_initials?: string | null;
+  from_employee_department?: string | null;
+  to_employee_name?: string | null;
+  to_employee_role?: string | null;
+  to_employee_initials?: string | null;
+  to_employee_department?: string | null;
+  xp_awarded?: number | null;
+}
+
+export interface PeerRecommendationSummary {
+  received_count: number;
+  given_count: number;
+  average_rating?: number | null;
+  top_categories: string[];
+}
+
 export const employeeAPI = {
   list: (params?: { skip?: number; limit?: number; department?: string }) =>
     fetchAPI<{ employees: Employee[]; total: number }>(
@@ -168,6 +269,15 @@ export const employeeAPI = {
   
   getTwinSummary: (id: string) =>
     fetchAPI<TwinSummary>(`/api/employees/${id}/twin-summary`),
+
+  getCommandCenter: (id: string) =>
+    fetchAPI<TwinCommandCenter>(`/api/employees/${id}/command-center`),
+
+  dailyCheckin: (id: string) =>
+    fetchAPI<{ already: boolean; xp_awarded: number; command_center: TwinCommandCenter }>(
+      `/api/employees/${id}/daily-checkin`,
+      { method: 'POST' },
+    ),
   
   getSkills: (id: string) =>
     fetchAPI<Skill[]>(`/api/employees/${id}/skills`),
@@ -257,6 +367,35 @@ export const employeeAPI = {
   
   getRecognitions: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/recognitions`),
+
+  getPeerRecommendations: (id: string) =>
+    fetchAPI<PeerRecommendation[]>(`/api/employees/${id}/peer-recommendations`),
+
+  getPeerRecommendationsSent: (id: string) =>
+    fetchAPI<PeerRecommendation[]>(`/api/employees/${id}/peer-recommendations/sent`),
+
+  getPeerRecommendationsSummary: (id: string) =>
+    fetchAPI<PeerRecommendationSummary>(`/api/employees/${id}/peer-recommendations/summary`),
+
+  createPeerRecommendation: (
+    fromEmployeeId: string,
+    data: {
+      to_employee_id: string;
+      message: string;
+      category?: string;
+      skill?: string;
+      rating?: number;
+    },
+  ) =>
+    fetchAPI<PeerRecommendation>(`/api/employees/${fromEmployeeId}/peer-recommendations`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deletePeerRecommendation: (fromEmployeeId: string, recommendationId: string) =>
+    fetchAPI<void>(`/api/employees/${fromEmployeeId}/peer-recommendations/${recommendationId}`, {
+      method: 'DELETE',
+    }),
   
   getCertifications: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/certifications`),
@@ -346,7 +485,7 @@ export const gamificationAPI = {
     fetchAPI<any[]>(`/api/gamification/leaderboard${buildQueryString(params)}`),
   
   getChallenges: (employeeId: string) =>
-    fetchAPI<Challenge[]>(`/api/gamification/${employeeId}/challenges`),
+    fetchAPI<Challenge[]>(`/api/gamification/${employeeId}/challenges`, { timeoutMs: 45000 }),
   
   updateChallengeProgress: (employeeId: string, challengeId: string, progress: number) =>
     fetchAPI<ChallengeProgress>(`/api/gamification/${employeeId}/challenges/${challengeId}/progress`, {
@@ -384,6 +523,7 @@ export const gamificationAPI = {
     fetchAPI<any>(`/api/gamification/admin/challenges`, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeoutMs: 45000,
     }),
     
   getChallengeDetail: (employeeId: string, challengeId: string) =>
@@ -422,13 +562,35 @@ export const gamificationAPI = {
       method: 'POST',
       body: JSON.stringify({ employee_id: employeeId, challenge_id: challengeId, approve }),
     }),
+
+  // ─── v2: Recommendations & AI ──────────────────────────────
+
+  getRecommendations: (employeeId: string) =>
+    fetchAPI<any>(`/api/gamification/${employeeId}/recommendations`),
+
+  generateChallenge: (data: { goal: string; target_skill?: string; difficulty?: string; duration?: string; style?: string }) =>
+    fetchAPI<any>(`/api/gamification/admin/challenges/generate`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: 60000,
+    }),
+
+  getHint: (employeeId: string, challengeId: string, stepId: string, hintLevel: number) =>
+    fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/steps/${stepId}/hint`, {
+      method: 'POST',
+      body: JSON.stringify({ hint_level: hintLevel }),
+      timeoutMs: 30000,
+    }),
+
+  getSkillProgress: (employeeId: string) =>
+    fetchAPI<any[]>(`/api/gamification/${employeeId}/skill-progress`),
 };
 
 // ==================== LEARNING ====================
 
 export interface LearningPath {
   id: string;
-  employee_id: string;
+  employee_id?: string;
   title: string;
   description: string;
   progress: number;
@@ -436,12 +598,14 @@ export interface LearningPath {
   completed_courses: number;
   estimated_hours: number;
   due_date?: string;
-  tags: any;
+  tags: string[];
   color: string;
   is_ai_recommended: boolean;
   platform: string;
   instructor: string;
-  created_at: string;
+  created_at?: string;
+  course_ids?: string[];
+  ai_rationale?: string;
 }
 
 export interface Course {
@@ -452,10 +616,68 @@ export interface Course {
   level: string;
   rating: number;
   enrolled_count: number;
-  tags: any;
+  tags: string[];
   emoji: string;
   color: string;
   description: string;
+  status?: string;
+  progress?: number;
+  relevance?: number;
+}
+
+export interface LearnerProfile {
+  name: string;
+  hours_this_month: number;
+  hours_this_year: number;
+  courses_completed: number;
+  courses_in_progress: number;
+  current_streak: number;
+  longest_streak?: number;
+  learning_score: number;
+  target_role?: string | null;
+}
+
+export interface LearningFeedItem {
+  id: string;
+  type: string;
+  title: string;
+  source: string;
+  read_time: string;
+  relevance: number;
+  tags: string[];
+  emoji?: string;
+  color?: string;
+  published?: string;
+}
+
+export interface SkillGapRecommended {
+  id?: string | null;
+  title: string;
+}
+
+export interface SkillGap {
+  skill: string;
+  current_level: number;
+  target_level: number;
+  gap: number;
+  priority: string;
+  category?: string;
+  color?: string;
+  rationale?: string;
+  recommended_courses?: SkillGapRecommended[];
+  recommended_paths?: SkillGapRecommended[];
+}
+
+export interface SkillGapsResponse {
+  target_role?: string | null;
+  gaps: SkillGap[];
+}
+
+export interface LearningChatMessage {
+  id?: string;
+  role: 'user' | 'assistant' | 'system' | string;
+  content: string;
+  created_at?: string;
 }
 
 export interface Certification {
@@ -477,54 +699,74 @@ export interface Certification {
 
 export const learningAPI = {
   getProfile: (employeeId: string) =>
-    fetchAPI<any>(`/api/learning/${employeeId}/profile`),
-  
+    fetchAPI<LearnerProfile>(`/api/learning/${employeeId}/profile`),
+
   getPaths: (employeeId: string) =>
     fetchAPI<LearningPath[]>(`/api/learning/${employeeId}/paths`),
-  
+
   updatePathProgress: (employeeId: string, pathId: string, progress: number) =>
-    fetchAPI<LearningPath>(`/api/learning/${employeeId}/paths/${pathId}/progress`, {
+    fetchAPI<{ status: string; progress: number }>(`/api/learning/${employeeId}/paths/${pathId}/progress`, {
       method: 'POST',
       body: JSON.stringify({ progress }),
     }),
-  
+
   getSkillGaps: (employeeId: string) =>
-    fetchAPI<any>(`/api/learning/${employeeId}/skill-gaps`),
-  
+    fetchAPI<SkillGapsResponse>(`/api/learning/${employeeId}/skill-gaps`),
+
   getCertifications: (employeeId: string) =>
     fetchAPI<Certification[]>(`/api/learning/${employeeId}/certifications`),
-  
+
   addCertification: (employeeId: string, data: Omit<Certification, 'id' | 'employee_id' | 'created_at'>) =>
     fetchAPI<Certification>(`/api/learning/${employeeId}/certifications`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   getFeed: (employeeId: string) =>
-    fetchAPI<any[]>(`/api/learning/${employeeId}/feed`),
-  
-  getCourses: (params?: { search?: string; level?: string; employee_id?: string }) =>
+    fetchAPI<LearningFeedItem[]>(`/api/learning/${employeeId}/feed`),
+
+  refreshFeed: (employeeId: string) =>
+    fetchAPI<LearningFeedItem[]>(`/api/learning/${employeeId}/feed/refresh`, {
+      method: 'POST',
+      timeoutMs: 60000,
+    }),
+
+  getCourses: (params?: { search?: string; level?: string; employee_id?: string; ai_recommended?: boolean }) =>
     fetchAPI<Course[]>(`/api/learning/courses${buildQueryString(params)}`),
-  
+
   enrollCourse: (employeeId: string, courseId: string) =>
-    fetchAPI<any>(`/api/learning/${employeeId}/courses/${courseId}/enroll`, {
+    fetchAPI<{ status: string; course_id: string }>(`/api/learning/${employeeId}/courses/${courseId}/enroll`, {
       method: 'POST',
     }),
-  
+
   updateCourseProgress: (employeeId: string, courseId: string, progress: number) =>
-    fetchAPI<any>(`/api/learning/${employeeId}/courses/${courseId}`, {
+    fetchAPI<{ status: string; progress: number; completed: boolean }>(`/api/learning/${employeeId}/courses/${courseId}`, {
       method: 'PATCH',
       body: JSON.stringify({ progress }),
     }),
-  
+
   getSchedule: (employeeId: string) =>
     fetchAPI<any>(`/api/learning/${employeeId}/schedule`),
-  
+
   getHours: (employeeId: string) =>
     fetchAPI<any>(`/api/learning/${employeeId}/hours`),
 
-  generatePaths: (employeeId: string) =>
-    fetchAPI<LearningPath[]>(`/api/learning/${employeeId}/paths/generate`, { method: 'POST' }),
+  generatePaths: (employeeId: string, goal?: string) =>
+    fetchAPI<LearningPath[]>(`/api/learning/${employeeId}/paths/generate`, {
+      method: 'POST',
+      body: JSON.stringify(goal ? { goal } : {}),
+      timeoutMs: 90000,
+    }),
+
+  sendChatMessage: (employeeId: string, message: string) =>
+    fetchAPI<LearningChatMessage>(`/api/learning/${employeeId}/ai/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+      timeoutMs: 60000,
+    }),
+
+  getChatHistory: (employeeId: string) =>
+    fetchAPI<LearningChatMessage[]>(`/api/learning/${employeeId}/ai/chat/history`),
 };
 
 // ==================== CAREER ====================

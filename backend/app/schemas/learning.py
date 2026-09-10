@@ -1,12 +1,10 @@
 from __future__ import annotations
 """
-Learning schemas — paths, courses, certifications, feed, schedule.
+Learning schemas — paths, courses, certifications, feed, schedule, AI coach.
 """
 
-from typing import Optional
-from pydantic import BaseModel
-
-from datetime import datetime
+from typing import Optional, Any
+from pydantic import BaseModel, Field
 
 
 class LearnerProfileResponse(BaseModel):
@@ -37,17 +35,23 @@ class LearningPathResponse(BaseModel):
     is_ai_recommended: bool = False
     platform: Optional[str] = None
     instructor: Optional[str] = None
+    course_ids: Optional[list] = None
+    ai_rationale: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
 
 class CourseProgressUpdate(BaseModel):
-    progress: int
+    progress: int = Field(ge=0, le=100)
 
 
 class LearningPathProgressUpdate(BaseModel):
-    progress: int
+    progress: int = Field(ge=0, le=100)
     completed_courses: Optional[int] = None
+
+
+class PathGenerateRequest(BaseModel):
+    goal: Optional[str] = Field(default=None, max_length=200)
 
 
 class CourseResponse(BaseModel):
@@ -62,9 +66,9 @@ class CourseResponse(BaseModel):
     emoji: Optional[str] = None
     color: Optional[str] = None
     description: Optional[str] = None
-    # Per-employee fields (from junction table)
     status: str = "available"
     progress: int = 0
+    relevance: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -128,6 +132,11 @@ class MonthlyHoursResponse(BaseModel):
     hours: int = 0
 
 
+class RecommendedRef(BaseModel):
+    id: Optional[str] = None
+    title: str
+
+
 class SkillGapItem(BaseModel):
     skill: str
     current_level: int = 0
@@ -136,8 +145,22 @@ class SkillGapItem(BaseModel):
     priority: str = "Medium"
     category: str | None = None
     color: str | None = None
+    rationale: str | None = None
+    recommended_courses: list[RecommendedRef] = []
+    recommended_paths: list[RecommendedRef] = []
 
 
 class SkillGapsResponse(BaseModel):
     target_role: str | None = None
     gaps: list[SkillGapItem] = []
+
+
+class ChatMessageCreate(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class ChatMessageResponse(BaseModel):
+    id: Optional[str] = None
+    role: str
+    content: str
+    created_at: Optional[str] = None

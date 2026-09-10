@@ -231,6 +231,21 @@
   min-width: 0;
 }
 
+.lh-career-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(14, 165, 233, 0.25);
+  background: rgba(14, 165, 233, 0.08);
+  color: #0369a1;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .lh-hero__kicker {
   display: inline-flex;
   align-items: center;
@@ -982,3 +997,109 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+
+/* ─── Inline notices ─────────────────────────────────────── */
+.lh-inline-error {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-danger);
+  margin: 0.35rem 0;
+}
+
+.lh-inline-ok {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #047857;
+  margin: 0.35rem 0;
+}
+
+/* ─── AI Coach ───────────────────────────────────────────── */
+.lh-coach {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lh-coach__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lh-coach__goal-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .lh-coach__goal-row {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .lh-coach__goal-row .lh-search-input {
+    flex: 1;
+  }
+}
+
+.lh-coach__thread {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  background: rgba(248, 250, 252, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+}
+
+.lh-coach__bubble {
+  max-width: 92%;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.lh-coach__bubble--user {
+  align-self: flex-end;
+  background: var(--lh-accent-soft);
+  border: 1px solid rgba(14, 165, 233, 0.25);
+}
+
+.lh-coach__bubble--assistant {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.lh-coach__role {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
+.lh-coach__composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .lh-coach__composer {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .lh-coach__composer .lh-search-input {
+    flex: 1;
+  }
+}
+

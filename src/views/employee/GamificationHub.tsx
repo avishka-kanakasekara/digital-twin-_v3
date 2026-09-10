@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, Loader2, CheckCircle2, Plus, X, ChevronRight, FileText, Link, Code, Image, Upload, AlertCircle, ArrowLeft, Trash2, Sparkles } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
+import { Trophy, Flame, Crown, Star, Zap, Gift, Target, Award, TrendingUp, TrendingDown, Minus, Calendar, Loader2, CheckCircle2, Plus, X, ChevronRight, FileText, Link, Code, Image, Upload, AlertCircle, ArrowLeft, Trash2, Sparkles, Bot } from 'lucide-react';
 import './GamificationHub.css';
 import { gamificationAPI } from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { Card } from '../../components/Card';
 import { Modal } from '../../components/Modal';
 import { Button } from '../../components/Button';
+import { GamificationRecommendations } from './GamificationRecommendations';
+import { GamificationMomentum } from './GamificationMomentum';
+import { GamificationChallengeBuilder } from './GamificationChallengeBuilder';
 
 const SectionHead: React.FC<{
   icon: React.ReactNode;
@@ -51,6 +56,42 @@ const defaultChallengeForm = () => ({
 
 const defaultStep = () => ({ title: '', instructions: '', submission_type: 'text', evaluation_rubric: '', xp_value: 200, reference_url: '' });
 
+/** AI sometimes returns arrays/objects for text fields — normalize to a string. */
+const asText = (value: unknown, fallback = ''): string => {
+  if (value == null) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((item, idx) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          const criterion = (item as any).criterion || (item as any).text || (item as any).description || (item as any).title;
+          return criterion ? String(criterion) : JSON.stringify(item);
+        }
+        return `${idx + 1}. ${String(item)}`;
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.description === 'string') return obj.description;
+    try { return JSON.stringify(value); } catch { return fallback; }
+  }
+  return fallback;
+};
+
+const normalizeStep = (s: any) => ({
+  title: asText(s?.title),
+  instructions: asText(s?.instructions),
+  submission_type: asText(s?.submission_type, 'text') || 'text',
+  evaluation_rubric: asText(s?.evaluation_rubric),
+  xp_value: Number(s?.xp_value) || 200,
+  reference_url: asText(s?.reference_url),
+});
+
 const HubNotice: React.FC<{ type: 'success' | 'error' | 'info'; message: string; onDismiss?: () => void }> = ({ type, message, onDismiss }) => (
   <div className={`hub-notice hub-notice-${type}`}>
     {type === 'success' ? <CheckCircle2 size={16} /> : type === 'error' ? <AlertCircle size={16} /> : <Loader2 size={16} />}
@@ -61,8 +102,8 @@ const HubNotice: React.FC<{ type: 'success' | 'error' | 'info'; message: string;
   </div>
 );
 
-// ─── Create Challenge Modal (with step builder) ───────────────
 const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onCreated: () => void; onNotice: (msg: string, type: 'success' | 'error') => void }> = ({ isOpen, onClose, onCreated, onNotice }) => {
+  const [mode, setMode] = useState<'manual' | 'ai'>('manual');
   const [formData, setFormData] = useState(defaultChallengeForm());
   const [steps, setSteps] = useState([defaultStep()]);
   const [loading, setLoading] = useState(false);
@@ -74,12 +115,34 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
     setFormData(defaultChallengeForm());
     setSteps([defaultStep()]);
     setFormError(null);
+    setMode('manual');
   };
 
   useEffect(() => {
     if (!isOpen) return;
     resetForm();
   }, [isOpen]);
+
+  const handleAIGenerated = (generatedData: any) => {
+    // Populate form with AI generated data
+    setFormData(prev => ({
+      ...prev,
+      title: asText(generatedData.title),
+      description: asText(generatedData.description),
+      category: asText(generatedData.category, 'Learning') || 'Learning',
+      difficulty: asText(generatedData.difficulty, 'Medium') || 'Medium',
+      bonus_badge: asText(generatedData.bonus_badge, '🎯') || '🎯',
+      color: asText(generatedData.color, '#7c3aed') || '#7c3aed',
+    }));
+    
+    if (generatedData.steps && generatedData.steps.length > 0) {
+      setSteps(generatedData.steps.map((s: any) => normalizeStep(s)));
+    }
+    
+    // Switch to manual mode for preview and edit
+    setMode('manual');
+    setFormError('Challenge generated! Please review and adjust the details below before saving.');
+  };
 
   const addStep = () => setSteps(prev => [...prev, defaultStep()]);
   const removeStep = (i: number) => setSteps(prev => prev.filter((_, idx) => idx !== i));
@@ -89,29 +152,68 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!formData.title.trim() || !formData.description.trim()) {
+    const title = asText(formData.title).trim();
+    const description = asText(formData.description).trim();
+    const normalizedSteps = steps.map(normalizeStep);
+
+    if (!title || !description) {
       setFormError('Title and description are required.');
       return;
     }
-    if (steps.length === 0) {
+    if (normalizedSteps.length === 0) {
       setFormError('Add at least one step.');
       return;
     }
-    for (let i = 0; i < steps.length; i++) {
-      const s = steps[i];
+    for (let i = 0; i < normalizedSteps.length; i++) {
+      const s = normalizedSteps[i];
       if (!s.title.trim() || !s.instructions.trim() || !s.evaluation_rubric.trim()) {
         setFormError(`Step ${i + 1} needs a title, instructions, and evaluation rubric.`);
         return;
       }
     }
+    const endDate = formData.end_date ? new Date(`${formData.end_date}T23:59:59`) : new Date(Date.now() + 7 * 86400000);
+    if (Number.isNaN(endDate.getTime())) {
+      setFormError('Please pick a valid deadline date.');
+      return;
+    }
     setLoading(true);
     try {
-      await gamificationAPI.createChallenge({
-        ...formData,
-        end_date: new Date(formData.end_date).toISOString(),
-        steps: steps.map((s, i) => ({ ...s, step_order: i + 1, xp_value: Number(s.xp_value) || 200 })),
-      });
-      onNotice(`Challenge created with ${totalXP.toLocaleString()} XP across ${steps.length} step(s).`, 'success');
+      const payload = {
+        title,
+        description,
+        type: formData.type,
+        difficulty: formData.difficulty,
+        category: formData.category,
+        bonus_badge: formData.bonus_badge || '🎯',
+        color: formData.color || '#7c3aed',
+        is_active: true,
+        end_date: endDate.toISOString(),
+        steps: normalizedSteps.map((s, i) => ({
+          step_order: i + 1,
+          title: s.title.trim(),
+          instructions: s.instructions.trim(),
+          submission_type: s.submission_type || 'text',
+          evaluation_rubric: s.evaluation_rubric.trim(),
+          xp_value: Number(s.xp_value) || 200,
+          reference_url: s.reference_url.trim() || null,
+        })),
+      };
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await gamificationAPI.createChallenge(payload);
+          lastError = null;
+          break;
+        } catch (err: any) {
+          lastError = err;
+          const msg = String(err?.message || '');
+          const retryable = /503|temporarily unavailable|timed out|Failed to fetch|NetworkError/i.test(msg);
+          if (!retryable || attempt === 2) throw err;
+          await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+        }
+      }
+      if (lastError) throw lastError;
+      onNotice(`Challenge created with ${totalXP.toLocaleString()} XP across ${normalizedSteps.length} step(s).`, 'success');
       onCreated();
       resetForm();
       onClose();
@@ -124,10 +226,26 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create New Challenge">
-      <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-5 max-h-[80vh] overflow-y-auto">
-        {formError && <HubNotice type="error" message={formError} onDismiss={() => setFormError(null)} />}
-        {/* — Challenge metadata — */}
+    <Modal isOpen={isOpen} onClose={onClose} title="Create New Challenge" maxWidthClass="max-w-2xl">
+      {mode === 'ai' ? (
+        <GamificationChallengeBuilder 
+          onCancel={() => setMode('manual')} 
+          onChallengeGenerated={handleAIGenerated} 
+        />
+      ) : (
+        <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <div className="flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-200 dark:border-purple-800/30">
+            <div>
+              <h4 className="text-sm font-extrabold text-purple-700 dark:text-purple-400">Want AI to do the heavy lifting?</h4>
+              <p className="text-xs text-purple-600 dark:text-purple-500">Describe a goal and AI will build the steps and rubrics.</p>
+            </div>
+            <Button type="button" size="sm" onClick={() => setMode('ai')} className="bg-purple-600 hover:bg-purple-700 text-white shrink-0 shadow-sm border-0 gap-1.5 flex items-center">
+              <Sparkles size={14} /> Use AI Builder
+            </Button>
+          </div>
+
+          {formError && <HubNotice type={formError.includes('generated') ? 'info' : 'error'} message={formError} onDismiss={() => setFormError(null)} />}
+          {/* — Challenge metadata — */}
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2">
             <label className="block text-xs font-bold text-secondary mb-1">Challenge Title *</label>
@@ -193,11 +311,11 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
               </div>
               <div>
                 <label className="block text-xs font-bold text-secondary mb-1">Step Title *</label>
-                <input required type="text" className="w-full input-field" value={step.title} onChange={e => updateStep(i,'title',e.target.value)} placeholder="e.g. Write a reflection" />
+                <input required type="text" className="w-full input-field" value={asText(step.title)} onChange={e => updateStep(i,'title',e.target.value)} placeholder="e.g. Write a reflection" />
               </div>
               <div>
                 <label className="block text-xs font-bold text-secondary mb-1">Instructions — what the employee must do *</label>
-                <textarea required rows={3} className="w-full input-field resize-none text-xs" value={step.instructions} onChange={e => updateStep(i,'instructions',e.target.value)} placeholder="Describe the exact task in detail..." />
+                <textarea required rows={3} className="w-full input-field resize-none text-xs" value={asText(step.instructions)} onChange={e => updateStep(i,'instructions',e.target.value)} placeholder="Describe the exact task in detail..." />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -213,21 +331,24 @@ const CreateChallengeModal: React.FC<{ isOpen: boolean; onClose: () => void; onC
               </div>
               <div>
                 <label className="block text-xs font-bold text-secondary mb-1">Evaluation Rubric — what the AI checks for *</label>
-                <textarea required rows={3} className="w-full input-field resize-none text-xs" value={step.evaluation_rubric} onChange={e => updateStep(i,'evaluation_rubric',e.target.value)} placeholder="e.g. The submission must include: 1) at least 3 specific examples, 2) a clear conclusion, 3) reference to the provided framework..." />
+                <textarea required rows={3} className="w-full input-field resize-none text-xs" value={asText(step.evaluation_rubric)} onChange={e => updateStep(i,'evaluation_rubric',e.target.value)} placeholder="e.g. The submission must include: 1) at least 3 specific examples, 2) a clear conclusion, 3) reference to the provided framework..." />
               </div>
               <div>
                 <label className="block text-xs font-bold text-secondary mb-1">Reference Material URL (optional)</label>
-                <input type="url" className="w-full input-field" value={step.reference_url} onChange={e => updateStep(i,'reference_url',e.target.value)} placeholder="https://..." />
+                <input type="text" inputMode="url" className="w-full input-field" value={asText(step.reference_url)} onChange={e => updateStep(i,'reference_url',e.target.value)} placeholder="https://..." />
               </div>
             </div>
           ))}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)] sticky bottom-0 bg-white">
-          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={loading}>{loading ? 'Creating…' : `Create Challenge (${totalXP} XP)`}</Button>
+        <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)] sticky bottom-0 bg-white z-10">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button type="submit" disabled={loading || totalXP <= 0}>
+            {loading ? 'Creating…' : `Create Challenge (${totalXP} XP)`}
+          </Button>
         </div>
       </form>
+      )}
     </Modal>
   );
 };
@@ -250,6 +371,8 @@ const ChallengeDetailDrawer: React.FC<{
   const [submitting, setSubmitting] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hintData, setHintData] = useState<{ text: string; penalty: number; level: number } | null>(null);
+  const [loadingHint, setLoadingHint] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadDetail = () => {
@@ -303,6 +426,20 @@ const ChallengeDetailDrawer: React.FC<{
     }
   };
 
+  const handleGetHint = async () => {
+    if (!activeStep) return;
+    setLoadingHint(true);
+    const nextLevel = hintData ? Math.min(hintData.level + 1, 3) : 1;
+    try {
+      const res = await gamificationAPI.getHint(employeeId, challengeId, activeStep.id, nextLevel);
+      setHintData({ text: res.hint, penalty: res.xp_penalty, level: res.hint_level });
+    } catch (err: any) {
+      console.error('Failed to get hint', err);
+    } finally {
+      setLoadingHint(false);
+    }
+  };
+
   const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) handleFileUpload(file);
@@ -322,11 +459,12 @@ const ChallengeDetailDrawer: React.FC<{
     setSubmitContent('');
     setStoragePath(null);
     setUploadedFileName(null);
+    setHintData(null);
   };
 
   const DIFF_COLORS: Record<string, string> = { Easy: 'var(--color-success)', Medium: 'var(--color-warning)', Hard: 'var(--color-danger)' };
 
-  return (
+  return createPortal(
     <div className="gh-drawer-overlay" onClick={onClose}>
       <div className="gh-drawer" onClick={e => e.stopPropagation()}>
         <div className="gh-drawer__head">
@@ -400,14 +538,52 @@ const ChallengeDetailDrawer: React.FC<{
                   {evalResult.status === 'manual_review' ? '⏳ Sent for manual review' : evalResult.passed ? '🎯 Passed!' : '❌ Not quite — try again'}
                 </h4>
                 <p className="text-sm leading-relaxed text-secondary mb-3">{evalResult.feedback}</p>
-                <div className="flex items-center gap-4 text-xs font-bold">
+                <div className="flex items-center gap-4 text-xs font-bold mb-3">
                   <span className="text-tertiary">AI Score: <span className="text-primary text-base">{evalResult.ai_score}</span>/100</span>
                   {evalResult.xp_awarded > 0 && <span className="text-success">+{evalResult.xp_awarded} XP awarded 🎉</span>}
                 </div>
                 {/* Score bar */}
-                <div className="mt-3 h-2 bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-subtle)]">
+                <div className="h-2 bg-[var(--bg-main)] rounded-full overflow-hidden border border-[var(--border-subtle)] mb-4">
                   <div className="h-full rounded-full transition-all duration-700" style={{ width: `${evalResult.ai_score}%`, background: evalResult.passed ? 'var(--color-success)' : 'var(--color-danger)' }} />
                 </div>
+
+                {/* Structured Criteria (if available) */}
+                {evalResult.criteria && evalResult.criteria.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                    <div className="col-span-full text-xs font-bold text-secondary uppercase tracking-wider mb-1">Rubric Breakdown</div>
+                    {evalResult.criteria.map((c: any, i: number) => (
+                      <div key={i} className="bg-[var(--bg-main)] p-2 rounded-lg border border-[var(--border-subtle)]">
+                        <div className="flex items-center justify-between text-xs font-bold mb-1">
+                          <span className="text-primary">{c.name}</span>
+                          <span className={c.score >= 80 ? 'text-success' : c.score >= 60 ? 'text-warning' : 'text-danger'}>{c.score}/100</span>
+                        </div>
+                        <p className="text-[10px] text-tertiary">{c.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Strengths & Improvements */}
+                {(evalResult.strengths?.length > 0 || evalResult.improvements?.length > 0) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                    {evalResult.strengths?.length > 0 && (
+                      <div>
+                        <h5 className="text-[10px] font-bold text-success uppercase tracking-wider mb-2 flex items-center gap-1"><CheckCircle2 size={12}/> Strengths</h5>
+                        <ul className="text-xs text-secondary space-y-1 pl-4 list-disc marker:text-success">
+                          {evalResult.strengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {evalResult.improvements?.length > 0 && (
+                      <div>
+                        <h5 className="text-[10px] font-bold text-warning uppercase tracking-wider mb-2 flex items-center gap-1"><AlertCircle size={12}/> Areas to Improve</h5>
+                        <ul className="text-xs text-secondary space-y-1 pl-4 list-disc marker:text-warning">
+                          {evalResult.improvements.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {evalResult?.error && (
@@ -483,6 +659,36 @@ const ChallengeDetailDrawer: React.FC<{
                     disabled={submitting || uploading}
                   />
                 )}
+                
+                {/* Hints Section */}
+                <div className="flex flex-col gap-2 mt-2">
+                  {hintData && (
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-sm text-purple-900 animate-fade-in relative">
+                      <div className="absolute -top-2.5 -right-2.5 bg-danger text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                        -{hintData.penalty} XP Penalty
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Sparkles size={16} className="text-purple-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold block mb-0.5">Hint (Level {hintData.level}/3)</span>
+                          {hintData.text}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {(!hintData || hintData.level < 3) && (
+                    <button 
+                      type="button" 
+                      onClick={handleGetHint} 
+                      disabled={loadingHint || submitting || uploading}
+                      className="self-start text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                    >
+                      {loadingHint ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                      {hintData ? 'Get a stronger hint' : 'Stuck? Get a hint'}
+                    </button>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   onClick={handleSubmit}
@@ -588,7 +794,8 @@ const ChallengeDetailDrawer: React.FC<{
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -597,6 +804,7 @@ const DIFF_COLORS: Record<string, string> = { Easy: 'var(--color-success)', Medi
 // ─── XP Hero Banner ───────────────────────────────────────────
 const XPProgressBar: React.FC = () => {
   const { currentEmployee, loading: employeeLoading } = useEmployee();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -653,6 +861,11 @@ const XPProgressBar: React.FC = () => {
             <span>{pct.toFixed(1)}% to next level</span>
             <span>Next: {profile.next_level_xp.toLocaleString()} XP</span>
           </div>
+          <button type="button" className="gh-twin-link" onClick={() => navigate('/employee-twin')}>
+            <Bot size={13} />
+            Twin command center & daily check-in
+            <ChevronRight size={13} />
+          </button>
         </div>
 
         <div className="gh-stat-grid">
@@ -745,7 +958,14 @@ const Challenges: React.FC<{ onOpenDetail: (id: string) => void; refreshKey?: nu
   }, [currentEmployee, refreshKey]);
 
   if (loading) return <div className="gh-loading"><Loader2 className="animate-spin" size={28} /></div>;
-  if (error) return <HubNotice type="error" message={error} />;
+  if (error) {
+    return (
+      <div className="space-y-3">
+        <HubNotice type="error" message={error} onDismiss={() => setError(null)} />
+        <button type="button" className="gh-link-btn" onClick={loadChallenges}>Retry</button>
+      </div>
+    );
+  }
   if (!challenges.length) return <p className="gh-empty">No active challenges. Create one from the Challenges tab.</p>;
 
   return (
@@ -1059,11 +1279,11 @@ const RewardStore: React.FC = () => {
 };
 
 // ─── Main Page ────────────────────────────────────────────────
-type TabId = 'overview' | 'leaderboard' | 'challenges' | 'achievements' | 'store';
+type TabId = 'for_you' | 'overview' | 'leaderboard' | 'challenges' | 'achievements' | 'store';
 
 export const GamificationHub: React.FC = () => {
   const { currentEmployee } = useEmployee();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState<TabId>('for_you');
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [refreshChallengesKey, setRefreshChallengesKey] = useState(0);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
@@ -1076,6 +1296,7 @@ export const GamificationHub: React.FC = () => {
   };
 
   const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'for_you',       label: 'For You',       icon: <Sparkles size={14} /> },
     { id: 'overview',      label: 'Overview',      icon: <Star size={14} /> },
     { id: 'leaderboard',   label: 'Leaderboard',   icon: <Crown size={14} /> },
     { id: 'challenges',    label: 'Challenges',    icon: <Target size={14} /> },
@@ -1112,6 +1333,20 @@ export const GamificationHub: React.FC = () => {
 
       {hubNotice && (
         <HubNotice type={hubNotice.type} message={hubNotice.message} onDismiss={() => setHubNotice(null)} />
+      )}
+
+      {activeTab === 'for_you' && (
+        <div className="gh-overview-grid">
+          <div className="gh-stack">
+            <GamificationRecommendations onOpenChallenge={setSelectedChallengeId} />
+          </div>
+          <div className="gh-stack">
+            <GamificationMomentum
+              refreshKey={refreshChallengesKey}
+              onOpenChallenge={setSelectedChallengeId}
+            />
+          </div>
+        </div>
       )}
 
       {activeTab === 'overview' && (

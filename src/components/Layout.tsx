@@ -134,7 +134,7 @@ export const Layout: React.FC = () => {
             </button>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto animate-fade-in pr-2" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
           <Outlet />
         </div>
       </main>

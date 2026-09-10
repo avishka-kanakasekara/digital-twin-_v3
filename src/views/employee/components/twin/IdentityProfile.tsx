@@ -26,8 +26,8 @@ export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpd
 
   const stats = [
     { label: 'Twin Health', value: `${twinHealth}%`, icon: <Shield size={14} />, color: '#10b981' },
-    { label: 'AI Score', value: gamification.aiScore ? `${gamification.aiScore}/100` : '92/100', icon: <Sparkles size={14} />, color: '#3b82f6' },
-    { label: 'Impact Rank', value: gamification.impactRank || 'Top 5%', icon: <Zap size={14} />, color: '#f59e0b' },
+    { label: 'Profile', value: `${Math.round(gamification.aiScore || twinHealth || 0)}%`, icon: <Sparkles size={14} />, color: '#3b82f6' },
+    { label: 'Impact Rank', value: gamification.impactRank || 'Unranked', icon: <Zap size={14} />, color: '#f59e0b' },
   ];
 
   return (
@@ -43,7 +43,7 @@ export const IdentityProfile: React.FC<IdentityProfileProps> = ({ profile, onUpd
           </div>
 
           <div className="pd-hero__main">
-            <span className="pd-hero__kicker"><Sparkles size={12} /> Verified digital twin</span>
+            <span className="pd-hero__kicker"><Sparkles size={12} /> Live digital twin</span>
             <h2 className="pd-hero__name">{profile.fullName}</h2>
             <p className="pd-hero__headline">{profile.headline}</p>
             <div className="pd-meta-row">

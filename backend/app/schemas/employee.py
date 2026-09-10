@@ -108,3 +108,53 @@ class TwinSummaryResponse(BaseModel):
     summary_text: str = ""
 
     model_config = {"from_attributes": True}
+
+
+# ─── Peer recommendations (colleague → colleague) ─────────────
+
+PEER_REC_CATEGORIES = (
+    "general",
+    "technical",
+    "leadership",
+    "collaboration",
+    "mentorship",
+    "communication",
+    "delivery",
+)
+
+
+class PeerRecommendationCreate(BaseModel):
+    to_employee_id: str
+    message: str
+    category: str = "general"
+    skill: Optional[str] = None
+    rating: Optional[int] = 5
+
+
+class PeerRecommendationResponse(BaseModel):
+    id: str
+    from_employee_id: str
+    to_employee_id: str
+    category: str = "general"
+    skill: Optional[str] = None
+    message: str
+    rating: Optional[int] = None
+    created_at: Optional[datetime] = None
+    from_employee_name: Optional[str] = None
+    from_employee_role: Optional[str] = None
+    from_employee_initials: Optional[str] = None
+    from_employee_department: Optional[str] = None
+    to_employee_name: Optional[str] = None
+    to_employee_role: Optional[str] = None
+    to_employee_initials: Optional[str] = None
+    to_employee_department: Optional[str] = None
+    xp_awarded: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class PeerRecommendationSummary(BaseModel):
+    received_count: int = 0
+    given_count: int = 0
+    average_rating: Optional[float] = None
+    top_categories: list[str] = []

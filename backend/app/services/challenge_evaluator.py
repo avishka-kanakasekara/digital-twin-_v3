@@ -1,6 +1,7 @@
 from __future__ import annotations
 """
 Challenge Evaluator Service — AI-powered step submission grading.
+Enhanced with structured criteria scoring.
 """
 
 import json
@@ -26,7 +27,21 @@ Grade this submission strictly and fairly. A superficial, vague, or off-topic an
 A thorough, specific, and on-topic answer should score above 80.
 
 Your response MUST be valid JSON only — no markdown fences, no extra text, nothing before or after the JSON object:
-{{"score": <integer 0-100>, "pass": <true if score >= 70 else false>, "feedback": "<2-4 sentences — be specific about what was good and what was missing>", "suggested_xp": <integer proportional to score, max {max_xp}>}}
+{{
+  "score": <integer 0-100>,
+  "pass": <true if score >= 70 else false>,
+  "feedback": "<2-4 sentences — be specific about what was good and what was missing>",
+  "suggested_xp": <integer proportional to score, max {max_xp}>,
+  "criteria": [
+    {{"name": "Understanding", "score": <0-100>, "detail": "<one sentence>"}},
+    {{"name": "Accuracy", "score": <0-100>, "detail": "<one sentence>"}},
+    {{"name": "Problem Solving", "score": <0-100>, "detail": "<one sentence>"}},
+    {{"name": "Clarity", "score": <0-100>, "detail": "<one sentence>"}},
+    {{"name": "Completeness", "score": <0-100>, "detail": "<one sentence>"}}
+  ],
+  "strengths": ["<strength 1>", "<strength 2>"],
+  "improvements": ["<improvement 1>", "<improvement 2>"]
+}}
 """
 
 IMAGE_EVAL_PROMPT_TEMPLATE = """\
@@ -39,7 +54,19 @@ EVALUATION RUBRIC: {evaluation_rubric}
 The employee uploaded an image. Examine it carefully against the rubric.
 
 Your response MUST be valid JSON only:
-{{"score": <integer 0-100>, "pass": <true if score >= 70 else false>, "feedback": "<2-4 sentences>", "suggested_xp": <integer max {max_xp}>}}
+{{
+  "score": <integer 0-100>,
+  "pass": <true if score >= 70 else false>,
+  "feedback": "<2-4 sentences>",
+  "suggested_xp": <integer max {max_xp}>,
+  "criteria": [
+    {{"name": "Understanding", "score": <0-100>, "detail": "<one sentence>"}},
+    {{"name": "Accuracy", "score": <0-100>, "detail": "<one sentence>"}},
+    {{"name": "Clarity", "score": <0-100>, "detail": "<one sentence>"}}
+  ],
+  "strengths": ["<strength 1>"],
+  "improvements": ["<improvement 1>"]
+}}
 """
 
 MANUAL_REVIEW_FEEDBACK = (
@@ -68,12 +95,25 @@ def _parse_json_response(raw: str) -> dict:
 
 
 class EvaluationResult:
-    def __init__(self, score: int, passed: bool, feedback: str, xp_awarded: int, raw: str):
+    def __init__(
+        self,
+        score: int,
+        passed: bool,
+        feedback: str,
+        xp_awarded: int,
+        raw: str,
+        criteria: list | None = None,
+        strengths: list | None = None,
+        improvements: list | None = None,
+    ):
         self.score = score
         self.passed = passed
         self.feedback = feedback
         self.xp_awarded = xp_awarded
         self.raw = raw
+        self.criteria = criteria or []
+        self.strengths = strengths or []
+        self.improvements = improvements or []
 
 
 def _call_gemini_text(prompt: str) -> str:
@@ -159,7 +199,22 @@ def evaluate_submission(
             passed = bool(data.get("pass", False))
             feedback = str(data.get("feedback", "No feedback provided."))
             xp_awarded = _compute_xp(score, max_xp)
-            return EvaluationResult(score=score, passed=passed, feedback=feedback, xp_awarded=xp_awarded, raw=raw)
+
+            # Extract structured criteria (graceful fallback)
+            criteria = data.get("criteria", [])
+            strengths = data.get("strengths", [])
+            improvements = data.get("improvements", [])
+
+            return EvaluationResult(
+                score=score,
+                passed=passed,
+                feedback=feedback,
+                xp_awarded=xp_awarded,
+                raw=raw,
+                criteria=criteria,
+                strengths=strengths,
+                improvements=improvements,
+            )
         except Exception as e:
             last_error = e
             continue

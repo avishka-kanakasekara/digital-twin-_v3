@@ -79,6 +79,7 @@ def award_xp(
     category: str = "general",
     emoji: str = "⚡",
     _skip_achievement_check: bool = False,
+    _skip_rank_recalc: bool = False,
 ) -> dict:
     """
     Single source of truth for awarding XP.
@@ -155,8 +156,9 @@ def award_xp(
     sb.table("gamification_profiles").update(update_payload).eq("id", profile["id"]).execute()
     profile.update(update_payload)
 
-    # 6. Recalculate all ranks
-    _recalculate_ranks(sb)
+    # 6. Recalculate all ranks (optional — skip for high-frequency events like check-in)
+    if not _skip_rank_recalc:
+        _recalculate_ranks(sb)
 
     # 7. Check achievement unlocks (avoid infinite recursion)
     if not _skip_achievement_check:
@@ -306,10 +308,27 @@ def _fetch_context_value(sb: Client, employee_id: str, criteria_type: str):
             return False
 
         elif criteria_type == "peer_recognitions":
-            # Use total_xp_earned as proxy (team magnet = engaged employee)
-            r = sb.table("gamification_profiles").select("total_xp_earned").eq("employee_id", employee_id).execute()
-            if r.data:
-                return r.data[0].get("total_xp_earned", 0) or 0
+            try:
+                r = (
+                    sb.table("recognitions")
+                    .select("id", count="exact")
+                    .eq("employee_id", employee_id)
+                    .eq("type", "peer_recommendation")
+                    .execute()
+                )
+                if r.count is not None:
+                    return r.count
+                return len(r.data or [])
+            except Exception:
+                r = (
+                    sb.table("recognitions")
+                    .select("id", count="exact")
+                    .eq("employee_id", employee_id)
+                    .execute()
+                )
+                if r.count is not None:
+                    return r.count
+                return len(r.data or [])
             return 0
 
     except Exception as e:

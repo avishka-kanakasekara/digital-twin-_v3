@@ -62,8 +62,8 @@ def compute_learning_hours(sb: Client, employee_id: str) -> tuple[int, int, list
     return int(round(hours_month)), int(round(hours_year)), months
 
 
-def build_learning_feed(sb: Client, employee_id: str) -> list[dict]:
-    """Recommend catalog courses and gap-aligned content instead of static copy."""
+def build_learning_feed_rules(sb: Client, employee_id: str, ctx: dict | None = None) -> list[dict]:
+    """Deterministic catalog-based feed (Gemini fallback)."""
     gaps_res = sb.table("skills").select("name, proficiency, target_level, category").eq(
         "employee_id", employee_id
     ).execute()
@@ -75,7 +75,10 @@ def build_learning_feed(sb: Client, employee_id: str) -> list[dict]:
             gap_names.append(skill["name"])
 
     goal = sb.table("career_goals").select("target_role").eq("employee_id", employee_id).eq("is_active", True).execute()
-    target_role = goal.data[0]["target_role"] if goal.data else "your next role"
+    target_role = (
+        (ctx or {}).get("target_role")
+        or (goal.data[0]["target_role"] if goal.data else "your next role")
+    )
 
     courses = sb.table("courses").select("*").order("rating", desc=True).limit(12).execute()
     feed = []
@@ -101,7 +104,7 @@ def build_learning_feed(sb: Client, employee_id: str) -> list[dict]:
             "relevance": relevance,
             "tags": tags[:3] or [course.get("level") or "General"],
             "emoji": course.get("emoji") or "🎓",
-            "color": course.get("color") or "#7c3aed",
+            "color": course.get("color") or "#0ea5e9",
             "published": f"Aligned to {target_role}",
         })
 
@@ -109,12 +112,27 @@ def build_learning_feed(sb: Client, employee_id: str) -> list[dict]:
     return feed[:6]
 
 
-def ensure_learning_paths(sb: Client, employee_id: str) -> list[dict]:
+def build_learning_feed(sb: Client, employee_id: str) -> list[dict]:
+    """Prefer Gemini-cached feed; fall back to rules."""
+    try:
+        from app.services.gemini_learning_service import generate_learning_feed
+        return generate_learning_feed(sb, employee_id, force=False)
+    except Exception:
+        return build_learning_feed_rules(sb, employee_id)
+
+
+def rule_based_paths(sb: Client, employee_id: str, *, force: bool = False) -> list[dict]:
+    """Create deterministic paths from gaps + catalog."""
     existing = sb.table("learning_paths").select("*").eq("employee_id", employee_id).order(
         "is_ai_recommended", desc=True
     ).execute()
-    if existing.data:
+    if existing.data and not force:
         return existing.data
+
+    if force:
+        sb.table("learning_paths").delete().eq("employee_id", employee_id).eq(
+            "is_ai_recommended", True
+        ).execute()
 
     goal = sb.table("career_goals").select("target_role, timeline").eq(
         "employee_id", employee_id
@@ -134,9 +152,9 @@ def ensure_learning_paths(sb: Client, employee_id: str) -> list[dict]:
 
     courses = sb.table("courses").select("*").limit(20).execute().data or []
     if not courses and not gap_skills:
-        return []
+        return existing.data or []
 
-    colors = ["#7c3aed", "#0ea5e9", "#10b981"]
+    colors = ["#0ea5e9", "#6366f1", "#10b981"]
     created = []
 
     primary_tags = [s["name"] for s in gap_skills[:4]] or [target_role]
@@ -194,4 +212,16 @@ def ensure_learning_paths(sb: Client, employee_id: str) -> list[dict]:
         sb.table("learning_paths").insert(extra_row).execute()
         created.append(extra_row)
 
-    return created
+    all_paths = sb.table("learning_paths").select("*").eq("employee_id", employee_id).order(
+        "is_ai_recommended", desc=True
+    ).execute()
+    return all_paths.data or created
+
+
+def ensure_learning_paths(sb: Client, employee_id: str) -> list[dict]:
+    existing = sb.table("learning_paths").select("*").eq("employee_id", employee_id).order(
+        "is_ai_recommended", desc=True
+    ).execute()
+    if existing.data:
+        return existing.data
+    return rule_based_paths(sb, employee_id, force=False)
