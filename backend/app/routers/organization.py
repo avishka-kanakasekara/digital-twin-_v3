@@ -603,3 +603,120 @@ def get_skill_shortages():
     
     # Return top 15 shortages
     return shortages[:15]
+
+
+# ==================== STRATEGY ROLE ARCHITECT ====================
+
+@router.get("/strategy/role-specs")
+def get_strategy_role_specs(department: str = None):
+    """Retrieve translated future role specifications & requirements."""
+    sb = get_supabase_admin()
+    try:
+        query = sb.table("org_strategy_role_specs").select("*").order("rank")
+        if department and department != "All Departments":
+            query = query.eq("dept", department)
+        res = query.execute()
+        if res.data:
+            return res.data
+    except Exception as e:
+        print(f"Supabase fetch for org_strategy_role_specs failed: {e}")
+
+    # Default fallback data
+    fallback_specs = [
+        { "rank": 1, "role": "Senior Cloud Architect", "skill": "AWS / Azure & Terraform", "dept": "Engineering", "level": "L5 Staff", "gap": "+14", "urgency": "HIGH", "status": "In Strategy Plan" },
+        { "rank": 2, "role": "AI / MLOps Specialist", "skill": "LLM Fine-tuning & PyTorch", "dept": "Engineering", "level": "L4 Senior", "gap": "+10", "urgency": "HIGH", "status": "In Strategy Plan" },
+        { "rank": 3, "role": "Lead Data Governance Officer", "skill": "GDPR & Data Architecture", "dept": "Corporate", "level": "L5 Lead", "gap": "+6", "urgency": "HIGH", "status": "In Strategy Plan" },
+        { "rank": 4, "role": "DevSecOps Engineer", "skill": "CI/CD & Container Security", "dept": "Operations", "level": "L4 Senior", "gap": "+8", "urgency": "MEDIUM", "status": "In Strategy Plan" },
+        { "rank": 5, "role": "Product Growth Strategist", "skill": "SaaS Metrics & A/B Testing", "dept": "Product", "level": "L4 Senior", "gap": "+5", "urgency": "MEDIUM", "status": "In Strategy Plan" }
+    ]
+    if department and department != "All Departments":
+        fallback_specs = [s for s in fallback_specs if s["dept"] == department]
+    return fallback_specs
+
+
+@router.get("/strategy/forecast-timeline")
+def get_strategy_forecast_timeline():
+    """Retrieve 2025-2030 strategic headcount trajectory forecast."""
+    return [
+        { "year": "2025", "headcount": 6055, "target": 6180, "engineering": 2500, "operations": 1300 },
+        { "year": "2026", "headcount": 6180, "target": 6320, "engineering": 2620, "operations": 1350 },
+        { "year": "2027", "headcount": 6320, "target": 6480, "engineering": 2710, "operations": 1380 },
+        { "year": "2028", "headcount": 6480, "target": 6600, "engineering": 2790, "operations": 1400 },
+        { "year": "2029", "headcount": 6600, "target": 6700, "engineering": 2820, "operations": 1415 },
+        { "year": "2030", "headcount": 6700, "target": 6782, "engineering": 2849, "operations": 1425 }
+    ]
+
+
+@router.get("/strategy/primary-inputs")
+def get_strategy_primary_inputs():
+    """Retrieve corporate strategy documents & business scenarios parsed by AI."""
+    sb = get_supabase_admin()
+    try:
+        res = sb.table("org_strategy_primary_inputs").select("*").execute()
+        if res.data:
+            return res.data
+    except Exception as e:
+        print(f"Supabase fetch for org_strategy_primary_inputs failed: {e}")
+
+    return [
+        { "title": "Corporate Strategy 2025-2030", "type": "Strategy Doc", "status": "Parsed by AI", "date": "Aug 2025" },
+        { "title": "Division Business Unit Plans", "type": "Business Scenario", "status": "5 Units Synced", "date": "Jul 2025" },
+        { "title": "Cloud & AI Operating Model", "type": "Institutional Doc", "status": "Active Driver", "date": "Aug 2025" }
+    ]
+
+
+@router.get("/strategy/knowledge-assets")
+def get_strategy_knowledge_assets():
+    """Retrieve institutional wiki, role-skill maps, and knowledge graph asset counts."""
+    sb = get_supabase_admin()
+    try:
+        res = sb.table("org_strategy_knowledge_assets").select("*").execute()
+        if res.data:
+            return res.data
+    except Exception as e:
+        print(f"Supabase fetch for org_strategy_knowledge_assets failed: {e}")
+
+    return [
+        { "name": "Role-Skill Map Templates", "count": "62 Templates", "color": "#3b82f6" },
+        { "name": "Strategic Headcount Targets", "count": "6,782 Target", "color": "#10b981" },
+        { "name": "Corporate Knowledge Graph", "count": "1,420 Nodes", "color": "#a855f7" }
+    ]
+
+
+@router.get("/strategy/competency-radar")
+def get_strategy_competency_radar():
+    """Retrieve organizational competency shift radar map."""
+    return [
+        { "subject": "Cloud Architecture", "A": 135, "fullMark": 150 },
+        { "subject": "AI & Automation", "A": 142, "fullMark": 150 },
+        { "subject": "Data Governance", "A": 110, "fullMark": 150 },
+        { "subject": "DevSecOps", "A": 125, "fullMark": 150 },
+        { "subject": "Agile Leadership", "A": 118, "fullMark": 150 }
+    ]
+
+
+@router.get("/strategy/overview")
+def get_strategy_overview(department: str = "All Departments"):
+    """Single aggregated payload for Strategy Role Architect dashboard."""
+    specs = get_strategy_role_specs(department)
+    forecast = get_strategy_forecast_timeline()
+    inputs = get_strategy_primary_inputs()
+    assets = get_strategy_knowledge_assets()
+    radar = get_strategy_competency_radar()
+
+    return {
+        "summary": {
+            "current_headcount": 6055,
+            "planned_growth": 727,
+            "target_headcount": 6782,
+            "future_roles_count": 62,
+            "key_skills_count": 48,
+            "primary_goal": "2025–2030 Cloud & AI Transformation"
+        },
+        "role_specs": specs,
+        "forecast_timeline": forecast,
+        "primary_inputs": inputs,
+        "knowledge_assets": assets,
+        "competency_radar": radar
+    }
+

@@ -877,6 +877,13 @@ export const organizationAPI = {
   getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
 
 
+  // Strategy Role Architect Endpoints
+  getStrategyOverview: (department?: string) =>
+    fetchAPI<any>(`/api/organization/strategy/overview${buildQueryString({ department })}`),
+
+  getStrategyRoleSpecs: (department?: string) =>
+    fetchAPI<any[]>(`/api/organization/strategy/role-specs${buildQueryString({ department })}`),
+
   // Applications
   getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
     fetchAPI<any[]>(`/api/organization/talent/applications?${new URLSearchParams(

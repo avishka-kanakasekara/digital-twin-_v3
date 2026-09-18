@@ -518,6 +518,60 @@ def seed_okrs() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────
+# 10. Strategy Role Architect Data
+# ─────────────────────────────────────────────────────────────────
+def seed_strategy_data() -> None:
+    print("\n🏛️   Checking Strategy Role Architect tables...")
+
+    try:
+        existing_specs = sb.table("org_strategy_role_specs").select("id").limit(1).execute()
+        if not existing_specs.data:
+            role_specs = [
+                { "rank": 1, "role": "Senior Cloud Architect", "skill": "AWS / Azure & Terraform", "dept": "Engineering", "level": "L5 Staff", "gap": "+14", "urgency": "HIGH", "status": "In Strategy Plan" },
+                { "rank": 2, "role": "AI / MLOps Specialist", "skill": "LLM Fine-tuning & PyTorch", "dept": "Engineering", "level": "L4 Senior", "gap": "+10", "urgency": "HIGH", "status": "In Strategy Plan" },
+                { "rank": 3, "role": "Lead Data Governance Officer", "skill": "GDPR & Data Architecture", "dept": "Corporate", "level": "L5 Lead", "gap": "+6", "urgency": "HIGH", "status": "In Strategy Plan" },
+                { "rank": 4, "role": "DevSecOps Engineer", "skill": "CI/CD & Container Security", "dept": "Operations", "level": "L4 Senior", "gap": "+8", "urgency": "MEDIUM", "status": "In Strategy Plan" },
+                { "rank": 5, "role": "Product Growth Strategist", "skill": "SaaS Metrics & A/B Testing", "dept": "Product", "level": "L4 Senior", "gap": "+5", "urgency": "MEDIUM", "status": "In Strategy Plan" }
+            ]
+            sb.table("org_strategy_role_specs").insert(role_specs).execute()
+            print(f"   ✅  Inserted {len(role_specs)} rows into org_strategy_role_specs.")
+        else:
+            print("   ✅  org_strategy_role_specs already has data.")
+    except Exception as e:
+        print(f"   ⚠️  Could not seed org_strategy_role_specs: {e}")
+
+    try:
+        existing_inputs = sb.table("org_strategy_primary_inputs").select("id").limit(1).execute()
+        if not existing_inputs.data:
+            inputs = [
+                { "title": "Corporate Strategy 2025-2030", "type": "Strategy Doc", "status": "Parsed by AI", "date": "Aug 2025" },
+                { "title": "Division Business Unit Plans", "type": "Business Scenario", "status": "5 Units Synced", "date": "Jul 2025" },
+                { "title": "Cloud & AI Operating Model", "type": "Institutional Doc", "status": "Active Driver", "date": "Aug 2025" }
+            ]
+            sb.table("org_strategy_primary_inputs").insert(inputs).execute()
+            print(f"   ✅  Inserted {len(inputs)} rows into org_strategy_primary_inputs.")
+        else:
+            print("   ✅  org_strategy_primary_inputs already has data.")
+    except Exception as e:
+        print(f"   ⚠️  Could not seed org_strategy_primary_inputs: {e}")
+
+    try:
+        existing_assets = sb.table("org_strategy_knowledge_assets").select("id").limit(1).execute()
+        if not existing_assets.data:
+            assets = [
+                { "name": "Role-Skill Map Templates", "count": "62 Templates", "color": "#3b82f6" },
+                { "name": "Strategic Headcount Targets", "count": "6,782 Target", "color": "#10b981" },
+                { "name": "Corporate Knowledge Graph", "count": "1,420 Nodes", "color": "#a855f7" }
+            ]
+            sb.table("org_strategy_knowledge_assets").insert(assets).execute()
+            print(f"   ✅  Inserted {len(assets)} rows into org_strategy_knowledge_assets.")
+        else:
+            print("   ✅  org_strategy_knowledge_assets already has data.")
+    except Exception as e:
+        print(f"   ⚠️  Could not seed org_strategy_knowledge_assets: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
@@ -533,6 +587,8 @@ if __name__ == "__main__":
     seed_talent_mentors()
     seed_team_builder_options()
     seed_okrs()
+    seed_strategy_data()
 
     print("\n" + "=" * 50)
     print("🎉  Seeding complete! All organization tables are populated.")
+

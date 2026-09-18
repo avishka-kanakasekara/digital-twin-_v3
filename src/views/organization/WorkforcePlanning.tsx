@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
-import { Users, TrendingUp, Layers, Target, Activity, Minus, Plus, Equal, AlertCircle, ArrowUpRight, CheckCircle2, X } from 'lucide-react';
+import { Users, TrendingUp, Layers, Target, Activity, Minus, Plus, Equal, AlertCircle, ArrowUpRight, CheckCircle2, X, Sparkles } from 'lucide-react';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import {
   DEPT_COLORS,
@@ -82,17 +82,24 @@ export const WorkforcePlanning: React.FC = () => {
       )}
 
       {/* Header */}
-      <div 
-        className="z-10 mb-2"
-        style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}
+      <div
+        className="z-10 mb-2 flex flex-row items-center justify-between gap-4 flex-nowrap"
       >
-        <div>
-          <h1 className="text-3xl font-extrabold mb-1 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">Workforce Planning & Skill Gaps</h1>
-          <p className="text-base text-slate-500 font-medium mt-0.5">Forecast headcount and skill shortages based on attrition, retirement, and growth targets.</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700 tracking-wider uppercase border border-blue-200">
+              ORGANIZATION TWIN (OT)
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-700 tracking-wider uppercase border border-indigo-200 flex items-center gap-1">
+              <Sparkles size={11} className="text-amber-500" /> Real-time Risk Intelligence
+            </span>
+          </div>
+          <h1 className="text-3xl font-extrabold mb-1 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">Workforce Intelligence (WI)</h1>
+          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 max-w-xl truncate">Assesses capability requirements, skill scarcity, role criticality, and automated succession continuity.</p>
         </div>
 
-        <div 
-          className="transition-all"
+        <div
+          className="transition-all shrink-0"
           style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: '6px', borderRadius: '16px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}
         >
           {/* Scope */}
@@ -110,9 +117,9 @@ export const WorkforcePlanning: React.FC = () => {
               <option>All Departments</option>
             </select>
           </div>
-          
+
           <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
-          
+
           {/* Horizon */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '8px', paddingRight: '8px' }}>
             <span className="text-[10px] font-extrabold uppercase tracking-widest" style={{ color: '#94a3b8' }}>Horizon</span>
@@ -127,7 +134,7 @@ export const WorkforcePlanning: React.FC = () => {
               <option>Next 3 Years</option>
             </select>
           </div>
-          
+
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
