@@ -193,6 +193,8 @@ class SimulationRequest(BaseModel):
     remoteDays: float
     trainingBudget: float
     restructuringLevel: float
+    automationLevel: float = 0.0
+    businessLineModel: str = "Standard Core"
     isSnapshot: bool = False
 
 # Simulation returns a dictionary of string keys to float values per month

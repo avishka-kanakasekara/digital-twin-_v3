@@ -871,7 +871,7 @@ export const organizationAPI = {
   getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
   getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
   getInterventionEffectiveness: () => fetchAPI<any[]>('/api/organization/interventions/effectiveness'),
-  runSimulation: (data: any) => fetchAPI<any[]>('/api/organization/simulation/run', { method: 'POST', body: JSON.stringify(data) }),
+  runSimulation: (data: any) => fetchAPI<any>('/api/organization/simulation/run', { method: 'POST', body: JSON.stringify(data) }),
   getGigs: () => fetchAPI<any[]>('/api/organization/talent/gigs'),
   getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
   getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
@@ -883,6 +883,15 @@ export const organizationAPI = {
 
   getStrategyRoleSpecs: (department?: string) =>
     fetchAPI<any[]>(`/api/organization/strategy/role-specs${buildQueryString({ department })}`),
+
+  translateStrategy: (department?: string) =>
+    fetchAPI<any>('/api/organization/strategy/translate', {
+      method: 'POST',
+      body: JSON.stringify({ department }),
+    }),
+
+  searchKnowledgeGraph: (q: string) =>
+    fetchAPI<{ results: any[]; total: number }>(`/api/organization/strategy/knowledge-search${buildQueryString({ q })}`),
 
   // Applications
   getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
