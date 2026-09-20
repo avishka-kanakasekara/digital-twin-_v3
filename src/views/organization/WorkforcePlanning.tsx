@@ -469,55 +469,55 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
               <div className="col-span-1 flex flex-col gap-6">
 
                 {/* Department Distribution */}
-                <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md border border-slate-200/80" style={{ height: '350px' }}>
+                <Card className="glass-panel flex flex-col p-6 relative transition-all duration-300 hover:shadow-md border border-slate-200/80" style={{ minHeight: '390px' }}>
                   <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 mb-1"><Users size={20} className="text-blue-600" /> Department Distribution</h3>
-                  <p className="text-xs text-slate-500 mb-4 font-medium">Headcount spread across major divisions.</p>
-                  <div className="w-full relative" style={{ height: '180px' }}>
+                  <p className="text-xs text-slate-500 mb-3 font-medium">Headcount spread across major divisions.</p>
+                  <div className="w-full relative flex justify-center items-center" style={{ height: '180px' }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={deptDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={2} dataKey="employees" stroke="none">
+                      <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                        <Pie data={deptDistribution} cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={2} dataKey="employees" stroke="#ffffff" strokeWidth={2}>
                           {deptDistribution.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={DEPT_COLORS[index % DEPT_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontWeight: 'bold' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex flex-wrap justify-center gap-2 mt-4 overflow-y-auto" style={{ maxHeight: '80px', scrollbarWidth: 'none' }}>
+                  <div className="flex flex-wrap justify-center gap-2 mt-3 overflow-y-auto no-scrollbar" style={{ maxHeight: '90px', scrollbarWidth: 'none' }}>
                     {deptDistribution.map((d, i) => (
-                      <div key={d.name} className="flex items-center gap-2 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs">
-                        <div className="w-2 h-2 rounded-full shadow-2xs" style={{ backgroundColor: DEPT_COLORS[i] }}></div>
-                        <span className="text-[10px] font-bold text-slate-800">{d.name} ({d.employees})</span>
+                      <div key={d.name} className="flex items-center gap-2 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                        <div className="w-2.5 h-2.5 rounded-full shadow-2xs" style={{ backgroundColor: DEPT_COLORS[i] }}></div>
+                        <span className="text-[10.5px] font-bold text-slate-800">{d.name} ({d.employees})</span>
                       </div>
                     ))}
                   </div>
                 </Card>
 
                 {/* Experience Levels */}
-                <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md border border-slate-200/80" style={{ height: '350px' }}>
+                <Card className="glass-panel flex flex-col p-6 relative transition-all duration-300 hover:shadow-md border border-slate-200/80" style={{ minHeight: '390px' }}>
                   <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2 mb-1"><Layers size={20} className="text-blue-600" /> Experience Levels</h3>
-                  <p className="text-xs text-slate-500 mb-4 font-medium">Tenure and seniority makeup.</p>
-                  <div className="w-full relative" style={{ height: '180px' }}>
+                  <p className="text-xs text-slate-500 mb-3 font-medium">Tenure and seniority makeup.</p>
+                  <div className="w-full relative flex justify-center items-center" style={{ height: '180px' }}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={mockExperience} cx="50%" cy="50%" innerRadius={0} outerRadius={75} dataKey="value" stroke="#ffffff" strokeWidth={2}>
+                      <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                        <Pie data={mockExperience} cx="50%" cy="50%" innerRadius={35} outerRadius={68} dataKey="value" stroke="#ffffff" strokeWidth={2.5}>
                           {mockExperience.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={EXP_COLORS[index % EXP_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff' }} />
+                        <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontWeight: 'bold' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex flex-col gap-2 mt-4">
+                  <div className="flex flex-col gap-2 mt-3">
                     {mockExperience.map((d, i) => (
-                      <div key={d.name} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200 shadow-2xs hover:border-blue-400 transition-colors cursor-pointer group">
+                      <div key={d.name} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition-colors cursor-pointer group">
                         <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded shadow-2xs group-hover:scale-110 transition-transform" style={{ backgroundColor: EXP_COLORS[i] }}></div>
+                          <div className="w-2.5 h-2.5 rounded-full shadow-2xs group-hover:scale-110 transition-transform" style={{ backgroundColor: EXP_COLORS[i] }}></div>
                           <span className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors">{d.name}</span>
                         </div>
-                        <span className="text-xs font-extrabold text-slate-900 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">{d.value}%</span>
+                        <span className="text-xs font-extrabold text-slate-900 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">{d.value}%</span>
                       </div>
                     ))}
                   </div>
