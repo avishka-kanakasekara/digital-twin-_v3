@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import {
-  FileText, Settings, Users, Target, Activity, Minus, Plus, Equal,
-  AlertCircle, ArrowUpRight, CheckCircle2, X, Sparkles, Database,
-  Share2, TrendingUp, Layers, Compass, Cpu, Search, Download,
-  FileSpreadsheet, BookOpen, GitBranch, Star
+  FileText, Users, Target, Activity, Plus,
+  ArrowUpRight, CheckCircle2, X, Sparkles, Database,
+  TrendingUp, Cpu, Search, Download, Star
 } from 'lucide-react';
 import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area,
-  PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
 
 import api from '../../lib/api';
@@ -18,7 +17,6 @@ export const StrategyRoleArchitect: React.FC = () => {
   const [department, setDepartment] = useState('All Departments');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedRoleSpec, setSelectedRoleSpec] = useState<any | null>(null);
   const [selectedPrimaryInput, setSelectedPrimaryInput] = useState<any | null>(null);
   const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
@@ -51,7 +49,6 @@ export const StrategyRoleArchitect: React.FC = () => {
   };
 
   const fetchStrategyData = () => {
-    setIsLoading(true);
     api.organization.getStrategyOverview(department)
       .then((res: any) => {
         if (res) {
@@ -63,8 +60,7 @@ export const StrategyRoleArchitect: React.FC = () => {
           if (res.competency_radar) setCompetencyRadar(res.competency_radar);
         }
       })
-      .catch((err) => console.error('Error fetching Strategy Role Architect backend data:', err))
-      .finally(() => setIsLoading(false));
+      .catch((err) => console.error('Error fetching Strategy Role Architect backend data:', err));
   };
 
   useEffect(() => {

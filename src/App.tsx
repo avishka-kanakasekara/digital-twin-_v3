@@ -3,7 +3,6 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './views/organization/Dashboard';
 import { EmployeeTwin } from './views/employee/EmployeeTwin';
 import { OrgSimulator } from './views/organization/OrgSimulator';
-import { AtRiskRadar } from './views/organization/AtRiskRadar';
 import { CareerCoach } from './views/employee/CareerCoach';
 import { GamificationHub } from './views/employee/GamificationHub';
 import { LearningHub } from './views/employee/LearningHub';

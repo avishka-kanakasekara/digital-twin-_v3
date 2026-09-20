@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase, Lightbulb, Bot, Layers, ShieldAlert, ArrowRightLeft, Cpu, Sparkles, Grid } from 'lucide-react';
+import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase, Lightbulb, Bot, Layers, ShieldAlert, ArrowRightLeft, Cpu, Grid } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
 import { useOrganizationScenarios } from '../../hooks/useOrganization';
 import api from '../../lib/api';

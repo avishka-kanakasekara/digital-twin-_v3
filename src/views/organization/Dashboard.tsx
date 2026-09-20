@@ -2,19 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../../components/Modal';
 import { 
   Users, Target, TrendingUp, Activity, ExternalLink, HeartPulse, 
-  BrainCircuit, Sparkles, AlertTriangle, Download, Share2, RefreshCw, 
-  Zap, ShieldAlert, ChevronRight, Layers, ArrowUpRight, BarChart3, Filter
+  BrainCircuit, Sparkles, AlertTriangle, 
+  Zap, ShieldAlert, Layers
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { Link } from 'react-router-dom';
-import { mockDrillDownEmployees, mockDeptPerformance } from '../../dummy/organization/dashboardData';
+import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
 import { useOrganizationMetrics, useOrganizationAnomalies, useOrganizationSkillShortages, useOrganizationRiskProfiles } from '../../hooks/useOrganization';
 import api from '../../lib/api';
 
 export const Dashboard: React.FC = () => {
   const [drillDownInfo, setDrillDownInfo] = useState<{ isOpen: boolean; title: string; category?: string; data?: any[] } | null>(null);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [currentTime, setCurrentTime] = useState(new Date());
 
   const { metrics, loading: metricsLoading } = useOrganizationMetrics();
   const { anomalies, loading: anomaliesLoading } = useOrganizationAnomalies();
@@ -60,9 +59,6 @@ export const Dashboard: React.FC = () => {
         { name: 'Product', performanceScore: 94 },
       ]);
     });
-
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000);
-    return () => clearInterval(timer);
   }, []);
 
   // Anomalies

@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../components/Card';
 import {
-  Users, TrendingUp, Layers, Target, Activity, Minus, Plus, Equal,
-  AlertCircle, ArrowUpRight, CheckCircle2, X, Sparkles, BrainCircuit,
+  Users, TrendingUp, Layers, Target, Activity,
+  ArrowUpRight, CheckCircle2, X, Sparkles, BrainCircuit,
   Calendar, UserCheck, Search, ShieldAlert, UserMinus, UserPlus, Award
 } from 'lucide-react';
 import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area,
-  PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  PieChart, Pie, Cell
 } from 'recharts';
 import {
   DEPT_COLORS,
-  mockExperience, EXP_COLORS, mockSkills
+  mockExperience, EXP_COLORS
 } from '../../dummy/organization/workforcePlanningData';
 import api from '../../lib/api';
 import { TwinChatModal } from '../../components/TwinChatModal';
