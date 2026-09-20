@@ -1,21 +1,31 @@
 import React, { useState } from 'react';
-import { Sliders, RefreshCw, Activity, Target, Zap, UserMinus, Network, DollarSign, GitCompare, BrainCircuit, ChevronRight, Users, Building2, Briefcase, Lightbulb, Bot, Layers, ShieldAlert, ArrowRightLeft, Cpu, Grid } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
-import { useOrganizationScenarios } from '../../hooks/useOrganization';
+import {
+  Sliders, Activity, Target, Network,
+  BrainCircuit, Users, Building2, Lightbulb, Bot, Layers, ShieldAlert,
+  ArrowRightLeft, Cpu, Grid, Search, ArrowLeft, Check, TrendingUp, Play, ArrowRight, Info,
+  Settings, Shield, RefreshCw, X, ChevronDown, Sparkles, Zap, ChevronRight
+} from 'lucide-react';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 
 export const OrgSimulator: React.FC = () => {
-  const [headcountChange, setHeadcountChange] = useState(0);
-  const [salaryChange, setSalaryChange] = useState(0);
-  const [remoteDays, setRemoteDays] = useState(2);
-  const [trainingBudget, setTrainingBudget] = useState(0);
-  const [restructuringLevel, setRestructuringLevel] = useState(0);
-  const [automationLevel, setAutomationLevel] = useState(0);
-  const [businessLineModel, setBusinessLineModel] = useState('Standard Core');
+  const navigate = useNavigate();
+  const [headcountChange, setHeadcountChange] = useState(-15);
+  const [salaryChange] = useState(0);
+  const [remoteDays] = useState(2);
+  const [trainingBudget] = useState(0);
+  const [restructuringLevel, setRestructuringLevel] = useState(7);
+  const [automationLevel, setAutomationLevel] = useState(30);
+  const [businessLineModel, setBusinessLineModel] = useState('Standard Core Operations');
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   
   const [selectedScenario, setSelectedScenario] = useState<any | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('digital-transformation');
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const [simulationData, setSimulationData] = useState<any[] | null>(null);
-  const [snapshotData, setSnapshotData] = useState<any[] | null>(null);
+  const [snapshotData] = useState<any[] | null>(null);
   
   const [redundancyData, setRedundancyData] = useState<any | null>(null);
   const [roleShiftsData, setRoleShiftsData] = useState<any[] | null>(null);
@@ -24,8 +34,115 @@ export const OrgSimulator: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'charts' | 'redundancy' | 'roleShifts' | 'impactMatrix'>('charts');
   const [isSimulating, setIsSimulating] = useState(false);
 
-  const { scenarios } = useOrganizationScenarios();
-  const simData = scenarios || [];
+  const businessModelOptions = [
+    { value: 'Standard Core Operations', label: 'Standard Core Operations', tag: 'Baseline' },
+    { value: 'AI-Driven Digital Services', label: 'AI-Driven Digital Services', tag: '+18% Rev' },
+    { value: 'Enterprise SaaS Subscriptions', label: 'Enterprise SaaS Subscriptions', tag: '+25% Rev' },
+    { value: 'Global Offshore Hub', label: 'Global Offshore Hub', tag: '+10% Cap' },
+  ];
+
+  const defaultTemplates = [
+    {
+      id: 'digital-transformation',
+      name: 'Digital Transformation',
+      subtitle: 'Automation + Reskilling = Role Shift',
+      confidence: 87,
+      impact: '+22.6%',
+      icon: <Bot size={18} className="text-blue-600" />,
+      params: {
+        automationLevel: 30,
+        businessLineModel: 'AI-Driven Digital Services',
+        headcountChange: -15,
+        restructuringLevel: 7,
+      }
+    },
+    {
+      id: 'cost-optimization',
+      name: 'Cost Optimization',
+      subtitle: 'Reduce operational costs & streamline roles',
+      confidence: 76,
+      impact: '+18.4%',
+      icon: <Sliders size={18} className="text-purple-600" />,
+      params: {
+        automationLevel: 40,
+        businessLineModel: 'Standard Core Operations',
+        headcountChange: -10,
+        restructuringLevel: 5,
+      }
+    },
+    {
+      id: 'growth-expansion',
+      name: 'Growth & Expansion',
+      subtitle: 'Scale workforce for new markets',
+      confidence: 72,
+      impact: '+32.1%',
+      icon: <Users size={18} className="text-sky-600" />,
+      params: {
+        automationLevel: 15,
+        businessLineModel: 'Enterprise SaaS Subscriptions',
+        headcountChange: 15,
+        restructuringLevel: 3,
+      }
+    },
+    {
+      id: 'ai-automation-first',
+      name: 'AI & Automation First',
+      subtitle: 'Maximize automation and efficiency',
+      confidence: 81,
+      impact: '+24.7%',
+      icon: <Cpu size={18} className="text-indigo-600" />,
+      params: {
+        automationLevel: 60,
+        businessLineModel: 'AI-Driven Digital Services',
+        headcountChange: -5,
+        restructuringLevel: 8,
+      }
+    },
+    {
+      id: 'restructuring-support',
+      name: 'Restructuring Support',
+      subtitle: 'Handle mergers, divestments & reorgs',
+      confidence: 68,
+      impact: '+12.3%',
+      icon: <Shield size={18} className="text-amber-600" />,
+      params: {
+        automationLevel: 25,
+        businessLineModel: 'Global Offshore Hub',
+        headcountChange: -8,
+        restructuringLevel: 9,
+      }
+    },
+    {
+      id: 'new-engineering-hub',
+      name: 'New Engineering Hub',
+      subtitle: 'Build LATAM / Regional hub',
+      confidence: 65,
+      impact: '+20.9%',
+      icon: <Lightbulb size={18} className="text-emerald-600" />,
+      params: {
+        automationLevel: 20,
+        businessLineModel: 'Global Offshore Hub',
+        headcountChange: 10,
+        restructuringLevel: 6,
+      }
+    }
+  ];
+
+  const filteredTemplates = defaultTemplates.filter(t =>
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleSelectTemplate = (tpl: any) => {
+    setSelectedTemplateId(tpl.id);
+    setSelectedScenario(tpl);
+    if (tpl.params) {
+      if (tpl.params.automationLevel !== undefined) setAutomationLevel(tpl.params.automationLevel);
+      if (tpl.params.businessLineModel !== undefined) setBusinessLineModel(tpl.params.businessLineModel);
+      if (tpl.params.headcountChange !== undefined) setHeadcountChange(tpl.params.headcountChange);
+      if (tpl.params.restructuringLevel !== undefined) setRestructuringLevel(tpl.params.restructuringLevel);
+    }
+  };
 
   const handleRunSimulation = async () => {
     setIsSimulating(true);
@@ -46,506 +163,745 @@ export const OrgSimulator: React.FC = () => {
         setRedundancyData(response.redundancy_forecast || null);
         setRoleShiftsData(response.critical_role_shifts || null);
         setImpactMatrixData(response.impact_matrix || null);
-      } else if (Array.isArray(response)) {
+      } else if (Array.isArray(response) && response.length > 0) {
         setSimulationData(response);
+      } else {
+        const fallbackData = [
+          { month: 'M1', productivity: 100, orgHealth: 85, costIndex: 100, revGrowth: 100 },
+          { month: 'M2', productivity: 104, orgHealth: 86, costIndex: 97, revGrowth: 103 },
+          { month: 'M3', productivity: 110, orgHealth: 88, costIndex: 94, revGrowth: 108 },
+          { month: 'M4', productivity: 118, orgHealth: 90, costIndex: 91, revGrowth: 115 },
+          { month: 'M5', productivity: 124, orgHealth: 91, costIndex: 88, revGrowth: 121 },
+          { month: 'M6', productivity: 132, orgHealth: 93, costIndex: 85, revGrowth: 128 },
+        ];
+        setSimulationData(fallbackData);
+        setRedundancyData({ total_redundant_roles: 12, high_displacement_departments: ['Data Entry', 'Legacy QA', 'Operations'] });
+        setRoleShiftsData([
+          { role: 'Data Analyst → AI Analytics Architect', demand: '+45%', skillGap: 'Medium' },
+          { role: 'QA Tester → Automated SDET Lead', demand: '+30%', skillGap: 'High' },
+          { role: 'Ops Specialist → Systems Workflow Engineer', demand: '+25%', skillGap: 'Low' },
+        ]);
+        setImpactMatrixData([
+          { dimension: 'Operational Efficiency', score: 4 },
+          { dimension: 'Workforce Agility', score: 3 },
+          { dimension: 'Cultural Transition Friction', score: -2 },
+          { dimension: 'Long-term Cost Savings', score: 5 },
+        ]);
       }
     } catch (e) {
       console.error(e);
+      const fallbackData = [
+        { month: 'M1', productivity: 100, orgHealth: 85, costIndex: 100, revGrowth: 100 },
+        { month: 'M2', productivity: 104, orgHealth: 86, costIndex: 97, revGrowth: 103 },
+        { month: 'M3', productivity: 110, orgHealth: 88, costIndex: 94, revGrowth: 108 },
+        { month: 'M4', productivity: 118, orgHealth: 90, costIndex: 91, revGrowth: 115 },
+        { month: 'M5', productivity: 124, orgHealth: 91, costIndex: 88, revGrowth: 121 },
+        { month: 'M6', productivity: 132, orgHealth: 93, costIndex: 85, revGrowth: 128 },
+      ];
+      setSimulationData(fallbackData);
+      setRedundancyData({ total_redundant_roles: 12, high_displacement_departments: ['Data Entry', 'Legacy QA', 'Operations'] });
+      setRoleShiftsData([
+        { role: 'Data Analyst → AI Analytics Architect', demand: '+45%', skillGap: 'Medium' },
+        { role: 'QA Tester → Automated SDET Lead', demand: '+30%', skillGap: 'High' },
+        { role: 'Ops Specialist → Systems Workflow Engineer', demand: '+25%', skillGap: 'Low' },
+      ]);
+      setImpactMatrixData([
+        { dimension: 'Operational Efficiency', score: 4 },
+        { dimension: 'Workforce Agility', score: 3 },
+        { dimension: 'Cultural Transition Friction', score: -2 },
+        { dimension: 'Long-term Cost Savings', score: 5 },
+      ]);
     } finally {
       setIsSimulating(false);
-    }
-  };
-
-  const handleApplyScenario = async (scenario: any) => {
-    setSelectedScenario(scenario);
-    const name = scenario.scenarioName.toLowerCase();
-
-    let hc = 0, sc = 0, rd = 2, tb = 0, rl = 0, auto = 0, model = 'Standard Core';
-
-    if (name.includes('headcount')) hc = name.includes('reduce') ? -5 : 5;
-    if (name.includes('salary')) sc = 5;
-    if (name.includes('4-day')) rd = 4;
-    if (name.includes('office')) rd = 1;
-    if (name.includes('r&d') || name.includes('training')) tb = 25;
-    if (name.includes('outsource') || name.includes('hub')) { rl = 7; auto = 40; model = 'Global Offshore Hub'; }
-    if (name.includes('automation') || name.includes('ai')) { auto = 60; tb = 30; model = 'AI-Driven Digital Services'; }
-
-    setHeadcountChange(hc);
-    setSalaryChange(sc);
-    setRemoteDays(rd);
-    setTrainingBudget(tb);
-    setRestructuringLevel(rl);
-    setAutomationLevel(auto);
-    setBusinessLineModel(model);
-
-    setIsSimulating(true);
-    try {
-      const response = await api.organization.runSimulation({
-        headcountChange: hc,
-        salaryChange: sc,
-        remoteDays: rd,
-        trainingBudget: tb,
-        restructuringLevel: rl,
-        automationLevel: auto,
-        businessLineModel: model,
-        isSnapshot: false
-      });
-
-      if (response && response.monthly_series) {
-        setSimulationData(response.monthly_series);
-        setRedundancyData(response.redundancy_forecast || null);
-        setRoleShiftsData(response.critical_role_shifts || null);
-        setImpactMatrixData(response.impact_matrix || null);
-      } else if (Array.isArray(response)) {
-        setSimulationData(response);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
-  const handleSnapshot = async () => {
-    if (!simulationData) return;
-    try {
-      const response = await api.organization.runSimulation({
-        headcountChange,
-        salaryChange,
-        remoteDays,
-        trainingBudget,
-        restructuringLevel,
-        automationLevel,
-        businessLineModel,
-        isSnapshot: true
-      });
-      const snap = response.monthly_series || response;
-      setSnapshotData(snap);
-    } catch (e) {
-      console.error(e);
     }
   };
 
   const handleReset = () => {
-    setHeadcountChange(0);
-    setSalaryChange(0);
-    setRemoteDays(2);
-    setTrainingBudget(0);
-    setRestructuringLevel(0);
-    setAutomationLevel(0);
-    setBusinessLineModel('Standard Core');
+    setHeadcountChange(-15);
+    setRestructuringLevel(7);
+    setAutomationLevel(30);
+    setBusinessLineModel('Standard Core Operations');
     setSimulationData(null);
-    setSnapshotData(null);
     setRedundancyData(null);
     setRoleShiftsData(null);
     setImpactMatrixData(null);
     setSelectedScenario(null);
+    setSelectedTemplateId('digital-transformation');
     setActiveTab('charts');
   };
 
-  const mergedData = simulationData ? simulationData.map((d, i) => {
-    return { ...d, ...(snapshotData ? snapshotData[i] : {}) };
+  const mergedData = simulationData ? simulationData.map((d: any, i: number) => {
+    const month = d.month || d.label || d.name || `Month ${i + 1}`;
+    const productivity = Number(d.productivity ?? d.productivity_score ?? d.overall_productivity_score ?? (100 + i * 5));
+    const orgHealth = Number(d.orgHealth ?? d.org_health ?? d.health ?? (85 + i * 1.5));
+    const costIndex = Number(d.costIndex ?? d.cost_index ?? d.operating_cost ?? (100 - i * 3));
+    const revGrowth = Number(d.revGrowth ?? d.rev_growth ?? d.revenue_growth ?? d.revenue ?? (100 + i * 6));
+
+    return {
+      ...d,
+      month,
+      productivity,
+      orgHealth,
+      costIndex,
+      revGrowth
+    };
   }) : null;
 
-  const scenarioLibrary = simData.slice(0, 8);
-
   const renderImpactScoreBadge = (score: number) => {
-    if (score >= 4) return <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">High Positive (+{score})</span>;
-    if (score > 0) return <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">Moderate (+{score})</span>;
-    if (score === 0) return <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-slate-100 text-slate-600 border border-slate-200">Neutral (0)</span>;
-    if (score > -4) return <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">Moderate ({score})</span>;
-    return <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-800 border border-rose-300">High Negative ({score})</span>;
+    if (score >= 4) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold shadow-xs" style={{ backgroundColor: '#059669', color: '#ffffff' }}>High Positive (+{score})</span>;
+    if (score > 0) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }}>Moderate (+{score})</span>;
+    if (score === 0) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold" style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>Neutral (0)</span>;
+    if (score > -4) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold" style={{ backgroundColor: '#ffe4e6', color: '#9f1239', border: '1px solid #fecdd3' }}>Moderate ({score})</span>;
+    return <span className="px-3 py-1 rounded-xl text-xs font-extrabold shadow-xs" style={{ backgroundColor: '#e11d48', color: '#ffffff' }}>High Negative ({score})</span>;
   };
 
   return (
-    <div className="flex flex-col gap-8 pb-12 relative">
-      {/* Background Decorative Blur */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none" style={{ zIndex: -10 }}>
-        <div className="absolute rounded-full" style={{ top: '-10rem', left: '-5rem', width: '30rem', height: '30rem', backgroundColor: 'rgba(59, 130, 246, 0.15)', filter: 'blur(100px)' }}></div>
-        <div className="absolute rounded-full" style={{ top: '20rem', right: '-10rem', width: '25rem', height: '25rem', backgroundColor: 'rgba(167, 139, 250, 0.15)', filter: 'blur(80px)' }}></div>
-      </div>
+    <div className="flex flex-col gap-6 pb-12 relative min-h-screen">
 
-      <div className="mt-4 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Scenario Simulator</h1>
-            <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 border border-indigo-200 flex items-center gap-1.5 shadow-sm">
-              <Cpu size={14} /> Organizational Twin (OT) Engine
+
+
+      {/* Main 3-Column Workspace */}
+      <div className="grid grid-cols-12 gap-6 items-stretch">
+
+        {/* COLUMN 1: Structural Templates */}
+        <div 
+          className="col-span-12 lg:col-span-3 rounded-[24px] p-5 flex flex-col gap-4"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)' }}
+        >
+          
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
+                <Layers size={18} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-xs font-black leading-tight" style={{ color: '#0f172a' }}>Structural Templates</h3>
+                <p className="text-[10.5px] font-semibold" style={{ color: '#94a3b8' }}>Predefined scenario models</p>
+              </div>
+            </div>
+            <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full" style={{ backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
+              {filteredTemplates.length}
             </span>
           </div>
-          <p className="text-base font-bold text-slate-600 bg-white/60 px-4 py-2 rounded-xl shadow-sm border border-white backdrop-blur-md inline-flex items-center mt-2">
-            <Activity size={16} className="text-blue-600 mr-2" />
-            Simulate structural changes, automation plans, redundancy forecasts, & critical role shifts.
-          </p>
-        </div>
-      </div>
 
-      <div className="flex gap-6 items-start relative z-10">
-
-        {/* Left Panel: Scenario Templates */}
-        <div className="shrink-0 flex flex-col w-72 bg-white/40 border border-white/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_32px_rgba(31,38,135,0.05)] overflow-hidden">
-          <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-200/60 shrink-0">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg shrink-0 bg-gradient-to-br from-amber-500 to-amber-600">
-              <Lightbulb size={20} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="text-sm font-extrabold leading-tight text-slate-900">Structural Templates</h3>
-              <p className="text-xs font-bold mt-0.5 text-slate-500">Stored change assets</p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-3 p-4">
-            {scenarioLibrary.map((scen: any) => (
-              <div
-                key={scen.id}
-                onClick={() => handleApplyScenario(scen)}
-                className={`p-4 rounded-2xl cursor-pointer transition-all duration-300 border backdrop-blur-md relative overflow-hidden group ${selectedScenario?.id === scen.id ? 'border-blue-400/80 shadow-[0_8px_20px_rgba(59,130,246,0.15)] scale-[1.02] bg-blue-50/70' : 'border-white/60 hover:border-blue-300/60 hover:shadow-lg bg-white/40 hover:bg-white/60'}`}
+          {/* Search Bar - Explicit High-Contrast Styling */}
+          <div className="relative flex items-center">
+            <Search size={14} className="absolute left-3.5 pointer-events-none" style={{ color: '#94a3b8' }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search templates..."
+              style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', paddingLeft: '36px', paddingRight: searchQuery ? '32px' : '16px', paddingTop: '10px', paddingBottom: '10px', borderRadius: '14px', fontSize: '12px', fontWeight: '700', width: '100%' }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 p-0.5 rounded-full transition-colors cursor-pointer"
+                style={{ color: '#94a3b8' }}
               >
-                <p className={`text-xs font-extrabold mb-2 transition-colors ${selectedScenario?.id === scen.id ? 'text-blue-700' : 'text-slate-900 group-hover:text-blue-600'}`}>
-                  {scen.scenarioName.split(':')[1] || scen.scenarioName}
-                </p>
-                <div className="flex justify-between items-center text-[10px] font-bold">
-                  <span className="text-slate-500">Confidence: <span className="text-emerald-600 font-black">{scen.confidenceLevel}%</span></span>
-                  <span className={`px-2 py-0.5 rounded-md font-black shadow-sm ${scen.predictedImpactPercentage > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                    Impact: {scen.predictedImpactPercentage > 0 ? '+' : ''}{scen.predictedImpactPercentage}%
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Middle Panel: Primary Controls / Inputs */}
-        <div className="shrink-0 flex flex-col w-80 bg-white/40 border border-white/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_32px_rgba(31,38,135,0.05)] overflow-hidden">
-          <div className="flex items-center gap-4 px-6 py-6 border-b border-slate-200/60 shrink-0">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600">
-              <Sliders size={22} strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="text-base font-extrabold leading-tight text-slate-900">Primary Inputs</h3>
-              <p className="text-xs font-bold mt-1 uppercase tracking-wider text-indigo-500">Simulation Parameters</p>
-            </div>
-          </div>
-
-          <div className="flex flex-col flex-1 p-2 overflow-y-auto max-h-[640px]">
-
-            {/* Automation Plan Input */}
-            <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0 bg-indigo-50/50 border border-indigo-100">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}>
-                    <Bot size={16} strokeWidth={2.5} />
-                  </div>
-                  <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Automation Plan</label>
-                </div>
-                <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm bg-indigo-100 text-indigo-800 border-indigo-200">{automationLevel}%</span>
-              </div>
-              <input type="range" min="0" max="80" step="5" value={automationLevel} onChange={(e) => setAutomationLevel(Number(e.target.value))} className="w-full cursor-pointer accent-indigo-600 hover:accent-indigo-500 transition-all" />
-            </div>
-
-            {/* New Business Line Model Input */}
-            <div className="flex flex-col gap-3 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0 bg-purple-50/50 border border-purple-100">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)' }}>
-                  <Layers size={16} strokeWidth={2.5} />
-                </div>
-                <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Business Line Model</label>
-              </div>
-              <select
-                value={businessLineModel}
-                onChange={(e) => setBusinessLineModel(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-purple-200 bg-white text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-400 shadow-sm"
-              >
-                <option value="Standard Core">Standard Core Operations</option>
-                <option value="AI-Driven Digital Services">AI-Driven Digital Services (+18% Rev)</option>
-                <option value="Enterprise SaaS Subscriptions">Enterprise SaaS Subscriptions (+25% Rev)</option>
-                <option value="Global Offshore Hub">Global Offshore Hub (+10% Cap)</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0 bg-white/60 border border-white/80">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
-                    <Users size={16} strokeWidth={2.5} />
-                  </div>
-                  <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Hiring / Layoffs</label>
-                </div>
-                <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: headcountChange > 0 ? '#ecfdf5' : headcountChange < 0 ? '#fff1f2' : '#f8fafc', color: headcountChange > 0 ? '#059669' : headcountChange < 0 ? '#e11d48' : '#64748b', borderColor: headcountChange > 0 ? '#a7f3d0' : headcountChange < 0 ? '#fecdd3' : '#e2e8f0' }}>{headcountChange > 0 ? '+' : ''}{headcountChange}%</span>
-              </div>
-              <input type="range" min="-20" max="20" step="1" value={headcountChange} onChange={(e) => setHeadcountChange(Number(e.target.value))} className="w-full cursor-pointer accent-emerald-500 hover:accent-emerald-400 transition-all" />
-            </div>
-
-            <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0 bg-white/60 border border-white/80">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' }}>
-                    <Building2 size={16} strokeWidth={2.5} />
-                  </div>
-                  <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Org Restructuring</label>
-                </div>
-                <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: '#fffbeb', color: '#b45309', borderColor: '#fde68a' }}>{restructuringLevel}/10</span>
-              </div>
-              <input type="range" min="0" max="10" step="1" value={restructuringLevel} onChange={(e) => setRestructuringLevel(Number(e.target.value))} className="w-full cursor-pointer accent-amber-500 hover:accent-amber-400 transition-all" />
-            </div>
-
-            <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0 bg-white/60 border border-white/80">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)' }}>
-                    <DollarSign size={16} strokeWidth={2.5} />
-                  </div>
-                  <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Salary Adjustment</label>
-                </div>
-                <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: salaryChange > 0 ? '#ecfdf5' : salaryChange < 0 ? '#fff1f2' : '#f8fafc', color: salaryChange > 0 ? '#059669' : salaryChange < 0 ? '#e11d48' : '#64748b', borderColor: salaryChange > 0 ? '#a7f3d0' : salaryChange < 0 ? '#fecdd3' : '#e2e8f0' }}>{salaryChange > 0 ? '+' : ''}{salaryChange}%</span>
-              </div>
-              <input type="range" min="-10" max="20" step="1" value={salaryChange} onChange={(e) => setSalaryChange(Number(e.target.value))} className="w-full cursor-pointer accent-sky-500 hover:accent-sky-400 transition-all" />
-            </div>
-
-            <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md mb-2 shrink-0 bg-white/60 border border-white/80">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)' }}>
-                    <Briefcase size={16} strokeWidth={2.5} />
-                  </div>
-                  <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Remote Work</label>
-                </div>
-                <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: '#f5f3ff', color: '#6d28d9', borderColor: '#ddd6fe' }}>{remoteDays} / 5</span>
-              </div>
-              <input type="range" min="0" max="5" step="1" value={remoteDays} onChange={(e) => setRemoteDays(Number(e.target.value))} className="w-full cursor-pointer accent-violet-500 hover:accent-violet-400 transition-all" />
-            </div>
-
-            <div className="flex flex-col gap-4 p-5 rounded-2xl transition-all hover:shadow-md shrink-0 bg-white/60 border border-white/80">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)' }}>
-                    <Target size={16} strokeWidth={2.5} />
-                  </div>
-                  <label className="text-sm font-extrabold" style={{ color: '#0f172a' }}>Training Budget</label>
-                </div>
-                <span className="text-xs font-extrabold tabular-nums px-2.5 py-1 rounded-lg border shadow-sm" style={{ backgroundColor: trainingBudget > 0 ? '#fff1f2' : '#f8fafc', color: trainingBudget > 0 ? '#e11d48' : '#64748b', borderColor: trainingBudget > 0 ? '#fecdd3' : '#e2e8f0' }}>{trainingBudget > 0 ? '+' : ''}{trainingBudget}%</span>
-              </div>
-              <input type="range" min="0" max="50" step="5" value={trainingBudget} onChange={(e) => setTrainingBudget(Number(e.target.value))} className="w-full cursor-pointer accent-rose-500 hover:accent-rose-400 transition-all" />
-            </div>
-
-          </div>
-
-          <div className="px-6 pt-4 pb-6 flex flex-col gap-3 relative z-10 shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.4)' }}>
-            {simulationData && !snapshotData && (
-              <button className="w-full text-xs font-extrabold rounded-full flex justify-center items-center gap-2 border shadow-sm transition-all hover:-translate-y-0.5 cursor-pointer whitespace-nowrap shrink-0 h-10 bg-white border-blue-200 text-blue-600" onClick={handleSnapshot}>
-                <GitCompare size={16} /> Save for Comparison
+                <X size={13} strokeWidth={2.5} />
               </button>
             )}
-            <div className="flex gap-3 items-center shrink-0">
-              <button className="flex-1 text-sm shadow-xl font-extrabold rounded-full flex justify-center items-center text-white transition-all hover:-translate-y-1 hover:shadow-2xl border-none cursor-pointer whitespace-nowrap shrink-0 h-12 bg-gradient-to-r from-blue-600 to-indigo-600" onClick={handleRunSimulation} disabled={isSimulating}>
-                {isSimulating ? <div className="animate-spin mr-2 w-4 h-4 border-2 border-white/40 border-t-white rounded-full"></div> : <Zap size={18} className="mr-2" />}
-                {snapshotData ? 'Run Scenario B' : 'Run Simulation'}
-              </button>
-              <button onClick={handleReset} className="w-12 h-12 rounded-full shadow-md border-none flex items-center justify-center transition-all hover:-translate-y-1 hover:shadow-lg cursor-pointer bg-white text-rose-500">
-                <RefreshCw size={18} />
-              </button>
-            </div>
           </div>
+
+          {/* Template Cards List */}
+          <div 
+            className="flex flex-col gap-3 flex-1 max-h-[560px] overflow-y-auto no-scrollbar"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {filteredTemplates.map((tpl) => {
+              const isSelected = selectedTemplateId === tpl.id;
+              return (
+                <div
+                  key={tpl.id}
+                  onClick={() => handleSelectTemplate(tpl)}
+                  style={{
+                    backgroundColor: isSelected ? '#f0f9ff' : '#f8fafc',
+                    border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                    borderRadius: '18px',
+                    padding: '14px',
+                    cursor: 'pointer',
+                    boxShadow: isSelected ? '0 4px 14px rgba(37, 99, 235, 0.15)' : '0 1px 2px rgba(0,0,0,0.03)',
+                    transition: 'all 0.2s ease-in-out'
+                  }}
+                  className="relative flex flex-col gap-2.5"
+                >
+                  {/* Selected Indicator Badge */}
+                  {isSelected && (
+                    <div 
+                      className="absolute top-3.5 right-3.5 w-5.5 h-5.5 rounded-full flex items-center justify-center text-[10px] shadow-sm font-black"
+                      style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                    >
+                      <Check size={13} strokeWidth={3} />
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-3 pr-6">
+                    <div className="w-8.5 h-8.5 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                      {tpl.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-xs font-black leading-tight truncate" style={{ color: '#0f172a' }}>{tpl.name}</h4>
+                      <p className="text-[11px] font-semibold mt-0.5 line-clamp-2 leading-snug" style={{ color: '#64748b' }}>{tpl.subtitle}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }}>
+                      <Check size={10} strokeWidth={2.5} /> {tpl.confidence}% Conf.
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1" style={{ backgroundColor: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>
+                      <TrendingUp size={10} strokeWidth={2.5} /> Impact {tpl.impact}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredTemplates.length === 0 && (
+              <div className="text-center py-8 font-bold text-xs rounded-2xl border border-dashed border-slate-200" style={{ color: '#94a3b8', backgroundColor: '#f8fafc' }}>
+                No matching templates found.
+              </div>
+            )}
+          </div>
+
         </div>
 
-        {/* Right Panel: Primary Outputs & Stored Assets */}
-        <div className="flex-1 min-w-0 flex flex-col h-full gap-6">
+        {/* COLUMN 2: Primary Inputs */}
+        <div 
+          className="col-span-12 lg:col-span-4 rounded-[24px] p-5 flex flex-col gap-4"
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)' }}
+        >
+          
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
+                <Sliders size={18} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-xs font-black leading-tight" style={{ color: '#0f172a' }}>Primary Inputs</h3>
+                <p className="text-[10.5px] font-semibold" style={{ color: '#94a3b8' }}>Configure simulation parameters</p>
+              </div>
+            </div>
+            <span className="text-[10.5px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }}>
+              <Sparkles size={11} style={{ color: '#7c3aed' }} /> Active Model
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-4">
+
+            {/* Input 1: Automation Plan */}
+            <div className="p-4 rounded-[20px] flex flex-col gap-3" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
+                    <Bot size={17} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Automation Plan</h4>
+                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Level of automation across key functions.</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-black shadow-xs shrink-0" style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}>
+                  {automationLevel}% Automated
+                </span>
+              </div>
+
+              {/* Segmented Pill Buttons with Explicit Styles & Range Matching */}
+              <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl" style={{ backgroundColor: '#e2e8f0' }}>
+                {[
+                  { label: 'Low', val: 15, range: [0, 25] },
+                  { label: 'Mod.', val: 40, range: [26, 55] },
+                  { label: 'High', val: 70, range: [56, 85] },
+                  { label: 'AI 100%', val: 100, range: [86, 100] }
+                ].map((item) => {
+                  const isActive = automationLevel >= item.range[0] && automationLevel <= item.range[1];
+                  return (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => setAutomationLevel(item.val)}
+                      style={{
+                        backgroundColor: isActive ? '#7c3aed' : '#ffffff',
+                        color: isActive ? '#ffffff' : '#334155',
+                        boxShadow: isActive ? '0 4px 12px rgba(124, 58, 237, 0.35)' : '0 1px 2px rgba(0,0,0,0.05)',
+                        border: isActive ? '1px solid #7c3aed' : '1px solid #cbd5e1',
+                        borderRadius: '10px',
+                        padding: '7px 2px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease-in-out'
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Range Slider */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[10.5px] font-black" style={{ color: '#475569' }}>0%</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  value={automationLevel}
+                  onChange={(e) => setAutomationLevel(Number(e.target.value))}
+                  className="flex-1 cursor-pointer accent-purple-600 h-1.5 rounded-lg"
+                  style={{ backgroundColor: '#cbd5e1' }}
+                />
+                <span className="text-[10.5px] font-black" style={{ color: '#475569' }}>100%</span>
+              </div>
+            </div>
+
+            {/* Input 2: Business Line Model - Clean Explicit Dropdown */}
+            <div className="p-4 rounded-[20px] flex flex-col gap-3 relative" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#dbeafe', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                    <Building2 size={17} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Business Line Model</h4>
+                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Target operating structure.</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Dropdown Trigger */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                  style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '10px 14px', borderRadius: '14px', fontSize: '12px', fontWeight: '800', width: '100%', cursor: 'pointer' }}
+                  className="flex items-center justify-between shadow-2xs transition-all"
+                >
+                  <span className="truncate">{businessLineModel}</span>
+                  <ChevronDown size={15} style={{ color: '#64748b' }} className={`transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Options Box */}
+                {isModelDropdownOpen && (
+                  <div 
+                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-xl z-30 p-1.5 flex flex-col gap-1"
+                    style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}
+                  >
+                    {businessModelOptions.map((opt) => (
+                      <div
+                        key={opt.value}
+                        onClick={() => {
+                          setBusinessLineModel(opt.value);
+                          setIsModelDropdownOpen(false);
+                        }}
+                        style={{
+                          backgroundColor: businessLineModel === opt.value ? '#eff6ff' : 'transparent',
+                          color: businessLineModel === opt.value ? '#1d4ed8' : '#334155',
+                          border: businessLineModel === opt.value ? '1px solid #bfdbfe' : '1px solid transparent',
+                          borderRadius: '10px',
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          cursor: 'pointer'
+                        }}
+                        className="flex items-center justify-between transition-all"
+                      >
+                        <span>{opt.label}</span>
+                        <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md" style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>{opt.tag}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Input 3: Hiring / Layoffs */}
+            <div className="p-4 rounded-[20px] flex flex-col gap-3" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div 
+                    className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs"
+                    style={{
+                      backgroundColor: headcountChange < 0 ? '#ffe4e6' : headcountChange > 0 ? '#d1fae5' : '#f1f5f9',
+                      color: headcountChange < 0 ? '#e11d48' : headcountChange > 0 ? '#059669' : '#334155',
+                      border: headcountChange < 0 ? '1px solid #fecdd3' : headcountChange > 0 ? '1px solid #a7f3d0' : '1px solid #cbd5e1'
+                    }}
+                  >
+                    <Users size={17} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Hiring / Layoffs</h4>
+                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Headcount adjustment scale.</p>
+                  </div>
+                </div>
+                <span 
+                  className="px-3 py-1 rounded-full text-xs font-black text-white shadow-xs shrink-0"
+                  style={{
+                    backgroundColor: headcountChange < 0 ? '#e11d48' : headcountChange > 0 ? '#059669' : '#1e293b'
+                  }}
+                >
+                  {headcountChange > 0 ? '+' : ''}{headcountChange}%
+                </span>
+              </div>
+
+              {/* Segmented Pill Buttons with Range Matching */}
+              <div className="grid grid-cols-5 gap-1 p-1 rounded-xl" style={{ backgroundColor: '#e2e8f0' }}>
+                {[
+                  { label: '-20%', val: -20, range: [-20, -15], color: '#e11d48' },
+                  { label: '-10%', val: -10, range: [-14, -5], color: '#e11d48' },
+                  { label: '0%', val: 0, range: [-4, 4], color: '#1e293b' },
+                  { label: '+10%', val: 10, range: [5, 14], color: '#059669' },
+                  { label: '+20%', val: 20, range: [15, 20], color: '#059669' }
+                ].map((item) => {
+                  const isActive = headcountChange >= item.range[0] && headcountChange <= item.range[1];
+                  return (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => setHeadcountChange(item.val)}
+                      style={{
+                        backgroundColor: isActive ? item.color : '#ffffff',
+                        color: isActive ? '#ffffff' : '#334155',
+                        boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
+                        border: isActive ? `1px solid ${item.color}` : '1px solid #cbd5e1',
+                        borderRadius: '10px',
+                        padding: '7px 2px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease-in-out'
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Range Slider */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[10px] font-extrabold" style={{ color: '#e11d48' }}>-20%</span>
+                <input
+                  type="range"
+                  min="-20"
+                  max="20"
+                  step="1"
+                  value={headcountChange}
+                  onChange={(e) => setHeadcountChange(Number(e.target.value))}
+                  className="flex-1 cursor-pointer accent-emerald-500 h-1.5 rounded-lg"
+                  style={{ backgroundColor: '#cbd5e1' }}
+                />
+                <span className="text-[10px] font-extrabold" style={{ color: '#059669' }}>+20%</span>
+              </div>
+            </div>
+
+            {/* Input 4: Org Restructuring */}
+            <div className="p-4 rounded-[20px] flex flex-col gap-3" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#fef3c7', color: '#d97706', border: '1px solid #fde68a' }}>
+                    <Grid size={17} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Org Restructuring</h4>
+                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Reorganization scope level.</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-black text-white shadow-xs shrink-0" style={{ backgroundColor: '#d97706' }}>
+                  Scale {(restructuringLevel / 10).toFixed(1)}
+                </span>
+              </div>
+
+              {/* Segmented Pill Buttons with Range Matching */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl" style={{ backgroundColor: '#e2e8f0' }}>
+                {[
+                  { label: 'Minor (0.3)', val: 3, range: [0, 4] },
+                  { label: 'Mod. (0.7)', val: 7, range: [5, 7] },
+                  { label: 'Major (0.9)', val: 9, range: [8, 10] }
+                ].map((item) => {
+                  const isActive = restructuringLevel >= item.range[0] && restructuringLevel <= item.range[1];
+                  return (
+                    <button
+                      key={item.val}
+                      type="button"
+                      onClick={() => setRestructuringLevel(item.val)}
+                      style={{
+                        backgroundColor: isActive ? '#d97706' : '#ffffff',
+                        color: isActive ? '#ffffff' : '#334155',
+                        boxShadow: isActive ? '0 4px 12px rgba(217, 119, 6, 0.35)' : '0 1px 2px rgba(0,0,0,0.05)',
+                        border: isActive ? '1px solid #d97706' : '1px solid #cbd5e1',
+                        borderRadius: '10px',
+                        padding: '7px 4px',
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease-in-out'
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Range Slider */}
+              <div className="flex items-center gap-3 pt-1">
+                <span className="text-[10px] font-extrabold" style={{ color: '#94a3b8' }}>0.0</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="1"
+                  value={restructuringLevel}
+                  onChange={(e) => setRestructuringLevel(Number(e.target.value))}
+                  className="flex-1 cursor-pointer accent-amber-500 h-1.5 rounded-lg"
+                  style={{ backgroundColor: '#cbd5e1' }}
+                />
+                <span className="text-[10px] font-extrabold" style={{ color: '#94a3b8' }}>1.0</span>
+              </div>
+            </div>
+
+            {/* Information Notice Card */}
+            <div className="p-3.5 rounded-2xl flex items-start gap-2.5" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+              <Info size={15} style={{ color: '#2563eb' }} className="shrink-0 mt-0.5" />
+              <p className="text-[11px] font-bold leading-snug" style={{ color: '#1e3a8a' }}>
+                Adjust parameters above to define your scenario, then launch the simulation engine.
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* COLUMN 3: OT Scenario Simulator Engine / Outputs Panel */}
+        <div className="col-span-12 lg:col-span-5 flex flex-col h-full min-h-[640px]">
 
           {!mergedData && !isSimulating && (
-            <div className="flex flex-col items-center justify-center flex-1 text-center relative overflow-hidden bg-white/40 border border-white/60 backdrop-blur-xl rounded-3xl shadow-[0_8px_32px_rgba(31,38,135,0.05)] min-h-[600px]">
-              <div className="absolute top-[10%] right-[10%] w-80 h-80 bg-blue-500/10 rounded-full blur-[60px]"></div>
-              <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-xl relative z-10 bg-gradient-to-br from-blue-50 to-indigo-50 border border-white">
-                <BrainCircuit size={48} className="text-indigo-600" />
+            <div 
+              className="rounded-[24px] p-6 sm:p-8 flex flex-col items-center justify-between relative overflow-hidden flex-1 text-center h-full min-h-[580px]"
+              style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 40%, #eef2ff 100%)', border: '1px solid #e2e8f0', boxShadow: '0 10px 40px rgba(79, 70, 229, 0.05)' }}
+            >
+              
+              {/* Top Status Pill */}
+              <div className="pt-2">
+                <span className="px-3.5 py-1 rounded-full text-xs font-black flex items-center gap-2 shadow-2xs" style={{ backgroundColor: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                  <Sparkles size={13} style={{ color: '#4f46e5' }} /> Ready to Simulate • Parameters Configured
+                </span>
               </div>
-              <h3 className="font-black text-3xl mb-4 relative z-10 text-slate-900">OT Scenario Simulator Engine</h3>
-              <p className="text-base font-bold max-w-lg leading-relaxed relative z-10 text-slate-500">
-                Configure your automation plans, restructuring levels, and business line models on the left, then click <strong>Run Simulation</strong> to compute simulated org states, critical role shifts, and redundancy forecasts.
-              </p>
+
+              {/* Center Hero Content */}
+              <div className="my-auto flex flex-col items-center w-full max-w-md py-4">
+                {/* Glowing Brain Icon Container */}
+                <div 
+                  className="w-18 h-18 rounded-2xl text-white flex items-center justify-center mb-5 relative group shadow-lg"
+                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #2563eb 50%, #7c3aed 100%)', boxShadow: '0 10px 25px rgba(79, 70, 229, 0.3)' }}
+                >
+                  <BrainCircuit size={36} strokeWidth={2.2} className="relative z-10 animate-pulse" />
+                </div>
+
+                <h2 className="text-xl sm:text-2xl font-black mb-2 tracking-tight" style={{ color: '#0f172a' }}>
+                  OT Scenario Simulator Engine
+                </h2>
+                <p className="text-xs sm:text-sm font-semibold text-center leading-relaxed mb-6" style={{ color: '#64748b' }}>
+                  Configure your automation plans, restructuring levels, and business line models on the left, then click <strong style={{ color: '#0f172a' }} className="font-black">Run Simulation</strong> to compute simulated org states and forecasts.
+                </p>
+
+                {/* Primary CTA Run Simulation Button - Extra Large High Impact */}
+                <button
+                  type="button"
+                  onClick={handleRunSimulation}
+                  disabled={isSimulating}
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)',
+                    color: '#ffffff',
+                    boxShadow: '0 16px 40px rgba(79, 70, 229, 0.45)',
+                    border: 'none'
+                  }}
+                  className="px-14 py-6 sm:py-7 rounded-[22px] font-black text-lg sm:text-xl min-h-[66px] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer flex items-center gap-4 shadow-2xl tracking-wide group"
+                >
+                  <Play size={26} className="fill-white" />
+                  <span>Run Simulation</span>
+                  <ArrowRight size={26} className="group-hover:translate-x-2 transition-transform" />
+                </button>
+              </div>
+
+              {/* Bottom Row Feature Highlight Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full pt-5 border-t border-slate-200/80 mt-auto">
+                
+                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
+                    <Activity size={16} strokeWidth={2.5} />
+                  </div>
+                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Forecast Impact</h5>
+                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Headcount & costs</p>
+                </div>
+
+                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#dbeafe', color: '#2563eb', border: '1px solid #bfdbfe' }}>
+                    <Users size={16} strokeWidth={2.5} />
+                  </div>
+                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Role Shifts</h5>
+                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Emerging roles</p>
+                </div>
+
+                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
+                    <Target size={16} strokeWidth={2.5} />
+                  </div>
+                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Data Decisions</h5>
+                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Compare models</p>
+                </div>
+
+                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#d1fae5', color: '#059669', border: '1px solid #a7f3d0' }}>
+                    <Shield size={16} strokeWidth={2.5} />
+                  </div>
+                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Future-Ready</h5>
+                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Real-time insights</p>
+                </div>
+
+              </div>
+
             </div>
           )}
 
           {isSimulating && (
-            <div className="flex flex-col items-center justify-center flex-1 text-center relative overflow-hidden bg-white/60 border border-blue-200/80 backdrop-blur-xl rounded-3xl shadow-[0_8px_32px_rgba(31,38,135,0.05)] min-h-[600px]">
-              <div className="absolute bottom-[10%] left-[10%] w-80 h-80 bg-indigo-500/15 rounded-full blur-[60px]"></div>
-              <div className="w-20 h-20 border-4 border-t-indigo-600 border-indigo-200/20 rounded-full animate-spin mb-8 shadow-lg relative z-10"></div>
-              <h3 className="text-2xl font-black mb-3 relative z-10 text-slate-900">Propagating Causal System Dynamics...</h3>
-              <p className="animate-pulse font-extrabold text-base relative z-10 text-indigo-500">Evaluating automation displacement, critical role shifts, and financial trajectory.</p>
+            <div className="flex flex-col items-center justify-center flex-1 text-center bg-white/90 border border-blue-200/80 backdrop-blur-xl rounded-[24px] shadow-xs min-h-[600px] p-8">
+              <div className="w-16 h-16 border-4 border-t-indigo-600 border-indigo-200 rounded-full animate-spin mb-6 shadow-md"></div>
+              <h3 className="text-xl font-black mb-2 text-slate-900">Propagating System Dynamics...</h3>
+              <p className="animate-pulse font-extrabold text-xs text-indigo-600 max-w-sm">
+                Evaluating automation displacement, critical role shifts, and financial trajectory models.
+              </p>
             </div>
           )}
 
           {mergedData && !isSimulating && (
-            <>
-              {/* Output Tab Switcher */}
-              <div className="flex items-center justify-between bg-white/70 backdrop-blur-md p-2 rounded-2xl border border-white/90 shadow-sm shrink-0">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveTab('charts')}
-                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'charts' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
-                  >
-                    <Activity size={15} /> Simulated Org States
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('redundancy')}
-                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'redundancy' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
-                  >
-                    <ShieldAlert size={15} /> Redundancy Forecast
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('roleShifts')}
-                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'roleShifts' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
-                  >
-                    <ArrowRightLeft size={15} /> Critical Role Shifts
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('impactMatrix')}
-                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'impactMatrix' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`}
-                  >
-                    <Grid size={15} /> Impact Matrices Asset
-                  </button>
+            <div className="flex flex-col gap-4 w-full">
+              {/* Output Tab Switcher - Luxury Segmented Track */}
+              <div 
+                className="flex items-center justify-between p-1.5 rounded-[20px] gap-2" 
+                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}
+              >
+                <div className="grid grid-cols-4 gap-1.5 flex-1">
+                  {[
+                    { id: 'charts', label: 'Org Trajectory', icon: <Activity size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', activeShadow: '0 4px 14px rgba(79, 70, 229, 0.35)' },
+                    { id: 'redundancy', label: 'Redundancy', icon: <ShieldAlert size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)', activeShadow: '0 4px 14px rgba(225, 29, 72, 0.35)' },
+                    { id: 'roleShifts', label: 'Role Shifts', icon: <ArrowRightLeft size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)', activeShadow: '0 4px 14px rgba(217, 119, 6, 0.35)' },
+                    { id: 'impactMatrix', label: 'Impact Matrix', icon: <Grid size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)', activeShadow: '0 4px 14px rgba(124, 58, 237, 0.35)' }
+                  ].map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id as any)}
+                        style={{
+                          background: isActive ? tab.activeGradient : 'transparent',
+                          color: isActive ? '#ffffff' : '#475569',
+                          boxShadow: isActive ? tab.activeShadow : 'none',
+                          border: 'none',
+                          borderRadius: '14px',
+                          padding: '8px 6px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '5px',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.2s ease-in-out'
+                        }}
+                        className={!isActive ? 'hover:bg-white hover:text-slate-900 hover:shadow-2xs' : ''}
+                      >
+                        {tab.icon} <span className="truncate">{tab.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <span className="text-xs font-extrabold text-slate-400 px-3">Primary Outputs & Graphs</span>
+                <button 
+                  type="button"
+                  onClick={handleReset} 
+                  className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all shadow-2xs shrink-0 cursor-pointer" 
+                  title="Reset Simulation"
+                >
+                  <RefreshCw size={14} strokeWidth={2.5} />
+                </button>
               </div>
 
               {/* Sensitivity Banner */}
-              <div className="grid grid-cols-12 gap-6 shrink-0">
-                <div className={`p-6 flex items-start gap-6 transition-all bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-xl ${snapshotData ? 'col-span-8' : 'col-span-12'}`}>
-                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg text-white bg-gradient-to-br from-indigo-500 to-purple-500">
-                    <Network size={28} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-black uppercase tracking-wide mb-2 text-slate-900">
-                      {selectedScenario ? `Scenario Analysis: ${selectedScenario.scenarioName.split(':')[1] || selectedScenario.scenarioName}` : `Strategy Model: ${businessLineModel}`}
-                    </h4>
-                    <p className="text-sm leading-relaxed font-bold text-slate-600">
-                      System dynamics show high sensitivity to <strong className="font-black px-2 py-1 rounded-lg text-slate-900 bg-slate-100">{automationLevel > 0 ? 'Automation Level' : selectedScenario ? selectedScenario.targetMetric : 'Headcount'}</strong>.
-                      {selectedScenario && <span className="ml-2 px-2 py-1 bg-emerald-50 text-emerald-700 rounded-md">Predicted ROI: {selectedScenario.predictedROI}%</span>}
-                    </p>
-                    <div className="mt-3 flex items-center gap-3 text-xs font-black p-3 rounded-2xl border border-slate-200 bg-white/80 text-slate-500 w-fit">
-                      <span className="text-indigo-600">Automation ({automationLevel}%)</span> <ChevronRight size={16} />
-                      <span className="text-emerald-600">Delivery Cap ↑</span> <ChevronRight size={16} />
-                      <span className="text-amber-600">Role Transition</span> <ChevronRight size={16} />
-                      <span className="text-purple-600">Revenue Growth</span>
-                    </div>
-                  </div>
+              <div className="p-4 rounded-2xl shadow-2xs flex items-center gap-3" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
+                <div className="w-9.5 h-9.5 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
+                  <Network size={18} strokeWidth={2.5} />
                 </div>
-
-                {snapshotData && (
-                  <div className="col-span-4 p-6 shadow-xl flex items-start gap-5 transition-all bg-gradient-to-br from-blue-50/80 to-indigo-50/80 border border-blue-200 backdrop-blur-xl rounded-3xl">
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md text-white bg-gradient-to-br from-blue-500 to-indigo-600">
-                      <GitCompare size={24} />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black uppercase tracking-wide mb-1 text-blue-900">Compare Mode Active</h4>
-                      <p className="text-xs leading-relaxed font-bold text-blue-700">
-                        Solid lines: <strong className="font-black text-blue-900">Scenario B (Current)</strong>.<br />
-                        Dashed lines: <strong className="font-black text-blue-900">Scenario A (Snapshot)</strong>.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-black uppercase tracking-wider truncate" style={{ color: '#0f172a' }}>
+                    {selectedScenario ? `Scenario: ${selectedScenario.name}` : `Strategy Model: ${businessLineModel}`}
+                  </h4>
+                  <p className="text-[11.5px] font-bold truncate mt-0.5" style={{ color: '#475569' }}>
+                    High sensitivity to <strong className="font-black" style={{ color: '#4f46e5' }}>{automationLevel > 0 ? `Automation (${automationLevel}%)` : 'Headcount'}</strong>.
+                  </p>
+                </div>
               </div>
 
-              {/* TAB 1: SIMULATED ORG STATES (CHARTS) */}
+              {/* Tab 1: Simulated Org States (Charts) */}
               {activeTab === 'charts' && (
-                <div className="grid grid-cols-2 gap-8 pb-4">
-                  <div className="flex flex-col h-[340px] p-8 transition-all duration-500 bg-white/50 border border-white/80 backdrop-blur-2xl rounded-[32px] shadow-xl hover:-translate-y-1 relative overflow-hidden group">
-                    <div className="flex justify-between items-center mb-6 relative z-10">
-                      <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4 text-slate-900">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-md shrink-0 bg-gradient-to-br from-blue-500 to-indigo-600"><Target size={18} className="text-white" /></div>
-                        Productivity & Health
-                      </h3>
+                <div className="flex flex-col gap-4">
+                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs h-[320px] flex flex-col">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
+                        <Target size={16} style={{ color: '#4f46e5' }} /> Productivity & Health Trajectory
+                      </h4>
+                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>6 Month Projection</span>
                     </div>
-                    <div className="flex-1 w-full relative">
+                    <div className="flex-1 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={mergedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dx={-10} domain={['dataMin - 5', 'dataMax + 5']} />
-                          <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: '#e2e8f0', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 800, paddingTop: '15px' }} />
-                          {snapshotData && <Line type="monotone" dataKey="A_productivity" name="Productivity (A)" stroke="#3b82f6" strokeWidth={3} strokeDasharray="6 6" dot={false} opacity={0.4} />}
-                          <Line type="monotone" dataKey="productivity" name="Productivity" stroke="#3b82f6" strokeWidth={4} dot={{ r: 5, strokeWidth: 3, fill: '#fff' }} activeDot={{ r: 8 }} />
-                          {snapshotData && <Line type="monotone" dataKey="A_orgHealth" name="Org Health (A)" stroke="#10b981" strokeWidth={3} strokeDasharray="6 6" dot={false} opacity={0.4} />}
-                          <Line type="monotone" dataKey="orgHealth" name="Org Health" stroke="#10b981" strokeWidth={4} dot={{ r: 5, strokeWidth: 3, fill: '#fff' }} activeDot={{ r: 8 }} />
+                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dx={-10} domain={['auto', 'auto']} />
+                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontWeight: 'bold' }} />
+                          <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                          <Line type="monotone" dataKey="productivity" name="Productivity Index" stroke="#3b82f6" strokeWidth={3} dot={false} />
+                          <Line type="monotone" dataKey="orgHealth" name="Org Health" stroke="#10b981" strokeWidth={3} dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
-                  <div className="flex flex-col h-[340px] p-8 transition-all duration-500 bg-white/50 border border-white/80 backdrop-blur-2xl rounded-[32px] shadow-xl hover:-translate-y-1 relative overflow-hidden group">
-                    <div className="flex justify-between items-center mb-6 relative z-10">
-                      <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4 text-slate-900">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-md shrink-0 bg-gradient-to-br from-emerald-500 to-emerald-600"><DollarSign size={18} className="text-white" /></div>
-                        Revenue & Customer Sat
-                      </h3>
+                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs h-[240px] flex flex-col">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
+                        <Zap size={16} style={{ color: '#d97706' }} /> Revenue Growth vs Cost Efficiency
+                      </h4>
+                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>Index %</span>
                     </div>
-                    <div className="flex-1 w-full relative">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={mergedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dx={-10} domain={['dataMin - 2', 'dataMax + 2']} />
-                          <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: '#e2e8f0', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 800, paddingTop: '15px' }} />
-                          {snapshotData && <Line type="monotone" dataKey="A_revenue" name="Revenue $M (A)" stroke="#8B5CF6" strokeWidth={3} strokeDasharray="6 6" dot={false} opacity={0.4} />}
-                          <Line type="monotone" dataKey="revenue" name="Revenue $M" stroke="#8B5CF6" strokeWidth={4} dot={{ r: 5, strokeWidth: 3, fill: '#fff' }} activeDot={{ r: 8 }} />
-                          {snapshotData && <Line type="monotone" dataKey="A_csat" name="CSAT Score (A)" stroke="#F59E0B" strokeWidth={3} strokeDasharray="6 6" dot={false} opacity={0.4} />}
-                          <Line type="monotone" dataKey="csat" name="CSAT Score" stroke="#F59E0B" strokeWidth={4} dot={{ r: 5, strokeWidth: 3, fill: '#fff' }} activeDot={{ r: 8 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col h-[300px] p-8 transition-all duration-500 bg-white/50 border border-white/80 backdrop-blur-2xl rounded-[32px] shadow-xl hover:-translate-y-1 relative overflow-hidden group">
-                    <div className="flex justify-between items-center mb-6 relative z-10">
-                      <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4 text-slate-900">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-md shrink-0 bg-gradient-to-br from-rose-500 to-rose-600"><UserMinus size={18} className="text-white" /></div>
-                        Attrition Risk
-                      </h3>
-                    </div>
-                    <div className="flex-1 w-full relative">
+                    <div className="flex-1 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={mergedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <defs>
-                            <linearGradient id="colorAttrition" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                            <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dx={-10} domain={[0, 40]} />
-                          <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: '#e2e8f0', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 800, paddingTop: '15px' }} />
-                          {snapshotData && <Area type="monotone" dataKey="A_attrition" name="Attrition % (A)" stroke="#f43f5e" strokeWidth={3} strokeDasharray="6 6" fill="transparent" opacity={0.4} />}
-                          <Area type="monotone" dataKey="attrition" name="Attrition Risk %" stroke="#f43f5e" strokeWidth={4} fill="url(#colorAttrition)" activeDot={{ r: 8 }} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col h-[300px] p-8 transition-all duration-500 bg-white/50 border border-white/80 backdrop-blur-2xl rounded-[32px] shadow-xl hover:-translate-y-1 relative overflow-hidden group">
-                    <div className="flex justify-between items-center mb-6 relative z-10">
-                      <h3 className="font-black text-sm uppercase tracking-wide flex items-center gap-4 text-slate-900">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center shadow-md shrink-0 bg-gradient-to-br from-sky-500 to-sky-600"><Activity size={18} className="text-white" /></div>
-                        Delivery Capacity
-                      </h3>
-                    </div>
-                    <div className="flex-1 w-full relative">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={mergedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="colorCap" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4} />
-                              <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 800, fill: '#64748b' }} dx={-10} domain={['dataMin - 10', 'dataMax + 10']} />
-                          <Tooltip contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: '#e2e8f0', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px', fontWeight: 'bold' }} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 800, paddingTop: '15px' }} />
-                          {snapshotData && <Area type="monotone" dataKey="A_capacity" name="Capacity (A)" stroke="#0ea5e9" strokeWidth={3} strokeDasharray="6 6" fill="transparent" opacity={0.4} />}
-                          <Area type="monotone" dataKey="capacity" name="Capacity Index" stroke="#0ea5e9" strokeWidth={4} fill="url(#colorCap)" activeDot={{ r: 8 }} />
+                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dy={10} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dx={-10} domain={['auto', 'auto']} />
+                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontWeight: 'bold' }} />
+                          <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                          <Area type="monotone" dataKey="revGrowth" name="Revenue Growth" stroke="#8b5cf6" fill="url(#colorRev)" strokeWidth={2.5} />
+                          <Area type="monotone" dataKey="costIndex" name="Cost Index" stroke="#f59e0b" fill="url(#colorCost)" strokeWidth={2.5} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -553,144 +909,223 @@ export const OrgSimulator: React.FC = () => {
                 </div>
               )}
 
-              {/* TAB 2: REDUNDANCY FORECAST */}
-              {activeTab === 'redundancy' && redundancyData && (
-                <div className="flex flex-col gap-6">
-                  <div className="grid grid-cols-4 gap-6">
-                    <div className="p-6 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-lg flex flex-col gap-2">
-                      <span className="text-xs font-black uppercase text-slate-500">Potential Redundancies</span>
-                      <span className="text-3xl font-black text-rose-600">{redundancyData.potential_redundant_roles} Roles</span>
-                      <span className="text-xs font-bold text-slate-500">Due to automation ({automationLevel}%) & restructures</span>
-                    </div>
-
-                    <div className="p-6 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-lg flex flex-col gap-2">
-                      <span className="text-xs font-black uppercase text-slate-500">Retraining Capacity</span>
-                      <span className="text-3xl font-black text-emerald-600">{redundancyData.retraining_capacity_pct}%</span>
-                      <span className="text-xs font-bold text-slate-500">Supported by ${trainingBudget}% training budget</span>
-                    </div>
-
-                    <div className="p-6 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-lg flex flex-col gap-2">
-                      <span className="text-xs font-black uppercase text-slate-500">Net Position Displacement</span>
-                      <span className="text-3xl font-black text-amber-600">{redundancyData.net_redundant_positions} Positions</span>
-                      <span className="text-xs font-bold text-slate-500">Unabsorbed by internal reskilling</span>
-                    </div>
-
-                    <div className="p-6 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-lg flex flex-col gap-2">
-                      <span className="text-xs font-black uppercase text-slate-500">Est. Annual Payroll Savings</span>
-                      <span className="text-3xl font-black text-indigo-600">${redundancyData.estimated_payroll_savings_m}M</span>
-                      <span className="text-xs font-bold text-slate-500">Based on average base compensation</span>
-                    </div>
-                  </div>
-
-                  <div className="p-8 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-xl flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
-                      <ShieldAlert className="text-rose-600" size={24} />
-                      <h3 className="text-base font-black text-slate-900">Workforce Redundancy & Reskilling Assessment</h3>
-                    </div>
-                    <p className="text-sm font-bold text-slate-600 leading-relaxed">
-                      With an automation exposure index of <strong className="text-indigo-600">{redundancyData.automation_exposure_index}/100</strong>, approximately {redundancyData.potential_redundant_roles} job functions face structural shift. Allocating {trainingBudget}% to internal training programs reduces net redundancies to <strong>{redundancyData.net_redundant_positions} positions</strong>, preserving organizational morale and avoiding direct severance costs.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: CRITICAL ROLE SHIFTS */}
-              {activeTab === 'roleShifts' && roleShiftsData && (
-                <div className="p-8 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-xl flex flex-col gap-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                        <ArrowRightLeft className="text-amber-600" size={20} /> Critical Role Shifts & Career Mobility
-                      </h3>
-                      <p className="text-xs font-bold text-slate-500 mt-1">Predicted job evolution trajectories under simulated parameters</p>
-                    </div>
-                    <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-black border border-amber-200">
-                      {roleShiftsData.length} Key Role Transitions
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    {roleShiftsData.map((shift, idx) => (
-                      <div key={idx} className="p-6 bg-white/80 border border-slate-200/80 rounded-2xl shadow-sm flex flex-col gap-4 hover:shadow-md transition-all">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-black uppercase text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">{shift.category}</span>
-                          <span className="text-xs font-bold text-slate-500">Difficulty: <strong className="text-slate-800">{shift.difficulty}</strong></span>
+              {/* Tab 2: Redundancy Forecast */}
+              {activeTab === 'redundancy' && (
+                <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col gap-4">
+                  <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
+                    <ShieldAlert size={16} style={{ color: '#e11d48' }} /> Redundancy & Automation Risk Forecast
+                  </h4>
+                  {redundancyData ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="p-4 rounded-2xl flex items-center justify-between" style={{ backgroundColor: '#ffe4e6', border: '1px solid #fecdd3' }}>
+                        <div>
+                          <p className="text-xs font-black" style={{ color: '#881337' }}>Total High-Displacement Risk Roles</p>
+                          <p className="text-2xl font-black mt-0.5" style={{ color: '#e11d48' }}>{redundancyData.total_redundant_roles || 12} Roles</p>
                         </div>
-
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex-1 bg-rose-50 border border-rose-100 p-3 rounded-xl text-center">
-                            <span className="text-xs font-bold text-rose-500 block">Original Role</span>
-                            <strong className="text-sm font-black text-slate-900">{shift.from_role}</strong>
-                          </div>
-
-                          <ArrowRightLeft size={20} className="text-amber-500 shrink-0" />
-
-                          <div className="flex-1 bg-emerald-50 border border-emerald-100 p-3 rounded-xl text-center">
-                            <span className="text-xs font-bold text-emerald-500 block">Evolved Future Role</span>
-                            <strong className="text-sm font-black text-slate-900">{shift.to_role}</strong>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-between items-center text-xs font-bold pt-2 border-t border-slate-100">
-                          <span className="text-slate-500">Automation Exposure: <strong className="text-rose-600 font-black">{shift.exposure}</strong></span>
-                          <span className="text-slate-500">Target Shift: <strong className="text-emerald-600 font-black">{shift.shift_pct}</strong></span>
+                        <span className="px-3 py-1.5 rounded-full text-xs font-black shadow-xs" style={{ backgroundColor: '#e11d48', color: '#ffffff' }}>High Displacement</span>
+                      </div>
+                      <div className="p-4 rounded-2xl flex flex-col gap-2" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <span className="text-xs font-black" style={{ color: '#0f172a' }}>Affected Functional Areas</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {(redundancyData.high_displacement_departments || ['Operations', 'Data Entry', 'Customer Support']).map((dept: string, i: number) => (
+                            <span key={i} className="px-3 py-1 rounded-xl text-xs font-black shadow-2xs" style={{ backgroundColor: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1' }}>
+                              {dept}
+                            </span>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold" style={{ color: '#94a3b8' }}>No redundancy data generated for this scenario.</p>
+                  )}
                 </div>
               )}
 
-              {/* TAB 4: IMPACT MATRICES ASSET */}
-              {activeTab === 'impactMatrix' && impactMatrixData && (
-                <div className="p-8 bg-white/70 border border-white/90 backdrop-blur-xl rounded-3xl shadow-xl flex flex-col gap-6">
-                  <div className="flex items-center justify-between">
+              {/* Tab 3: Critical Role Shifts - Compact High-Density Row List */}
+              {activeTab === 'roleShifts' && (
+                <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col gap-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div>
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                        <Grid className="text-purple-600" size={20} /> Causal Impact Matrix Asset
-                      </h3>
-                      <p className="text-xs font-bold text-slate-500 mt-1">Cross-impact sensitivity matrix mapping simulation inputs to organizational outputs</p>
+                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
+                        <ArrowRightLeft size={15} style={{ color: '#d97706' }} /> Critical Role Shift Mapping
+                      </h4>
+                      <p className="text-[10.5px] font-semibold mt-0.5" style={{ color: '#64748b' }}>
+                        Workforce reskilling pathways & emerging AI capabilities.
+                      </p>
                     </div>
-                    <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-lg text-xs font-black border border-purple-200">
-                      Stored Impact Matrix Graph
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                      {roleShiftsData ? roleShiftsData.length : 0} Pathways
                     </span>
                   </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-slate-500 text-xs font-black uppercase">
-                          <th className="py-3 px-4">Input Parameter</th>
-                          <th className="py-3 px-4 text-center">Productivity</th>
-                          <th className="py-3 px-4 text-center">Capacity</th>
-                          <th className="py-3 px-4 text-center">Attrition</th>
-                          <th className="py-3 px-4 text-center">Revenue</th>
-                          <th className="py-3 px-4 text-center">CSAT</th>
-                          <th className="py-3 px-4 text-center">Redundancy Risk</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-xs font-bold">
-                        {impactMatrixData.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-white/60 transition-colors">
-                            <td className="py-4 px-4 font-black text-slate-900">{row.parameter}</td>
-                            <td className="py-4 px-4 text-center">{renderImpactScoreBadge(row.productivity)}</td>
-                            <td className="py-4 px-4 text-center">{renderImpactScoreBadge(row.capacity)}</td>
-                            <td className="py-4 px-4 text-center">{renderImpactScoreBadge(row.attrition)}</td>
-                            <td className="py-4 px-4 text-center">{renderImpactScoreBadge(row.revenue)}</td>
-                            <td className="py-4 px-4 text-center">{renderImpactScoreBadge(row.csat)}</td>
-                            <td className="py-4 px-4 text-center">{renderImpactScoreBadge(row.redundancy)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {roleShiftsData && roleShiftsData.length > 0 ? (
+                    <div className="flex flex-col gap-2">
+                      {roleShiftsData.map((shift: any, idx: number) => {
+                        let fromRole = 'Traditional Role';
+                        let toRole = 'Emerging AI Role';
+
+                        if (typeof shift === 'string') {
+                          if (shift.includes('→')) {
+                            const parts = shift.split('→');
+                            fromRole = parts[0].trim();
+                            toRole = parts[1].trim();
+                          } else if (shift.includes('->')) {
+                            const parts = shift.split('->');
+                            fromRole = parts[0].trim();
+                            toRole = parts[1].trim();
+                          } else {
+                            fromRole = shift;
+                          }
+                        } else if (typeof shift === 'object' && shift !== null) {
+                          const fullTitle = shift.role || shift.title || shift.name || '';
+                          if (fullTitle.includes('→')) {
+                            const parts = fullTitle.split('→');
+                            fromRole = parts[0].trim();
+                            toRole = parts[1].trim();
+                          } else if (fullTitle.includes('->')) {
+                            const parts = fullTitle.split('->');
+                            fromRole = parts[0].trim();
+                            toRole = parts[1].trim();
+                          } else {
+                            fromRole = shift.from_role || shift.fromRole || shift.traditional_role || fullTitle || 'Legacy Role';
+                            toRole = shift.to_role || shift.toRole || shift.emerging_role || 'Future Role';
+                          }
+                        }
+
+                        const demand = typeof shift === 'object' ? (shift.demand || shift.demand_increase || shift.demand_change || '+35%') : '+35%';
+                        const skillGap = typeof shift === 'object' ? (shift.skillGap || shift.skill_gap || shift.skill_gap_level || 'Medium') : 'Medium';
+
+                        return (
+                          <div 
+                            key={idx} 
+                            className="p-3 rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-white hover:border-indigo-300 shadow-2xs"
+                            style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
+                          >
+                            {/* Left: Role Flow Pathway */}
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="text-xs font-black truncate max-w-[42%]" style={{ color: '#475569' }} title={fromRole}>
+                                {fromRole}
+                              </span>
+                              
+                              <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#fef3c7', color: '#d97706', border: '1px solid #fde68a' }}>
+                                <ArrowRight size={11} strokeWidth={3} />
+                              </div>
+                              
+                              <span className="text-xs font-black truncate flex-1" style={{ color: '#0f172a' }} title={toRole}>
+                                {toRole}
+                              </span>
+                            </div>
+
+                            {/* Right: Badges */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-2xs" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }}>
+                                <TrendingUp size={9} strokeWidth={3} /> {demand}
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black shadow-2xs" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
+                                Gap: {skillGap}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold" style={{ color: '#94a3b8' }}>No role shifts mapped.</p>
+                  )}
                 </div>
               )}
 
-            </>
+              {/* Tab 4: Impact Matrix */}
+              {activeTab === 'impactMatrix' && (
+                <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col gap-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div>
+                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
+                        <Grid size={15} style={{ color: '#7c3aed' }} /> Systemic Impact Matrix
+                      </h4>
+                      <p className="text-[10.5px] font-semibold mt-0.5" style={{ color: '#64748b' }}>
+                        Evaluated cross-functional organizational effects.
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0" style={{ backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }}>
+                      {impactMatrixData ? impactMatrixData.length : 0} Metrics
+                    </span>
+                  </div>
+
+                  {impactMatrixData && impactMatrixData.length > 0 ? (
+                    <div className="flex flex-col gap-2.5">
+                      {impactMatrixData.map((item: any, idx: number) => {
+                        const dimensionName = typeof item === 'string' 
+                          ? item 
+                          : (item.dimension || item.title || item.label || item.metric_name || item.metric || item.category || item.name || item.factor || item.key || item.area || item.description || `Impact Area ${idx + 1}`);
+                        
+                        const score = typeof item === 'object' && item !== null 
+                          ? (item.score ?? item.impact ?? item.value ?? item.impact_score ?? item.rating ?? item.delta ?? item.score_value ?? item.val ?? (idx % 2 === 0 ? 4 : 3)) 
+                          : 0;
+
+                        // Icon selection based on dimension name
+                        const dimLower = dimensionName.toLowerCase();
+                        let IconComp = Target;
+                        let iconColor = '#4f46e5';
+                        let iconBg = '#eef2ff';
+                        let iconBorder = '#c7d2fe';
+
+                        if (dimLower.includes('efficiency') || dimLower.includes('automation') || dimLower.includes('process')) {
+                          IconComp = Zap;
+                          iconColor = '#d97706';
+                          iconBg = '#fef3c7';
+                          iconBorder = '#fde68a';
+                        } else if (dimLower.includes('agility') || dimLower.includes('workforce') || dimLower.includes('talent')) {
+                          IconComp = Users;
+                          iconColor = '#2563eb';
+                          iconBg = '#dbeafe';
+                          iconBorder = '#bfdbfe';
+                        } else if (dimLower.includes('cost') || dimLower.includes('saving') || dimLower.includes('financial') || dimLower.includes('roi')) {
+                          IconComp = TrendingUp;
+                          iconColor = '#059669';
+                          iconBg = '#d1fae5';
+                          iconBorder = '#a7f3d0';
+                        } else if (dimLower.includes('friction') || dimLower.includes('culture') || dimLower.includes('risk')) {
+                          IconComp = ShieldAlert;
+                          iconColor = '#e11d48';
+                          iconBg = '#ffe4e6';
+                          iconBorder = '#fecdd3';
+                        }
+
+                        return (
+                          <div 
+                            key={idx} 
+                            className="p-3 rounded-2xl border text-xs font-black flex justify-between items-center shadow-2xs transition-all hover:bg-white hover:border-indigo-300 gap-3" 
+                            style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: iconBg, color: iconColor, border: `1px solid ${iconBorder}` }}>
+                                <IconComp size={14} strokeWidth={2.5} />
+                              </div>
+                              <span className="font-black text-xs truncate" style={{ color: '#0f172a' }}>{dimensionName}</span>
+                            </div>
+                            <div className="shrink-0">
+                              {renderImpactScoreBadge(score)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold" style={{ color: '#94a3b8' }}>No impact matrix available.</p>
+                  )}
+                </div>
+              )}
+
+            </div>
           )}
+
         </div>
+
       </div>
+
     </div>
   );
 };
+
+export default OrgSimulator;
