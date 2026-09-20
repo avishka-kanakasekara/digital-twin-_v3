@@ -2,15 +2,13 @@ import React, { useState } from 'react';
 import {
   Sliders, Activity, Target, Network,
   BrainCircuit, Users, Building2, Lightbulb, Bot, Layers, ShieldAlert,
-  ArrowRightLeft, Cpu, Grid, Search, ArrowLeft, Check, TrendingUp, Play, ArrowRight, Info,
-  Settings, Shield, RefreshCw, X, ChevronDown, Sparkles, Zap, ChevronRight
+  ArrowRightLeft, Cpu, Grid, Search, Check, TrendingUp, Play, ArrowRight, Info,
+  Shield, RefreshCw, X, ChevronDown, Sparkles, Zap
 } from 'lucide-react';
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 
 export const OrgSimulator: React.FC = () => {
-  const navigate = useNavigate();
   const [headcountChange, setHeadcountChange] = useState(-15);
   const [salaryChange] = useState(0);
   const [remoteDays] = useState(2);
@@ -25,7 +23,6 @@ export const OrgSimulator: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [simulationData, setSimulationData] = useState<any[] | null>(null);
-  const [snapshotData] = useState<any[] | null>(null);
   
   const [redundancyData, setRedundancyData] = useState<any | null>(null);
   const [roleShiftsData, setRoleShiftsData] = useState<any[] | null>(null);
