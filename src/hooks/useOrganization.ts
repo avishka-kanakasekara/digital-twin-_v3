@@ -29,7 +29,7 @@ export const useOrganizationMetrics = () => {
         setLoading(true);
         // By default fetch up to 100 recent metrics
         const data = await api.organization.getHistory({ limit: 100 });
-        
+
         // Convert to camelCase so existing UI components don't break
         const mappedData = data.map(toCamelCase).map((item: any) => ({
           ...item,
@@ -40,7 +40,7 @@ export const useOrganizationMetrics = () => {
           netProfit: parseFloat(item.netProfit),
           csat: parseFloat(item.csat)
         }));
-        
+
         setMetrics(mappedData);
         setError(null);
       } catch (err) {
@@ -67,7 +67,7 @@ export const useOrganizationScenarios = () => {
       try {
         setLoading(true);
         const data = await api.organization.getScenarios({ limit: 100 });
-        
+
         // Convert to camelCase to match the mock data structure
         const mappedData = data.map(toCamelCase).map((item: any) => ({
           ...item,
@@ -81,7 +81,7 @@ export const useOrganizationScenarios = () => {
           timeToRealizeMonths: item.timeToImpactMonths, // Map to what UI expects
           status: item.aiRecommendation.replace('Status: ', '') // Extract status
         }));
-        
+
         setScenarios(mappedData);
         setError(null);
       } catch (err) {

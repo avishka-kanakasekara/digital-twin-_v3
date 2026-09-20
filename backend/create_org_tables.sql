@@ -136,6 +136,39 @@ CREATE TABLE IF NOT EXISTS org_okrs (
     initiatives JSONB DEFAULT '[]'::jsonb
 );
 
+-- 10. Strategy Role Specs
+CREATE TABLE IF NOT EXISTS org_strategy_role_specs (
+    id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    rank        INT NOT NULL,
+    role        VARCHAR(255) NOT NULL,
+    skill       VARCHAR(255) NOT NULL,
+    dept        VARCHAR(100) NOT NULL,
+    level       VARCHAR(50) NOT NULL,
+    gap         VARCHAR(50) NOT NULL,
+    urgency     VARCHAR(50) NOT NULL,
+    status      VARCHAR(100) NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- 11. Strategy Primary Inputs
+CREATE TABLE IF NOT EXISTS org_strategy_primary_inputs (
+    id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    title       VARCHAR(255) NOT NULL,
+    type        VARCHAR(100) NOT NULL,
+    status      VARCHAR(100) NOT NULL,
+    date        VARCHAR(50) NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- 12. Strategy Knowledge Assets
+CREATE TABLE IF NOT EXISTS org_strategy_knowledge_assets (
+    id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    name        VARCHAR(255) NOT NULL,
+    count       VARCHAR(100) NOT NULL,
+    color       VARCHAR(50) NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
 -- ── RLS Policies ────────────────────────────────────────────────
 ALTER TABLE organization_metrics       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organization_scenarios     ENABLE ROW LEVEL SECURITY;
@@ -146,6 +179,9 @@ ALTER TABLE org_talent_gigs            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_talent_mentors         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_team_builder_options   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_okrs                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_strategy_role_specs    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_strategy_primary_inputs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_strategy_knowledge_assets ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all for service_role" ON organization_metrics       FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON organization_scenarios     FOR ALL USING (true) WITH CHECK (true);
@@ -156,5 +192,8 @@ CREATE POLICY "Allow all for service_role" ON org_talent_gigs            FOR ALL
 CREATE POLICY "Allow all for service_role" ON org_talent_mentors         FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON org_team_builder_options   FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON org_okrs                   FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for service_role" ON org_strategy_role_specs    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for service_role" ON org_strategy_primary_inputs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for service_role" ON org_strategy_knowledge_assets FOR ALL USING (true) WITH CHECK (true);
 
 -- Done!

@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Briefcase, Lightbulb, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Briefcase, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
 import { GlobalAIChatbot } from './chat/GlobalAIChatbot';
@@ -12,13 +12,12 @@ export const Layout: React.FC = () => {
   const navigate = useNavigate();
 
   const orgNavItems = [
-    { name: 'Executive Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
+    { name: 'Organization Twin Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
+    { name: 'Strategy Role Architect', path: '/strategy-architect', icon: <Crosshair size={20} /> },
     { name: 'Workforce Intelligence', path: '/workforce', icon: <BarChart3 size={20} /> },
-    { name: 'Organization Health', path: '/radar', icon: <AlertTriangle size={20} /> },
-    { name: 'Team Builder', path: '/team-builder', icon: <Users2 size={20} /> },
-    { name: 'Talent Marketplace', path: '/talent-marketplace', icon: <Briefcase size={20} /> },
-    { name: 'Innovation Hub', path: '/innovation-hub', icon: <Lightbulb size={20} /> },
-    { name: 'Organizational Simulation', path: '/simulator', icon: <Activity size={20} /> },
+    { name: 'Scenario Simulator', path: '/simulator', icon: <Activity size={20} /> },
+    { name: 'Internal Talent Marketplace', path: '/talent-marketplace', icon: <Briefcase size={20} /> },
+    { name: 'Team Builder Engine', path: '/team-builder', icon: <Users2 size={20} /> },
   ];
 
   const empNavItems = [
@@ -27,6 +26,7 @@ export const Layout: React.FC = () => {
     { name: 'Gamification Hub', path: '/gamification-hub', icon: <Trophy size={20} /> },
     { name: 'Learning Hub', path: '/learning-hub', icon: <Brain size={20} /> },
   ];
+
 
   return (
     <div className="flex h-screen overflow-hidden">

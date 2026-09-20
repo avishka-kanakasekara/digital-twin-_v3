@@ -3,14 +3,13 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './views/organization/Dashboard';
 import { EmployeeTwin } from './views/employee/EmployeeTwin';
 import { OrgSimulator } from './views/organization/OrgSimulator';
-import { AtRiskRadar } from './views/organization/AtRiskRadar';
 import { CareerCoach } from './views/employee/CareerCoach';
 import { GamificationHub } from './views/employee/GamificationHub';
 import { LearningHub } from './views/employee/LearningHub';
 import { WorkforcePlanning } from './views/organization/WorkforcePlanning';
 import { TeamBuilder } from './views/organization/TeamBuilder';
 import { TalentMarketplace } from './views/organization/TalentMarketplace';
-import { InnovationHub } from './views/organization/InnovationHub';
+import { StrategyRoleArchitect } from './views/organization/StrategyRoleArchitect';
 import { AdminSettings } from './views/admin/AdminSettings';
 import { SettingsProvider } from './context/SettingsContext';
 
@@ -25,12 +24,12 @@ function App() {
             <Route path="career-coach" element={<CareerCoach />} />
             <Route path="gamification-hub" element={<GamificationHub />} />
             <Route path="learning-hub" element={<LearningHub />} />
-            <Route path="radar" element={<AtRiskRadar />} />
+            <Route path="radar" element={<WorkforcePlanning initialTab="radar" />} />
             <Route path="simulator" element={<OrgSimulator />} />
             <Route path="workforce" element={<WorkforcePlanning />} />
             <Route path="team-builder" element={<TeamBuilder />} />
             <Route path="talent-marketplace" element={<TalentMarketplace />} />
-            <Route path="innovation-hub" element={<InnovationHub />} />
+            <Route path="strategy-architect" element={<StrategyRoleArchitect />} />
             <Route path="admin/settings" element={<AdminSettings />} />
           </Route>
         </Routes>
