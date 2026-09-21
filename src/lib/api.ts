@@ -884,6 +884,9 @@ export const organizationAPI = {
   getStrategyRoleSpecs: (department?: string) =>
     fetchAPI<any[]>(`/api/organization/strategy/role-specs${buildQueryString({ department })}`),
 
+  getStrategyInputs: (roleId?: string) =>
+    fetchAPI<any>(`/api/organization/strategy/inputs${buildQueryString({ role_id: roleId })}`),
+
   translateStrategy: (department?: string) =>
     fetchAPI<any>('/api/organization/strategy/translate', {
       method: 'POST',

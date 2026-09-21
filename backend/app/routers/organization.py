@@ -582,6 +582,163 @@ def run_simulation(request: SimulationRequest):
 
 # ==================== STRATEGY ROLE ARCHITECT ====================
 
+SAMPLE_ROLE_ARCHITECT_DATA = [
+    {
+        "role_id": "ROLE-2001",
+        "rank": 1,
+        "role": "Senior Data Scientist",
+        "job_code": "RA-DS-04",
+        "dept": "Enterprise Analytics",
+        "business_unit": "Enterprise Analytics",
+        "level": "L4 Senior",
+        "career_hierarchy": "Analyst → Senior Analyst → Data Scientist → Senior Data Scientist",
+        "skill": "Python (Advanced), Machine Learning, MLOps, Statistics",
+        "role_spec": "Senior Data Scientist — owns ML model lifecycle; leads production ML pipeline deployment",
+        "target_headcount": "9 FTE by FY26",
+        "current_headcount": 6,
+        "budgeted_headcount": "9 (FY26)",
+        "gap": "+3",
+        "urgency": "HIGH",
+        "role_evolution": "Evolving",
+        "fulfillment_5b": "Build 60% (reskill) + Buy 40% (hire)",
+        "fulfillment_5b_breakdown": {"build": 60, "buy": 40, "borrow": 0, "bot": 0, "bridge": 0},
+        "capability_gap_targets": "MLOps gap (avg L2 vs target L3); High priority",
+        "skill_proficiency_map": [
+            {"skill": "Python", "current": 3, "target": 4},
+            {"skill": "Machine Learning", "current": 2, "target": 4},
+            {"skill": "MLOps", "current": 2, "target": 3},
+            {"skill": "Statistics", "current": 3, "target": 4},
+            {"skill": "Cloud Architecture", "current": 2, "target": 3}
+        ],
+        "internal_mobility": ["Data Analyst L3", "BI Developer L3"],
+        "market_risk": "High — Cloud/ML skills, competitive market",
+        "hr_inputs": {
+            "business_unit": "Enterprise Analytics",
+            "job_code": "RA-DS-04; Senior Data Scientist; Data & Analytics; L4",
+            "hierarchy": "Analyst → Senior Analyst → Data Scientist → Senior Data Scientist",
+            "required_skills": "Python (Advanced), Machine Learning, MLOps, Statistics",
+            "current_headcount": 6,
+            "budgeted_headcount": "9 (FY26)",
+            "compensation_band": "Band 7",
+            "strategy_driver": "Scale AI-enabled analytics across retail lines (FY26–28)",
+            "future_operating_model": "Centralized analytics hub; embedded ML pipelines; cloud-native (AWS) roadmap",
+            "workforce_assumptions": "+50% analytics capacity over 24 months | +3 HC (FY26)",
+            "target_salary_band": "Band 7 – Band 8",
+            "historical_attrition": "14% annual (Enterprise Analytics, TTM)",
+            "skill_baseline": "Avg: Python L3, ML L2",
+            "time_to_hire": "65 days external / 40 days internal",
+            "location_work_model": "Colombo HQ; Hybrid (3 days onsite)",
+            "employment_mix": "85% FTE / 15% Contractor",
+            "sunsetting_context": "Legacy on-prem BI reporting phased out by FY27",
+            "genai_impact": "+20% (AutoML & GenAI copilots)",
+            "criticality_index": "High – Tier 1 (blocks analytics roadmap)",
+            "opex_budget_ceiling": "LKR 45M/yr (Enterprise Analytics, FY26)"
+        }
+    },
+    {
+        "role_id": "ROLE-2002",
+        "rank": 2,
+        "role": "Network Automation Engineer",
+        "job_code": "RA-NW-05",
+        "dept": "Core Network Operations",
+        "business_unit": "Core Network Operations",
+        "level": "L4 Senior",
+        "career_hierarchy": "Engineer → Senior Engineer → Automation Engineer → Architect",
+        "skill": "SD-WAN, Network Automation (Python/Ansible), Routing & Switching",
+        "role_spec": "Network Automation Engineer — designs/maintains automated network provisioning & monitoring",
+        "target_headcount": "7 FTE by FY26",
+        "current_headcount": 4,
+        "budgeted_headcount": "7 (FY26)",
+        "gap": "+3",
+        "urgency": "HIGH",
+        "role_evolution": "Emerging",
+        "fulfillment_5b": "Build 50% + Borrow 30% (contractor) + Buy 20%",
+        "fulfillment_5b_breakdown": {"build": 50, "buy": 20, "borrow": 30, "bot": 0, "bridge": 0},
+        "capability_gap_targets": "Automation scripting gap (avg L1 vs target L2); High priority",
+        "skill_proficiency_map": [
+            {"skill": "Network Automation", "current": 1, "target": 3},
+            {"skill": "SD-WAN", "current": 2, "target": 3},
+            {"skill": "Routing & Switching", "current": 3, "target": 4},
+            {"skill": "Scripting / Python", "current": 1, "target": 2}
+        ],
+        "internal_mobility": ["Senior Network Engineer", "NOC Technician L3"],
+        "market_risk": "Medium-High — SD-WAN automation talent scarce regionally",
+        "hr_inputs": {
+            "business_unit": "Core Network Operations",
+            "job_code": "RA-NW-05; Network Automation Engineer; Network & Infrastructure; L4",
+            "hierarchy": "Engineer → Senior Engineer → Automation Engineer → Architect",
+            "required_skills": "SD-WAN, Network Automation (Python/Ansible), Routing & Switching",
+            "current_headcount": 4,
+            "budgeted_headcount": "7 (FY26)",
+            "compensation_band": "Band 6",
+            "strategy_driver": "Network modernization & SD-WAN rollout across regional sites",
+            "future_operating_model": "Automated, self-healing network ops; SD-WAN roadmap",
+            "workforce_assumptions": "+75% automation capability over 18 months | +3 HC (FY26)",
+            "target_salary_band": "Band 6 – Band 7",
+            "historical_attrition": "9% annual (Core Network Ops, TTM)",
+            "skill_baseline": "Avg: Routing & Switching L3, Automation L1",
+            "time_to_hire": "75 days external / 50 days internal",
+            "location_work_model": "Kandy regional hub; On-site",
+            "employment_mix": "70% FTE / 30% Contractor (vendor rollout)",
+            "sunsetting_context": "Manual CLI network config phased out by FY27",
+            "genai_impact": "+30% (automation scripts)",
+            "criticality_index": "High – Tier 1 (SD-WAN rollout dependency)",
+            "opex_budget_ceiling": "LKR 30M/yr (Core Network Ops, FY26)"
+        }
+    },
+    {
+        "role_id": "ROLE-2003",
+        "rank": 3,
+        "role": "People Analytics Lead",
+        "job_code": "RA-HR-03",
+        "dept": "People & Culture",
+        "business_unit": "People & Culture",
+        "level": "L4 Lead",
+        "career_hierarchy": "HR Executive → HRBP → People Analytics Specialist → People Analytics Lead",
+        "skill": "Workforce Analytics, HR Data Modelling, Stakeholder Reporting",
+        "role_spec": "People Analytics Lead — builds workforce dashboards; advises leadership on capability risk",
+        "target_headcount": "3 FTE by FY26",
+        "current_headcount": 1,
+        "budgeted_headcount": "3 (FY26)",
+        "gap": "+2",
+        "urgency": "MEDIUM",
+        "role_evolution": "Emerging",
+        "fulfillment_5b": "Buy 50% + Build 50%",
+        "fulfillment_5b_breakdown": {"build": 50, "buy": 50, "borrow": 0, "bot": 0, "bridge": 0},
+        "capability_gap_targets": "Workforce Analytics gap (avg L1 vs target L3); Medium priority",
+        "skill_proficiency_map": [
+            {"skill": "Workforce Analytics", "current": 1, "target": 3},
+            {"skill": "HR Data Modelling", "current": 2, "target": 3},
+            {"skill": "Stakeholder Reporting", "current": 3, "target": 4},
+            {"skill": "Employee Relations", "current": 3, "target": 3}
+        ],
+        "internal_mobility": ["HR Business Partner", "HR Data Analyst"],
+        "market_risk": "Medium — niche HR analytics skillset",
+        "hr_inputs": {
+            "business_unit": "People & Culture",
+            "job_code": "RA-HR-03; People Analytics Lead; HR & People; L4",
+            "hierarchy": "HR Executive → HRBP → People Analytics Specialist → People Analytics Lead",
+            "required_skills": "Workforce Analytics, HR Data Modelling, Stakeholder Reporting",
+            "current_headcount": 1,
+            "budgeted_headcount": "3 (FY26)",
+            "compensation_band": "Band 6",
+            "strategy_driver": "Build enterprise-wide people-analytics maturity",
+            "future_operating_model": "Centralized people-analytics function under CHRO office",
+            "workforce_assumptions": "+200% people-analytics capacity over 12 months | +2 HC (FY26)",
+            "target_salary_band": "Band 6 – Band 7",
+            "historical_attrition": "6% annual (People & Culture, TTM)",
+            "skill_baseline": "Avg: Employee Relations L3, Workforce Analytics L1",
+            "time_to_hire": "55 days external / 35 days internal",
+            "location_work_model": "Colombo HQ; Remote-friendly",
+            "employment_mix": "100% FTE",
+            "sunsetting_context": "Manual Excel HR reporting phased out by FY26",
+            "genai_impact": "+15% (automated dashboards)",
+            "criticality_index": "Medium – Tier 2 (supports, doesn't block)",
+            "opex_budget_ceiling": "LKR 12M/yr (People & Culture, FY26)"
+        }
+    }
+]
+
 @router.get("/strategy/role-specs")
 def get_strategy_role_specs(department: str = None):
     """Retrieve translated future role specifications & requirements."""
@@ -591,22 +748,27 @@ def get_strategy_role_specs(department: str = None):
         if department and department != "All Departments":
             query = query.eq("dept", department)
         res = query.execute()
-        if res.data:
-            return res.data
+        if res.data and len(res.data) > 0:
+            # Check if DB data has full role_id & hr_inputs, otherwise enrich or fallback to SAMPLE_ROLE_ARCHITECT_DATA
+            has_rich_data = any(row.get("role_id") and row.get("hr_inputs") for row in res.data)
+            if has_rich_data:
+                return res.data
     except Exception as e:
         print(f"Supabase fetch for org_strategy_role_specs failed: {e}")
 
-    # Default fallback data
-    fallback_specs = [
-        { "rank": 1, "role": "Senior Cloud Architect", "skill": "AWS / Azure & Terraform", "dept": "Engineering", "level": "L5 Staff", "gap": "+14", "urgency": "HIGH", "status": "In Strategy Plan" },
-        { "rank": 2, "role": "AI / MLOps Specialist", "skill": "LLM Fine-tuning & PyTorch", "dept": "Engineering", "level": "L4 Senior", "gap": "+10", "urgency": "HIGH", "status": "In Strategy Plan" },
-        { "rank": 3, "role": "Lead Data Governance Officer", "skill": "GDPR & Data Architecture", "dept": "Corporate", "level": "L5 Lead", "gap": "+6", "urgency": "HIGH", "status": "In Strategy Plan" },
-        { "rank": 4, "role": "DevSecOps Engineer", "skill": "CI/CD & Container Security", "dept": "Operations", "level": "L4 Senior", "gap": "+8", "urgency": "MEDIUM", "status": "In Strategy Plan" },
-        { "rank": 5, "role": "Product Growth Strategist", "skill": "SaaS Metrics & A/B Testing", "dept": "Product", "level": "L4 Senior", "gap": "+5", "urgency": "MEDIUM", "status": "In Strategy Plan" }
-    ]
+    specs = SAMPLE_ROLE_ARCHITECT_DATA
     if department and department != "All Departments":
-        fallback_specs = [s for s in fallback_specs if s["dept"] == department]
-    return fallback_specs
+        specs = [s for s in specs if s["dept"] == department or s.get("business_unit") == department]
+    return specs
+
+@router.get("/strategy/inputs")
+def get_strategy_inputs(role_id: str = None):
+    """Retrieve structured HR & Strategy Inputs per role."""
+    if role_id:
+        filtered = [item for item in SAMPLE_ROLE_ARCHITECT_DATA if item["role_id"] == role_id]
+        return filtered[0]["hr_inputs"] if filtered else {}
+    return [item["hr_inputs"] for item in SAMPLE_ROLE_ARCHITECT_DATA]
+
 
 
 @router.get("/strategy/forecast-timeline")
