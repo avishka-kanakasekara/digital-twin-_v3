@@ -81,7 +81,7 @@ def reconcile(
     employee_id: str,
     source_id: str,
     document_type: str,
-    supabase_client,
+    db,
 ) -> ReconciliationSummary:
     """
     Compare extracted facts against existing employee data and produce change proposals.
@@ -93,9 +93,9 @@ def reconcile(
     summary = ReconciliationSummary()
 
     # Load existing employee data
-    existing_skills = _load_existing_skills(employee_id, supabase_client)
-    existing_projects = _load_existing_projects(employee_id, supabase_client)
-    existing_certs = _load_existing_certifications(employee_id, supabase_client)
+    existing_skills = _load_existing_skills(employee_id, db)
+    existing_projects = _load_existing_projects(employee_id, db)
+    existing_certs = _load_existing_certifications(employee_id, db)
 
     # Reconcile skills
     for extracted_skill in extraction.skills:
@@ -195,7 +195,7 @@ def apply_proposals(
     employee_id: str,
     source_id: str,
     document_type: str,
-    supabase_client,
+    db,
 ) -> list[dict]:
     """
     Apply accepted change proposals to the database.
@@ -218,7 +218,7 @@ def apply_proposals(
                 source_id=source_id,
                 proposal=proposal,
                 approval_status="pending",
-                supabase_client=supabase_client,
+                db=db,
             )
             continue
 
@@ -229,18 +229,18 @@ def apply_proposals(
                 source_id=source_id,
                 proposal=proposal,
                 approval_status="auto_approved",
-                supabase_client=supabase_client,
+                db=db,
             )
             continue
 
         success = False
 
         if proposal.entity_type == "skill":
-            success = _apply_skill_proposal(proposal, employee_id, supabase_client)
+            success = _apply_skill_proposal(proposal, employee_id, db)
         elif proposal.entity_type == "project":
-            success = _apply_project_proposal(proposal, employee_id, supabase_client)
+            success = _apply_project_proposal(proposal, employee_id, db)
         elif proposal.entity_type == "certification":
-            success = _apply_certification_proposal(proposal, employee_id, supabase_client)
+            success = _apply_certification_proposal(proposal, employee_id, db)
 
         if success:
             applied.append({
@@ -254,7 +254,7 @@ def apply_proposals(
             source_id=source_id,
             proposal=proposal,
             approval_status="auto_approved" if success else "failed",
-            supabase_client=supabase_client,
+            db=db,
         )
 
     return applied
@@ -295,10 +295,17 @@ def _reconcile_skill(normalized, extracted_skill, existing_skills, source_reliab
         )
 
     # Skill exists — check if proficiency should be updated
-    existing_proficiency = existing.get("proficiency", 0)
+    existing_proficiency = existing.get("proficiency")
+    if existing_proficiency is None:
+        existing_proficiency = 0
+    else:
+        try:
+            existing_proficiency = int(existing_proficiency)
+        except (TypeError, ValueError):
+            existing_proficiency = 0
     new_proficiency = _proficiency_to_int(extracted_skill.proficiency)
 
-    if new_proficiency and new_proficiency > existing_proficiency and overall_confidence >= 0.70:
+    if new_proficiency > existing_proficiency and overall_confidence >= 0.70:
         return ChangeProposal(
             operation=ChangeOperation.UPDATE,
             entity_type="skill",
@@ -308,7 +315,7 @@ def _reconcile_skill(normalized, extracted_skill, existing_skills, source_reliab
             confidence=overall_confidence,
             reason=f"Proficiency for '{normalized.canonical_name}' increased from {existing_proficiency} to {new_proficiency} based on {document_type if hasattr(extracted_skill, '_doc_type') else 'document'} evidence.",
         )
-    elif new_proficiency and new_proficiency < existing_proficiency:
+    elif new_proficiency < existing_proficiency:
         # New doc says lower proficiency — conflict
         return ChangeProposal(
             operation=ChangeOperation.CONFLICT,
@@ -471,12 +478,12 @@ def _write_audit(
     source_id: str,
     proposal: ChangeProposal,
     approval_status: str,
-    supabase_client,
+    db,
 ) -> None:
     import uuid
     import json
     try:
-        supabase_client.table("knowledge_update_events").insert({
+        db.table("knowledge_update_events").insert({
             "id": str(uuid.uuid4()),
             "employee_id": employee_id,
             "source_id": source_id,
@@ -524,11 +531,40 @@ def _load_existing_certifications(employee_id: str, sb) -> list[dict]:
 
 # ── Helpers ───────────────────────────────────────────────────
 
-def _proficiency_to_int(proficiency: str | None) -> int | None:
-    if not proficiency:
-        return None
-    mapping = {"Beginner": 25, "Intermediate": 50, "Advanced": 75, "Expert": 95}
-    return mapping.get(proficiency)
+def _proficiency_to_int(proficiency: str | int | float | None) -> int:
+    """Map extracted proficiency labels to a 0–100 score. Always returns an int."""
+    if isinstance(proficiency, (int, float)):
+        val = int(proficiency)
+        # Allow both 1–10 and 0–100 scales
+        if 0 < val <= 10:
+            return val * 10
+        return max(0, min(100, val))
+
+    if not proficiency or not str(proficiency).strip():
+        return 70
+
+    key = str(proficiency).strip().lower()
+    mapping = {
+        "beginner": 40,
+        "novice": 35,
+        "intermediate": 60,
+        "proficient": 70,
+        "advanced": 80,
+        "expert": 95,
+        "master": 98,
+    }
+    if key in mapping:
+        return mapping[key]
+
+    # e.g. "8/10", "80%"
+    digits = "".join(ch for ch in key if ch.isdigit())
+    if digits:
+        val = int(digits)
+        if val <= 10:
+            return val * 10
+        return max(0, min(100, val))
+
+    return 70
 
 
 def _fuzzy_match(a: str, b: str) -> bool:

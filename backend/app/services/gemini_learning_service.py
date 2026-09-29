@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
-from supabase import Client
+from app.database import Client
 
 from app.services.gemini_safe import ask_gemini_timed
 

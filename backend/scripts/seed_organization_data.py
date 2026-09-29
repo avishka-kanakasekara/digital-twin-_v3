@@ -1,19 +1,19 @@
 """
-Seed the Supabase database with Organization module mock data.
+Seed the Fabric database with Organization module mock data.
 Run with: python -m scripts.seed_organization_data
 """
 
 import uuid
 from datetime import datetime, timezone
 
-from app.database import get_supabase_admin
+from app.database import get_db
 
 def _uid() -> str:
     return str(uuid.uuid4())
 
 def seed_organization():
     print("🏢 Starting Organization Module seed...")
-    sb = get_supabase_admin()
+    sb = get_db()
 
     print("  🗑️  Clearing existing organization data...")
     tables_to_clear = [

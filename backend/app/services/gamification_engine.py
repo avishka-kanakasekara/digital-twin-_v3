@@ -17,7 +17,7 @@ Supported event_types:
 
 import uuid
 from datetime import datetime, timezone, date
-from supabase import Client
+from app.database import Client
 
 
 # ─── XP curve ─────────────────────────────────────────────────

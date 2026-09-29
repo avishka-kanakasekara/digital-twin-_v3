@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from calendar import month_abbr
 
-from supabase import Client
+from app.database import Client
 
 
 def _utc_now() -> datetime:

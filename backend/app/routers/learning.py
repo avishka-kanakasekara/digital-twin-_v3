@@ -1,7 +1,7 @@
 from __future__ import annotations
 """
 Learning router — paths, courses, certifications, feed, schedule, hours, AI coach.
-Uses Supabase as the database backend. Gemini calls go through gemini_learning_service.
+Operational data is stored in Microsoft Fabric SQL Database. Gemini calls go through gemini_learning_service.
 """
 
 import logging
@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import JSONResponse
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.schemas.learning import (
     LearnerProfileResponse,
     LearningPathResponse,
@@ -124,7 +124,7 @@ def _require_employee(sb, employee_id: str) -> dict:
 def get_learner_profile(employee_id: str):
     """Get learning stats for an employee (real enrollment + weighted learning_score)."""
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         employee = _require_employee(sb, employee_id)
 
         completed_result = sb.table("employee_courses").select("id", count="exact").eq(
@@ -184,7 +184,7 @@ def get_learner_profile(employee_id: str):
 @router.get("/{employee_id}/paths", response_model=list[LearningPathResponse])
 def get_learning_paths(employee_id: str):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
         return ensure_learning_paths(sb, employee_id)
     except HTTPException:
@@ -201,7 +201,7 @@ def update_path_progress(
     data: LearningPathProgressUpdate,
 ):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         existing = sb.table("learning_paths").select("id").eq("id", path_id).eq(
             "employee_id", employee_id
         ).execute()
@@ -233,7 +233,7 @@ def update_path_progress(
 def regenerate_learning_paths(employee_id: str, body: PathGenerateRequest | None = None):
     """Gemini-powered path generation (falls back to rules). Optional free-text goal."""
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
         goal = body.goal if body else None
         return generate_ai_paths(sb, employee_id, goal_text=goal)
@@ -254,7 +254,7 @@ def get_skill_gaps(employee_id: str, enrich: bool = False):
     Pass enrich=true for optional short Gemini enrichment.
     """
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
 
         if enrich:
@@ -280,7 +280,7 @@ def get_skill_gaps(employee_id: str, enrich: bool = False):
 
 @router.get("/{employee_id}/certifications", response_model=list[CertificationResponse])
 def get_certifications(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("certifications").select("*").eq(
         "employee_id", employee_id
     ).order("status").order("name").execute()
@@ -289,7 +289,7 @@ def get_certifications(employee_id: str):
 
 @router.post("/{employee_id}/certifications", response_model=CertificationResponse, status_code=201)
 def add_certification(employee_id: str, data: CertificationCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     cert_data = {
         "id": str(uuid.uuid4()),
         "employee_id": employee_id,
@@ -318,7 +318,7 @@ def list_courses(
         if search and len(search) > 120:
             raise HTTPException(status_code=400, detail="Search query too long")
 
-        sb = get_supabase_admin()
+        sb = get_db()
 
         if ai_recommended and employee_id:
             _require_employee(sb, employee_id)
@@ -382,7 +382,7 @@ def list_courses(
 @router.post("/{employee_id}/courses/{course_id}/enroll")
 def enroll_in_course(employee_id: str, course_id: str):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
 
         existing = sb.table("employee_courses").select("id").eq(
@@ -421,7 +421,7 @@ def update_course_progress(
     data: CourseProgressUpdate,
 ):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
 
         ec_result = sb.table("employee_courses").select("*").eq(
             "employee_id", employee_id
@@ -481,7 +481,7 @@ def _bump_related_paths(sb, employee_id: str):
 
 @router.get("/{employee_id}/schedule", response_model=list[WeeklyScheduleResponse])
 def get_weekly_schedule(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("weekly_schedule_entries").select("*").eq(
         "employee_id", employee_id
     ).order("day").execute()
@@ -490,7 +490,7 @@ def get_weekly_schedule(employee_id: str):
 
 @router.get("/{employee_id}/hours", response_model=list[MonthlyHoursResponse])
 def get_monthly_hours(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     _, _, months = compute_learning_hours(sb, employee_id)
     return [MonthlyHoursResponse(**m) for m in months]
 
@@ -500,7 +500,7 @@ def get_monthly_hours(employee_id: str):
 @router.get("/{employee_id}/feed", response_model=list[LearningFeedItem])
 def get_learning_feed(employee_id: str):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
         return generate_learning_feed(sb, employee_id, force=False)
     except HTTPException:
@@ -514,7 +514,7 @@ def get_learning_feed(employee_id: str):
 def refresh_learning_feed(employee_id: str):
     """Force Gemini regeneration of the learning feed (bypasses 24h cache)."""
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
         return generate_learning_feed(sb, employee_id, force=True)
     except HTTPException:
@@ -529,7 +529,7 @@ def refresh_learning_feed(employee_id: str):
 @router.post("/{employee_id}/ai/chat", response_model=ChatMessageResponse)
 def ai_chat(employee_id: str, body: ChatMessageCreate):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
         result = chat_with_coach(sb, employee_id, body.message.strip())
         return ChatMessageResponse(role=result["role"], content=result["content"])
@@ -543,7 +543,7 @@ def ai_chat(employee_id: str, body: ChatMessageCreate):
 @router.get("/{employee_id}/ai/chat/history", response_model=list[ChatMessageResponse])
 def ai_chat_history(employee_id: str):
     try:
-        sb = get_supabase_admin()
+        sb = get_db()
         _require_employee(sb, employee_id)
         try:
             rows = sb.table("learning_chat_messages").select(

@@ -126,10 +126,10 @@ def validate_file(
     )
 
 
-def check_duplicate(content_hash: str, employee_id: str, supabase_client) -> dict | None:
+def check_duplicate(content_hash: str, employee_id: str, db) -> dict | None:
     """Check if a file with the same hash already exists for this employee."""
     result = (
-        supabase_client.table("knowledge_sources")
+        db.table("knowledge_sources")
         .select("id, name, status")
         .eq("employee_id", employee_id)
         .eq("content_hash", content_hash)
@@ -141,20 +141,17 @@ def check_duplicate(content_hash: str, employee_id: str, supabase_client) -> dic
 
 
 def store_file(content: bytes, storage_path: str) -> str:
-    """Store file to local filesystem. Returns the absolute path."""
-    upload_dir = Path(settings.UPLOAD_DIR)
-    full_path = upload_dir / storage_path
-    full_path.parent.mkdir(parents=True, exist_ok=True)
-    full_path.write_bytes(content)
-    return str(full_path)
+    """Store a knowledge file locally or in OneLake. Returns the logical path."""
+    from app.services.onelake_storage_service import save_bytes
+
+    return save_bytes(storage_path, content)
 
 
 def delete_stored_file(storage_path: str) -> None:
-    """Delete a stored file from local filesystem."""
-    upload_dir = Path(settings.UPLOAD_DIR)
-    full_path = upload_dir / storage_path
-    if full_path.exists():
-        full_path.unlink()
+    """Delete a stored knowledge file."""
+    from app.services.onelake_storage_service import delete_file
+
+    delete_file(storage_path)
 
 
 # ── Helpers ───────────────────────────────────────────────────

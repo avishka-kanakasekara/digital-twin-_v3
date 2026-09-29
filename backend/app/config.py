@@ -1,7 +1,7 @@
 from __future__ import annotations
 """
 Application configuration — loads from .env file or environment variables.
-Connects to Supabase (hosted PostgreSQL) as the database backend.
+Operational data is stored in Microsoft Fabric SQL Database.
 """
 
 from pathlib import Path
@@ -13,10 +13,34 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
 
 
 class Settings(BaseSettings):
-    # Supabase
-    SUPABASE_URL: str = ""
-    SUPABASE_ANON_KEY: str = ""
-    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    ENVIRONMENT: str = "development"
+
+    # Microsoft Fabric SQL Database (transactional)
+    FABRIC_SQL_SERVER: str = ""
+    FABRIC_SQL_DATABASE: str = ""
+    FABRIC_ODBC_DRIVER: str = "ODBC Driver 18 for SQL Server"
+    FABRIC_TENANT_ID: str = ""
+    FABRIC_CLIENT_ID: str = ""
+    FABRIC_CLIENT_SECRET: str = ""
+    # auto | interactive | token | service_principal
+    # interactive opens a browser login (best for local Mac without az login).
+    FABRIC_AUTH_MODE: str = "auto"
+    # Development only. Ignored when ENVIRONMENT=production.
+    FABRIC_LOCAL_SQLITE: bool = False
+    FABRIC_LOCAL_SQLITE_PATH: str = "./data/edt_local.sqlite"
+
+    # Microsoft OneLake (files). Empty values keep files on local disk.
+    ONELAKE_WORKSPACE: str = ""
+    ONELAKE_LAKEHOUSE: str = ""
+    ONELAKE_ACCOUNT_URL: str = "https://onelake.dfs.fabric.microsoft.com"
+
+    # Authentication. jwt preserves the existing email/password API.
+    # entra additionally accepts Microsoft Entra access tokens.
+    AUTH_PROVIDER: str = "jwt"
+    AUTH_ENFORCE: bool = False
+    ENTRA_TENANT_ID: str = ""
+    ENTRA_CLIENT_ID: str = ""
+    ENTRA_AUDIENCE: str = ""
 
     # Redis (optional — gracefully degrades without it)
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -44,6 +68,21 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+    @property
+    def use_local_sqlite(self) -> bool:
+        return self.ENVIRONMENT.strip().lower() == "development" and self.FABRIC_LOCAL_SQLITE
+
+    @property
+    def local_sqlite_path(self) -> Path:
+        path = Path(self.FABRIC_LOCAL_SQLITE_PATH)
+        if not path.is_absolute():
+            path = BACKEND_DIR / path
+        return path
+
+    @property
+    def onelake_enabled(self) -> bool:
+        return bool(self.ONELAKE_WORKSPACE and self.ONELAKE_LAKEHOUSE)
 
     model_config = {
         "env_file": str(BACKEND_DIR / ".env"),

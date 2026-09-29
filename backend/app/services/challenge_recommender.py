@@ -11,7 +11,7 @@ Returns ranked recommendations with reasons.
 
 import json
 from datetime import datetime, timezone, timedelta
-from supabase import Client
+from app.database import Client
 
 
 def _utc_now() -> datetime:

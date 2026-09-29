@@ -1,7 +1,7 @@
 from __future__ import annotations
 """
 Gamification router — XP, leaderboard, challenges, achievements, rewards, admin.
-Uses Supabase as the database backend and gamification_engine for all business logic.
+Operational data is stored in Microsoft Fabric SQL Database. Gamification rules live in gamification_engine.
 """
 
 import uuid
@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, status, UploadFile, File
 from typing import Optional
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.schemas.gamification import (
     GamificationProfileResponse,
     LeaderboardEntry,
@@ -145,7 +145,7 @@ def _compute_streak_from_days(active_days: set[str]) -> tuple[int, int]:
 @router.get("/{employee_id}/profile", response_model=GamificationProfileResponse)
 def get_gamification_profile(employee_id: str):
     """Get gamification profile for an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     profile = ensure_profile(sb, employee_id)
     if not profile:
@@ -228,7 +228,7 @@ def get_leaderboard(
     current_employee_id: str | None = None,
 ):
     """Get company or department leaderboard with real trend computed from XP history."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     query = sb.table("gamification_profiles").select(
         "*, employees!inner(id, full_name, initials, department)"
@@ -297,7 +297,7 @@ def get_leaderboard(
 @router.get("/{employee_id}/challenges", response_model=list[ChallengeResponse])
 def get_challenges(employee_id: str):
     """Get active challenges with employee progress (batched — no N+1)."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     challenges = (
         sb.table("challenges")
@@ -442,7 +442,7 @@ def update_challenge_progress(
     data: ChallengeProgressUpdate,
 ):
     """Update challenge progress manually. Auto-completes and awards XP at 100%."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     prog_result = sb.table("challenge_progress").select("*").eq(
         "employee_id", employee_id
@@ -478,10 +478,10 @@ def update_challenge_progress(
 @router.get("/admin/pending-verifications")
 def get_pending_verifications():
     """Get all challenges that have reached 100% progress but are not yet verified (completed=False)."""
-    sb = get_supabase_admin()
+    sb = get_db()
     
     # We join challenge_progress with challenges and employees
-    # Supabase allows joined selects if FKs exist
+    # Joined selects require FK relationships
     res = sb.table("challenge_progress").select(
         "id, employee_id, challenge_id, progress, completed, "
         "challenges(title, xp_reward), "
@@ -493,7 +493,7 @@ def get_pending_verifications():
 @router.post("/admin/verify-challenge")
 def verify_challenge(data: ChallengeVerifyRequest):
     """Admin endpoint to approve or reject a challenge that has reached 100% progress."""
-    sb = get_supabase_admin()
+    sb = get_db()
     
     prog_result = sb.table("challenge_progress").select("*").eq(
         "employee_id", data.employee_id
@@ -532,7 +532,7 @@ def verify_challenge(data: ChallengeVerifyRequest):
 @router.get("/admin/pending-reviews")
 def get_pending_reviews():
     """Submissions flagged for manual review awaiting admin grading."""
-    sb = get_supabase_admin()
+    sb = get_db()
     subs = sb.table("submissions").select(
         "id, employee_id, challenge_id, step_id, content, submitted_at, status, "
         "employees!submissions_employee_id_fkey(full_name), "
@@ -547,7 +547,7 @@ def review_submission(data: ManualReviewRequest):
     """Admin grades a manual-review submission."""
     from app.services.challenge_evaluator import _compute_xp
 
-    sb = get_supabase_admin()
+    sb = get_db()
     sub_res = sb.table("submissions").select("*").eq("id", data.submission_id).execute()
     if not sub_res.data:
         raise HTTPException(status_code=404, detail="Submission not found")
@@ -618,7 +618,7 @@ def review_submission(data: ManualReviewRequest):
 @router.get("/{employee_id}/achievements", response_model=list[AchievementResponse])
 def get_achievements(employee_id: str):
     """Get all achievements with unlock status. Triggers a live achievement check."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     # Run achievement check on every load to catch any newly qualifying criteria
     check_achievement_unlocks(sb, employee_id)
@@ -659,7 +659,7 @@ def get_achievements(employee_id: str):
 @router.get("/{employee_id}/xp-history")
 def get_xp_history(employee_id: str, months: int = 6):
     """Get monthly XP aggregation for charts."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     since = (_utc_now() - timedelta(days=months * 30)).isoformat()
     result = sb.table("xp_transactions").select("amount, created_at").eq(
@@ -683,7 +683,7 @@ def get_xp_history(employee_id: str, months: int = 6):
 @router.get("/{employee_id}/activity", response_model=list[RecentActivityResponse])
 def get_recent_activity(employee_id: str, limit: int = 10):
     """Get recent XP activity feed."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     result = sb.table("xp_transactions").select("*").eq(
         "employee_id", employee_id
@@ -718,7 +718,7 @@ def get_recent_activity(employee_id: str, limit: int = 10):
 @router.get("/{employee_id}/streak", response_model=StreakResponse)
 def get_streak_calendar(employee_id: str, days: int = 42):
     """Get activity streak calendar from live XP transactions (not seeded profile fields)."""
-    sb = get_supabase_admin()
+    sb = get_db()
     ensure_profile(sb, employee_id)
 
     since = (_utc_now() - timedelta(days=max(days, 120))).isoformat()
@@ -769,7 +769,7 @@ def get_daily_missions(employee_id: str):
     Today's missions from live challenge step progress + today's XP ledger.
     Does not use seeded challenge_progress rows.
     """
-    sb = get_supabase_admin()
+    sb = get_db()
     ensure_profile(sb, employee_id)
 
     today_start = datetime.combine(_utc_now().date(), datetime.min.time()).replace(tzinfo=timezone.utc).isoformat()
@@ -903,14 +903,14 @@ def get_daily_missions(employee_id: str):
 @router.get("/rewards", response_model=list[RewardItemResponse])
 def get_rewards():
     """Get all available reward items."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("reward_items").select("*").order("cost").execute()
     return result.data
 
 
 @router.get("/{employee_id}/reward-claims")
 def get_reward_claims(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("reward_claims").select("reward_id").eq("employee_id", employee_id).execute()
     return [row["reward_id"] for row in (result.data or [])]
 
@@ -921,7 +921,7 @@ def claim_reward(employee_id: str, reward_id: str):
     Claim a reward — validates XP, prevents double-claim, deducts XP via ledger,
     and returns the updated profile.
     """
-    sb = get_supabase_admin()
+    sb = get_db()
 
     # Atomic re-fetch profile (prevents double-spend on concurrent requests)
     gam_result = sb.table("gamification_profiles").select("*").eq("employee_id", employee_id).execute()
@@ -992,7 +992,7 @@ def claim_reward(employee_id: str, reward_id: str):
 @router.post("/admin/challenges", status_code=201)
 def admin_create_challenge(data: ChallengeCreateWithSteps):
     """Create a challenge, optionally with ordered AI-evaluated steps."""
-    sb = get_supabase_admin()
+    sb = get_db()
     total_xp = sum(s.xp_value for s in data.steps) if data.steps else data.model_dump().get("xp_reward", 0) or 0
     if not data.steps:
         total_xp = 500
@@ -1033,7 +1033,7 @@ def admin_create_challenge(data: ChallengeCreateWithSteps):
 @router.patch("/admin/challenges/{challenge_id}")
 def admin_update_challenge(challenge_id: str, data: dict):
     """Admin: edit or deactivate a challenge."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("challenges").update(data).eq("id", challenge_id).execute()
     return result.data[0] if result.data else {"status": "updated"}
 
@@ -1041,7 +1041,7 @@ def admin_update_challenge(challenge_id: str, data: dict):
 @router.post("/admin/achievements", status_code=201)
 def admin_create_achievement(data: dict):
     """Admin: create or update an achievement."""
-    sb = get_supabase_admin()
+    sb = get_db()
     payload = {
         "id": data.get("id", str(uuid.uuid4())),
         "name": data["name"],
@@ -1059,7 +1059,7 @@ def admin_create_achievement(data: dict):
 @router.post("/admin/rewards", status_code=201)
 def admin_create_reward(data: dict):
     """Admin: create a reward item."""
-    sb = get_supabase_admin()
+    sb = get_db()
     payload = {
         "id": data.get("id", str(uuid.uuid4())),
         "name": data["name"],
@@ -1077,7 +1077,7 @@ def admin_create_reward(data: dict):
 @router.patch("/admin/rewards/{reward_id}")
 def admin_toggle_reward(reward_id: str, data: dict):
     """Admin: toggle availability or update a reward."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("reward_items").update(data).eq("id", reward_id).execute()
     return result.data[0] if result.data else {"status": "updated"}
 
@@ -1085,7 +1085,7 @@ def admin_toggle_reward(reward_id: str, data: dict):
 @router.post("/admin/xp")
 def admin_grant_xp(data: dict):
     """Admin: manually grant or deduct XP (goes through full XP service)."""
-    sb = get_supabase_admin()
+    sb = get_db()
     employee_id = data.get("employee_id")
     amount = data.get("amount", 0)
     reason = data.get("reason", "Admin adjustment")
@@ -1099,7 +1099,7 @@ def admin_grant_xp(data: dict):
 @router.post("/admin/recalculate-ranks")
 def admin_recalculate_ranks():
     """Admin: force-recalculate all company and department ranks."""
-    sb = get_supabase_admin()
+    sb = get_db()
     _recalculate_ranks(sb)
     return {"status": "ranks recalculated"}
 
@@ -1107,7 +1107,7 @@ def admin_recalculate_ranks():
 @router.post("/admin/check-achievements/{employee_id}")
 def admin_check_achievements(employee_id: str):
     """Admin: force-run achievement checks for an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
     check_achievement_unlocks(sb, employee_id)
     return {"status": "achievement check complete"}
 
@@ -1115,7 +1115,7 @@ def admin_check_achievements(employee_id: str):
 @router.post("/admin/fire-event/{employee_id}")
 def admin_fire_event(employee_id: str, data: dict):
     """Admin/Test: fire a gamification event for an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
     event_type = data.get("event_type", "profile_updated")
     fire_gamification_event(sb, employee_id, event_type)
     return {"status": "event fired", "event_type": event_type}
@@ -1126,7 +1126,7 @@ def admin_fire_event(employee_id: str, data: dict):
 @router.post("/{employee_id}/submissions/upload")
 async def upload_submission_file(employee_id: str, file: UploadFile = File(...)):
     """Upload a file for a challenge step submission. Returns extracted content + storage path."""
-    sb = get_supabase_admin()
+    sb = get_db()
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=404, detail="Employee not found")
@@ -1181,7 +1181,7 @@ def _compute_challenge_progress(sb, employee_id: str, challenge_id: str) -> tupl
 @router.get("/{employee_id}/challenges/{challenge_id}/detail", response_model=ChallengeDetailResponse)
 def get_challenge_detail(employee_id: str, challenge_id: str):
     """Full challenge detail with ordered steps and per-step status for this employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     ch_res = sb.table("challenges").select("*").eq("id", challenge_id).execute()
     if not ch_res.data:
@@ -1273,7 +1273,7 @@ def submit_step(employee_id: str, challenge_id: str, step_id: str, data: SubmitS
     """
     from app.services.challenge_evaluator import evaluate_submission
 
-    sb = get_supabase_admin()
+    sb = get_db()
 
     # Fetch the step
     step_res = sb.table("challenge_steps").select("*").eq("id", step_id).execute()
@@ -1381,7 +1381,7 @@ def submit_step(employee_id: str, challenge_id: str, step_id: str, data: SubmitS
 @router.get("/{employee_id}/recommendations", response_model=RecommendationsResponse)
 def get_recommendations(employee_id: str):
     """Get personalized challenge recommendations based on the employee's Digital Twin."""
-    sb = get_supabase_admin()
+    sb = get_db()
     from app.services.challenge_recommender import get_recommendations as _get_recs
     result = _get_recs(sb, employee_id)
     return RecommendationsResponse(**result)
@@ -1410,7 +1410,7 @@ def generate_challenge(data: GenerateChallengeRequest):
 @router.post("/{employee_id}/challenges/{challenge_id}/steps/{step_id}/hint", response_model=HintResponse)
 def get_step_hint(employee_id: str, challenge_id: str, step_id: str, data: HintRequest):
     """Get a progressive hint for a challenge step. Higher levels give more guidance but penalize bonus XP."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     step_res = sb.table("challenge_steps").select("title, instructions, xp_value").eq("id", step_id).execute()
     if not step_res.data:
@@ -1434,6 +1434,6 @@ def get_step_hint(employee_id: str, challenge_id: str, step_id: str, data: HintR
 @router.get("/{employee_id}/skill-progress", response_model=list[SkillProgressItem])
 def get_skill_progress(employee_id: str):
     """Get employee skill progress data for gamification display."""
-    sb = get_supabase_admin()
+    sb = get_db()
     from app.services.challenge_recommender import get_skill_progress as _get_sp
     return _get_sp(sb, employee_id)

@@ -4,7 +4,7 @@ Analyzes employee data from documents, projects, and skills to generate insights
 """
 
 from typing import Dict, List, Any
-from supabase import Client
+from app.database import Client
 import json
 import os
 
@@ -179,7 +179,7 @@ Be specific, data-driven, and provide actionable insights. Avoid generic stateme
 
 
 def generate_rule_based_analytics(employee_id: str, sb: Client) -> AnalyticsResponse:
-    """Generate structured rule-based personal analytics from employee's Supabase records."""
+    """Generate structured rule-based personal analytics from employee's Fabric records."""
     emp_res = sb.table("employees").select("*").eq("id", employee_id).execute()
     emp_name = emp_res.data[0].get("full_name", "Employee") if emp_res.data else "Employee"
 
@@ -192,13 +192,28 @@ def generate_rule_based_analytics(employee_id: str, sb: Client) -> AnalyticsResp
     sources_res = sb.table("knowledge_sources").select("*").eq("employee_id", employee_id).execute()
     sources = sources_res.data or []
 
+    def _prof(skill: dict, default: int = 50) -> int:
+        raw = skill.get("proficiency")
+        if raw is None:
+            return default
+        try:
+            val = int(raw)
+        except (TypeError, ValueError):
+            return default
+        return val
+
     insights = []
     if skills:
-        top_skill = max(skills, key=lambda s: s.get("proficiency", 0))
+        top_skill = max(skills, key=lambda s: _prof(s, 0))
+        top_prof = _prof(top_skill, 0)
+        display_level = top_prof if top_prof <= 10 else round(top_prof / 10)
         insights.append(AnalyticsInsight(
             category="Skills Mastery",
             title=f"Core Strength: {top_skill.get('name')}",
-            description=f"Demonstrates high proficiency ({top_skill.get('proficiency')}/10) in {top_skill.get('name')} within {top_skill.get('category', 'Technical')} domain.",
+            description=(
+                f"Demonstrates high proficiency ({display_level}/10) in {top_skill.get('name')} "
+                f"within {top_skill.get('category', 'Technical')} domain."
+            ),
             impact="High",
             actionable=True
         ))
@@ -233,7 +248,9 @@ def generate_rule_based_analytics(employee_id: str, sb: Client) -> AnalyticsResp
 
     skill_growth = []
     for s in skills[:5]:
-        cur = s.get("proficiency", 5)
+        cur_raw = _prof(s, 50)
+        # Normalize to 1–10 for growth charts
+        cur = cur_raw if cur_raw <= 10 else max(1, min(10, round(cur_raw / 10)))
         tgt = min(10, cur + 2)
         skill_growth.append(SkillGrowth(
             skill_name=s.get("name", "Skill"),
@@ -362,7 +379,23 @@ Provide response strictly in valid JSON format."""
         
     except Exception as e:
         print(f"[personal_analytics] Gemini analysis failed, using rule-based fallback: {e}")
-        return generate_rule_based_analytics(employee_id, sb)
+        try:
+            return generate_rule_based_analytics(employee_id, sb)
+        except Exception as fallback_err:
+            print(f"[personal_analytics] Rule-based fallback also failed: {fallback_err}")
+            return AnalyticsResponse(
+                insights=[AnalyticsInsight(
+                    category="Overview",
+                    title="Analytics temporarily limited",
+                    description="Could not fully compute personal analytics right now. Twin data is still available.",
+                    impact="Low",
+                    actionable=False,
+                )],
+                productivity_trends=[],
+                skill_growth=[],
+                recommendations=["Retry personal analytics shortly."],
+                overall_score=int((sb.table("employees").select("ai_confidence").eq("id", employee_id).execute().data or [{}])[0].get("ai_confidence") or 50),
+            )
 
 
 # ─── Response Formatting ───────────────────────────────────────

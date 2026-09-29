@@ -4,8 +4,6 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from app.config import settings
-
 TEXT_EXTENSIONS = {".txt", ".md", ".py", ".js", ".ts", ".tsx", ".jsx", ".json", ".csv", ".html", ".css", ".sql", ".java", ".go", ".rs", ".c", ".cpp", ".h", ".yaml", ".yml", ".xml", ".sh"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 FILE_EXTENSIONS = TEXT_EXTENSIONS | IMAGE_EXTENSIONS | {".pdf", ".docx"}
@@ -24,13 +22,10 @@ def save_submission_file(employee_id: str, filename: str, content: bytes) -> dic
         raise ValueError(f"File type '{ext or 'unknown'}' is not allowed.")
 
     safe_name = f"{uuid.uuid4().hex}_{Path(filename).name.replace(' ', '_')}"
-    rel_dir = Path("challenges") / employee_id
-    upload_root = Path(settings.UPLOAD_DIR) / rel_dir
-    upload_root.mkdir(parents=True, exist_ok=True)
-    full_path = upload_root / safe_name
-    full_path.write_bytes(content)
+    storage_path = f"challenges/{employee_id}/{safe_name}"
+    from app.services.onelake_storage_service import save_bytes
 
-    storage_path = str(rel_dir / safe_name)
+    save_bytes(storage_path, content, _mime_for_ext(ext))
     mime_type = _mime_for_ext(ext)
     is_image = ext in IMAGE_EXTENSIONS
 
@@ -59,11 +54,15 @@ def save_submission_file(employee_id: str, filename: str, content: bytes) -> dic
 
 
 def read_submission_file(storage_path: str) -> tuple[bytes, str]:
-    full_path = Path(settings.UPLOAD_DIR) / storage_path
-    if not full_path.exists():
-        raise FileNotFoundError("Uploaded file not found.")
-    ext = full_path.suffix.lower()
-    return full_path.read_bytes(), _mime_for_ext(ext)
+    from app.services.onelake_storage_service import read_bytes
+    from app.db.errors import StorageError
+
+    try:
+        content = read_bytes(storage_path)
+    except StorageError as exc:
+        raise FileNotFoundError("Uploaded file not found.") from exc
+    ext = Path(storage_path).suffix.lower()
+    return content, _mime_for_ext(ext)
 
 
 def _mime_for_ext(ext: str) -> str:

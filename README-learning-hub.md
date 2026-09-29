@@ -1,20 +1,18 @@
 # Learning Hub (GrowthPath) — setup
 
-End-to-end AI Learning Hub for the Employee Digital Twin. Frontend: `src/views/employee/LearningHub.tsx`. Backend: FastAPI + Supabase + Vertex Gemini.
+End-to-end AI Learning Hub for the Employee Digital Twin. Frontend: `src/views/employee/LearningHub.tsx`. Backend: FastAPI + Microsoft Fabric SQL Database + Vertex Gemini.
 
 ## Stack conventions (do not diverge)
 
-- **DB:** Supabase Postgres via `get_supabase_admin()` (not SQLAlchemy)
+- **DB:** Microsoft Fabric SQL Database via `get_db()` (not SQLAlchemy)
 - **AI:** `backend/gemini_client.py` (Vertex) wrapped by `ask_gemini_timed` / `gemini_learning_service.py`
 - **Routes:** `/api/learning/{employee_id}/...` (existing shape preserved)
 
-## 1. Apply migration
+## 1. Apply schema
 
-In Supabase SQL editor, run:
+Run the Fabric scripts in `fabric/database/` against the SQL database. They already include:
 
-`backend/migrations/learning_hub_ai.sql`
 
-Creates:
 
 - `learning_chat_messages` — AI Coach history
 - `learning_feed_cache` — 24h Gemini feed cache
@@ -28,10 +26,8 @@ Already used by Vertex Gemini (no separate `GEMINI_API_KEY` required when using 
 GCP_PROJECT_ID=your-project
 GCP_LOCATION=us-central1
 GOOGLE_APPLICATION_CREDENTIALS=secrets/your-sa.json
-# Optional for cloud hosts: paste full SA JSON
-# GOOGLE_CREDENTIALS_JSON={...}
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
+FABRIC_SQL_SERVER=
+FABRIC_SQL_DATABASE=
 ```
 
 If you later switch to Google AI Studio API keys, add `GEMINI_API_KEY` and adapt `gemini_client.py` — current project uses Vertex.

@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from supabase import Client
+from app.database import Client
 
 from app.schemas.career import (
     CareerAnalysisResponse,

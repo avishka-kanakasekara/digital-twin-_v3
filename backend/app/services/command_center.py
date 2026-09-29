@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
-from supabase import Client
+from app.database import Client
 
 _PEER_TYPE = "peer_recommendation"
 

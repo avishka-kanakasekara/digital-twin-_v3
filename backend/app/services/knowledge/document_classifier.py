@@ -10,6 +10,7 @@ Returns a structured Classification with document_type and confidence.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from enum import Enum
@@ -26,6 +27,21 @@ class DocumentType(str, Enum):
     EDUCATION_DOCUMENT = "EDUCATION_DOCUMENT"
     OTHER_PROFESSIONAL = "OTHER_PROFESSIONAL"
     UNKNOWN = "UNKNOWN"
+
+
+def _vertex_configured() -> bool:
+    try:
+        from app.config import settings
+
+        project = settings.GCP_PROJECT_ID or os.environ.get("GCP_PROJECT_ID")
+        location = settings.GCP_LOCATION or os.environ.get("GCP_LOCATION")
+        if project and location:
+            os.environ.setdefault("GCP_PROJECT_ID", project)
+            os.environ.setdefault("GCP_LOCATION", location)
+            return True
+    except Exception:
+        pass
+    return bool(os.environ.get("GCP_PROJECT_ID") and os.environ.get("GCP_LOCATION"))
 
 
 @dataclass
@@ -96,9 +112,9 @@ def classify_document(
     if best_deterministic and best_deterministic.confidence >= 0.70:
         return best_deterministic
 
-    # 4. AI classification fallback
-    if use_ai and api_key:
-        ai_result = _classify_with_ai(extracted_text, api_key)
+    # 4. AI classification fallback (Vertex AI or API key)
+    if use_ai and (api_key or _vertex_configured()):
+        ai_result = _classify_with_ai(extracted_text, api_key or "")
         if ai_result:
             return ai_result
 

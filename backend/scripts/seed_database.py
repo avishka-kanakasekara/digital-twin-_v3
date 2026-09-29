@@ -1,5 +1,5 @@
 """
-Seed the Supabase database with all mock data from the frontend.
+Seed the Fabric SQL database with demo data matching the frontend.
 
 Run with: python -m scripts.seed_database
 """
@@ -7,7 +7,7 @@ Run with: python -m scripts.seed_database
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.utils.auth import hash_password
 
 
@@ -16,9 +16,9 @@ def _uid() -> str:
 
 
 def seed():
-    """Seed Supabase with comprehensive mock data matching the frontend."""
-    print("🌱 Starting Supabase seed...")
-    sb = get_supabase_admin()
+    """Seed Fabric SQL with comprehensive mock data matching the frontend."""
+    print("🌱 Starting Fabric database seed...")
+    sb = get_db()
 
     # ════════════════════════════════════════════════════════
     # CLEAR EXISTING DATA (order matters — children first)
@@ -559,7 +559,7 @@ def seed():
     sb.table("reward_items").insert(rewards_to_insert).execute()
     print("  ✅ Reward store items created")
 
-    print("\n🎉 Supabase database seeded successfully!")
+    print("\n🎉 Fabric database seeded successfully!")
     print("   Login with: alex.carter@company.com / password123")
 
 
