@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Send, Bot, Sparkles } from 'lucide-react';
 import { useEmployee } from '../../contexts/EmployeeContext';
 import { employeeAPI } from '../../lib/api';
@@ -62,8 +63,8 @@ export const AICareerAssistant: React.FC<AICareerAssistantProps> = ({ isOpen, on
     handleSend();
   };
 
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/20 backdrop-blur-sm animate-fade-in">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/20 backdrop-blur-sm">
       <div className="w-full max-w-[500px] h-[600px] flex flex-col bg-white rounded-3xl overflow-hidden shadow-2xl relative border border-slate-200/80 m-4">
         
         {/* Header - Solid and Clean */}
@@ -190,7 +191,8 @@ export const AICareerAssistant: React.FC<AICareerAssistantProps> = ({ isOpen, on
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

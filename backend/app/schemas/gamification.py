@@ -3,8 +3,8 @@ from __future__ import annotations
 Gamification schemas — profiles, leaderboard, challenges, achievements, XP.
 """
 
-from typing import Optional
-from pydantic import BaseModel
+from typing import Any, Optional
+from pydantic import BaseModel, field_validator
 
 from datetime import datetime
 
@@ -106,6 +106,7 @@ class RecentActivityResponse(BaseModel):
 class StreakCalendarDay(BaseModel):
     date: str
     intensity: int = 0
+    xp: int = 0
 
 
 class StreakResponse(BaseModel):
@@ -141,6 +142,14 @@ class ChallengeStepIn(BaseModel):
     evaluation_rubric: str
     xp_value: int = 100
     reference_url: Optional[str] = None
+
+    @field_validator("reference_url", mode="before")
+    @classmethod
+    def _empty_url_to_none(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
 
 
 class ChallengeStepResponse(BaseModel):
@@ -213,3 +222,71 @@ class EvaluationResponse(BaseModel):
     feedback: str
     xp_awarded: int
     status: str            # evaluated | manual_review
+    criteria: list = []    # structured rubric criteria
+    strengths: list = []   # what the employee did well
+    improvements: list = []  # areas for improvement
+
+
+# ─── Recommendation schemas ──────────────────────────────────
+
+class ChallengeRecommendation(BaseModel):
+    challenge_id: str
+    title: str
+    description: str = ""
+    difficulty: str = "Medium"
+    category: str = ""
+    color: str = "#6366f1"
+    bonus_badge: str = "🎯"
+    xp_reward: int = 0
+    estimated_minutes: Optional[int] = None
+    days_left: int = 0
+    why_recommended: str = ""
+    target_skill: Optional[str] = None
+    current_skill_level: Optional[int] = None
+    target_skill_level: Optional[int] = None
+    relevance_score: float = 0
+    difficulty_match: str = "appropriate"
+    expected_outcome: str = ""
+
+
+class RecommendationsResponse(BaseModel):
+    recommendations: list[ChallengeRecommendation] = []
+    coach_insight: str = ""
+    focus_skills: list = []
+
+
+# ─── AI Generation schemas ───────────────────────────────────
+
+class GenerateChallengeRequest(BaseModel):
+    goal: str
+    target_skill: str = ""
+    difficulty: str = "Medium"
+    duration: str = "30 min"
+    style: str = "Practical task"
+
+
+# ─── Hint schemas ─────────────────────────────────────────────
+
+class HintRequest(BaseModel):
+    hint_level: int = 1  # 1, 2, or 3
+
+
+class HintResponse(BaseModel):
+    hint: str
+    xp_penalty: int = 0
+    hint_level: int = 1
+
+
+# ─── Skill progress schemas ──────────────────────────────────
+
+class SkillProgressItem(BaseModel):
+    name: str
+    category: str = ""
+    proficiency: int = 0
+    target: int = 0
+    trend: str = "stable"
+    level_label: str = "Beginner"
+    gap_pct: int = 0
+
+    model_config = {"from_attributes": True}
+

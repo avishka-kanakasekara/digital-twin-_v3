@@ -5,7 +5,7 @@ Chains all stages:
     UPLOADED → VALIDATING → STORED → EXTRACTING → CLASSIFYING
     → ANALYZING → RECONCILING → UPDATING → COMPLETED
 
-Each stage updates the knowledge_source status in Supabase.
+Each stage updates the knowledge_source status in Fabric SQL.
 Any stage failure marks the source with error_code + error_message.
 Nothing is fabricated — every stage must succeed for the next to run.
 """
@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.config import settings
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.services.knowledge.file_validator import (
     FileValidationResult,
     check_duplicate,
@@ -77,6 +77,8 @@ def run_pipeline(
     employee_id: str,
     filename: str,
     content: bytes,
+    existing_source_id: str | None = None,
+    existing_storage_path: str | None = None,
 ) -> PipelineResult:
     """
     Run the full knowledge intelligence pipeline for a single uploaded file.
@@ -85,20 +87,35 @@ def run_pipeline(
         employee_id: The employee this document belongs to
         filename: Original filename (used for classification heuristics)
         content: Raw file bytes
+        existing_source_id: When reprocessing, reuse this knowledge_sources row
+        existing_storage_path: When reprocessing, keep the already-stored file path
     
     Returns:
         PipelineResult with outcome details
     """
     result = PipelineResult()
-    sb = get_supabase_admin()
+    sb = get_db()
     source_id: str | None = None
+    api_key = (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or None
+    )
 
     try:
-        # ── Stage 1: Create initial record ────────────────────
-        source_id = str(uuid.uuid4())
+        # ── Stage 1: Create / reset record ────────────────────
+        source_id = existing_source_id or str(uuid.uuid4())
         result.source_id = source_id
-        _update_status(sb, source_id, employee_id, PipelineStatus.VALIDATING,
-                       name=filename, original_filename=filename)
+        _update_status(
+            sb,
+            source_id,
+            employee_id,
+            PipelineStatus.VALIDATING,
+            name=filename,
+            original_filename=filename,
+            error_code=None,
+            error_message=None,
+        )
 
         # ── Stage 2: File Validation ──────────────────────────
         ext = _get_extension(filename)
@@ -112,8 +129,9 @@ def run_pipeline(
             return result
 
         # ── Stage 3: Duplicate Detection ──────────────────────
+        # Reprocess of the same file must not fail against itself
         duplicate = check_duplicate(validation.content_hash or "", employee_id, sb)
-        if duplicate:
+        if duplicate and duplicate.get("id") != source_id:
             _fail(sb, source_id,
                   "DUPLICATE_DOCUMENT",
                   f"This document has already been uploaded (source: {duplicate.get('name', 'Unknown')}).")
@@ -122,8 +140,9 @@ def run_pipeline(
             return result
 
         # ── Stage 4: Store file ───────────────────────────────
+        storage_path = existing_storage_path or validation.storage_path or ""
         try:
-            absolute_path = store_file(content, validation.storage_path or "")
+            store_file(content, storage_path)
         except Exception as exc:
             _fail(sb, source_id, "STORAGE_FAILED", f"Could not store file: {exc}")
             result.error_code = "STORAGE_FAILED"
@@ -131,7 +150,7 @@ def run_pipeline(
             return result
 
         _update_status(sb, source_id, employee_id, PipelineStatus.STORED,
-                       storage_path=validation.storage_path,
+                       storage_path=storage_path,
                        content_hash=validation.content_hash,
                        file_size=validation.file_size,
                        mime_type=validation.detected_mime)
@@ -158,6 +177,7 @@ def run_pipeline(
             filename=filename,
             extracted_text=extracted_text,
             use_ai=True,
+            api_key=api_key,
         )
         _store_source_type(sb, source_id, classification.document_type.value)
 
@@ -166,6 +186,7 @@ def run_pipeline(
         analysis = analyze_document(
             extracted_text=extracted_text,
             document_type=classification.document_type.value,
+            api_key=api_key,
         )
 
         if not analysis.success or not analysis.extraction:
@@ -186,7 +207,7 @@ def run_pipeline(
             employee_id=employee_id,
             source_id=source_id,
             document_type=classification.document_type.value,
-            supabase_client=sb,
+            db=sb,
         )
 
         # ── Stage 9: Apply Changes ─────────────────────────────
@@ -196,11 +217,11 @@ def run_pipeline(
             employee_id=employee_id,
             source_id=source_id,
             document_type=classification.document_type.value,
-            supabase_client=sb,
+            db=sb,
         )
 
         # ── Stage 10: Complete ─────────────────────────────────
-        _complete(sb, source_id, reconciliation, filename)
+        _complete(sb, source_id, reconciliation, filename, employee_id=employee_id)
 
         result.success = True
         result.stage = PipelineStatus.COMPLETED
@@ -316,25 +337,21 @@ def _store_analysis_result(sb, source_id: str, extraction) -> None:
         pass
 
 
-def _complete(sb, source_id: str, reconciliation: ReconciliationSummary, filename: str) -> None:
+def _complete(sb, source_id: str, reconciliation: ReconciliationSummary, filename: str, employee_id: str = "") -> None:
     try:
-        total_added = (
-            reconciliation.skills_added +
-            reconciliation.projects_added +
-            reconciliation.certifications_added
-        )
         # Calculate overall confidence from proposals
         proposals_with_confidence = [p for p in reconciliation.proposals if p.confidence > 0]
         avg_confidence = (
             sum(p.confidence for p in proposals_with_confidence) / len(proposals_with_confidence)
             if proposals_with_confidence else 0.70
         )
+        confidence_pct = int(avg_confidence * 100)
 
         sb.table("knowledge_sources").update({
             "status": PipelineStatus.COMPLETED,
             "processing_stage": PipelineStatus.COMPLETED,
             "processed_at": datetime.now(timezone.utc).isoformat(),
-            "confidence": int(avg_confidence * 100),
+            "confidence": confidence_pct,
             "skills_extracted": reconciliation.skills_added + reconciliation.skills_confirmed,
             "projects_found": reconciliation.projects_added,
             "error_code": None,
@@ -342,8 +359,79 @@ def _complete(sb, source_id: str, reconciliation: ReconciliationSummary, filenam
             "last_synced": datetime.now(timezone.utc).isoformat(),
             "name": filename,
         }).eq("id", source_id).execute()
+
+        if employee_id:
+            _refresh_employee_ai_confidence(sb, employee_id, confidence_pct)
     except Exception as exc:
         logger.error(f"[Pipeline] Failed to mark complete: {exc}")
+
+
+def _refresh_employee_ai_confidence(sb, employee_id: str, latest_confidence: int | None = None) -> None:
+    """Recompute employees.ai_confidence from completed knowledge + skill evidence."""
+    try:
+        ks = (
+            sb.table("knowledge_sources")
+            .select("confidence,status")
+            .eq("employee_id", employee_id)
+            .execute()
+        )
+        ks_scores = [
+            int(row.get("confidence") or 0)
+            for row in (ks.data or [])
+            if (row.get("status") or "").upper() == "COMPLETED" and (row.get("confidence") or 0) > 0
+        ]
+        skills = (
+            sb.table("skills")
+            .select("id,proficiency,ai_confidence")
+            .eq("employee_id", employee_id)
+            .execute()
+        )
+        skill_rows = skills.data or []
+        skill_scores = [
+            int(row.get("ai_confidence") or 0)
+            for row in skill_rows
+            if (row.get("ai_confidence") or 0) > 0
+        ]
+
+        # Backfill null skill proficiency so analytics / twin UI stay consistent
+        for row in skill_rows:
+            if row.get("proficiency") is None:
+                fallback = 70
+                if row.get("ai_confidence"):
+                    fallback = max(40, min(95, int(row["ai_confidence"])))
+                try:
+                    sb.table("skills").update({"proficiency": fallback}).eq("id", row["id"]).execute()
+                except Exception:
+                    pass
+
+        parts = list(ks_scores) + list(skill_scores)
+        if latest_confidence:
+            parts.append(int(latest_confidence))
+        if not parts:
+            return
+
+        # Weight knowledge-source confidence more heavily than individual skill scores
+        if ks_scores:
+            blended = int(
+                (sum(ks_scores) / len(ks_scores)) * 0.7
+                + (sum(skill_scores) / len(skill_scores) if skill_scores else sum(ks_scores) / len(ks_scores)) * 0.3
+            )
+        else:
+            blended = int(sum(parts) / len(parts))
+
+        # Completeness bump: more completed sources → higher floor
+        floor = min(90, 55 + (len(ks_scores) * 8))
+        new_confidence = max(floor, min(99, blended))
+
+        sb.table("employees").update({
+            "ai_confidence": new_confidence,
+        }).eq("id", employee_id).execute()
+        logger.info(
+            f"[Pipeline] Updated ai_confidence={new_confidence} for employee={employee_id} "
+            f"(ks={ks_scores}, skills={len(skill_scores)})"
+        )
+    except Exception as exc:
+        logger.error(f"[Pipeline] Failed to refresh ai_confidence: {exc}")
 
 
 def _get_extension(filename: str) -> str:

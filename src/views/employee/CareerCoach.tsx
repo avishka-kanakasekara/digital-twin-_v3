@@ -17,6 +17,7 @@ import {
   Upload,
   UserPlus,
   Zap,
+  Brain,
 } from 'lucide-react';
 import './CareerCoach.css';
 import {
@@ -28,6 +29,8 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
+import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -108,6 +111,7 @@ const ReadinessRing: React.FC<{ score: number }> = ({ score }) => (
 
 export const CareerCoach: React.FC = () => {
   const { currentEmployee, loading: employeeLoading } = useEmployee();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [savingGoal, setSavingGoal] = useState(false);
@@ -353,8 +357,9 @@ export const CareerCoach: React.FC = () => {
 
   return (
     <div className="career-coach">
-      {toast && (
-        <div className={`career-toast career-toast--${toast.type}`}>{toast.message}</div>
+      {toast && createPortal(
+        <div className={`career-toast career-toast--${toast.type}`}>{toast.message}</div>,
+        document.body
       )}
 
       <div className="career-header">
@@ -419,6 +424,14 @@ export const CareerCoach: React.FC = () => {
                 <span className="career-meta-chip">
                   {analysis.next_action?.estimated_hours || 0} hrs estimated
                 </span>
+                <Button
+                  variant="ghost"
+                  className="border border-[var(--border-subtle)] bg-white/80"
+                  onClick={() => navigate('/learning-hub')}
+                >
+                  <Brain size={14} className="mr-2" />
+                  Close gaps in Learning
+                </Button>
               </div>
             </div>
           </div>
@@ -577,15 +590,26 @@ export const CareerCoach: React.FC = () => {
                         <span className="career-chip">{gap.evidence_count} evidence item(s)</span>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0 border border-[var(--border-subtle)] bg-white/80"
-                      onClick={() => setEvidenceModal({ skillGap: gap })}
-                    >
-                      <Upload size={14} className="mr-1.5" />
-                      Upload evidence
-                    </Button>
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="border border-[var(--border-subtle)] bg-white/80"
+                        onClick={() => setEvidenceModal({ skillGap: gap })}
+                      >
+                        <Upload size={14} className="mr-1.5" />
+                        Upload evidence
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="border border-[var(--border-subtle)] bg-white/80"
+                        onClick={() => navigate('/learning-hub')}
+                      >
+                        <Brain size={14} className="mr-1.5" />
+                        Learn this skill
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}

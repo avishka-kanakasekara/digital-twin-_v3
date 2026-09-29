@@ -2,7 +2,7 @@
 # Gamification System — Plain-English Guide
 
 **Last updated:** August 2026
-**Backend:** FastAPI + Supabase
+**Backend:** FastAPI + Microsoft Fabric SQL
 **Frontend:** React — Gamification Hub (/gamification-hub)
 
 ---
@@ -204,5 +204,5 @@ curl -X POST http://localhost:8000/api/gamification/admin/recalculate-ranks
 ## What Is Not Yet Implemented
 
 - Trend arrows show "stable" for the first 7 days of use (by design — needs 7 days of XP history)
-- leaderboard_snapshots table was not created (requires Supabase dashboard DDL). Trend uses xp_transactions history instead — functionally identical.
+- leaderboard_snapshots table was not created. Trend uses xp_transactions history instead — functionally identical.
 - Admin UI for creating challenges/rewards does not exist — API-only. Add as a future feature if needed.

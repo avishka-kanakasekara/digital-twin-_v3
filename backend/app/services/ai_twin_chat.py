@@ -13,7 +13,7 @@ Uses LLM to generate personalized responses.
 import os
 from dataclasses import dataclass
 from typing import Any
-from supabase import Client
+from app.database import Client
 
 
 @dataclass

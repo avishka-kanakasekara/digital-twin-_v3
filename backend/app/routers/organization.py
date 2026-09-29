@@ -2,24 +2,25 @@ from __future__ import annotations
 """
 API routes for Organization module.
 """
-from typing import List, Optional
+from typing import List
 from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, status
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.schemas.organization import (
     OrganizationMetricRead, OrganizationMetricCreate, OrganizationMetricUpdate,
     OrganizationScenarioRead, OrganizationScenarioCreate, OrganizationScenarioUpdate,
     OrgInnovationIdeaRead, OrgInnovationIdeaCreate, OrgInnovationIdeaUpdate,
     OrgInnovationCommunityRead, OrgInnovationCommunityCreate, OrgInnovationCommunityUpdate,
-    IdeaScoreRequest, IdeaScoreResponse,
     OrgAtRiskEmployeeRead, OrgAtRiskEmployeeCreate, OrgAtRiskEmployeeUpdate,
     OrgTalentGigRead, OrgTalentGigCreate, OrgTalentGigUpdate,
     OrgTalentMentorRead, OrgTalentMentorCreate, OrgTalentMentorUpdate,
     OrgTeamBuilderOptionRead, OrgTeamBuilderOptionCreate, OrgTeamBuilderOptionUpdate,
-    OrgTalentApplicationRead, OrgTalentApplicationCreate, OrgTalentApplicationUpdate,
-    TeamBuilderOptimizationRequest, RiskProfile, InterventionEffectiveness,
-    SimulationRequest
+    OrgOKRRead, OrgOKRCreate, OrgOKRUpdate,
+    OrgStrategyVisionResponse, OrgAIReadinessResponse,
+    OrgCapabilityResponse, OrgTransformationResponse,
+    TeamBuilderOptimizationRequest, SimulationRequest,
+    InterventionEffectiveness,
 )
 import sys
 import os
@@ -27,10 +28,8 @@ sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.
 from organization.workforce_forecasting.forecast_engine import forecast_headcount_loss, rank_skill_shortages
 from organization.workforce_forecasting.burnout_calculator import calculate_average_burnout
 from organization.team_builder.optimization_engine import optimize_team
-from organization.at_risk.risk_model import predict_attrition_risk, calculate_intervention_effectiveness
+from organization.at_risk.risk_model import calculate_intervention_effectiveness
 from organization.simulation.causal_simulator import run_causal_simulation
-from innovation.nlp_scoring import score_idea
-
 
 router = APIRouter(
     prefix="/api/organization",
@@ -44,46 +43,19 @@ def get_organization_history(limit: int = 100):
     """
     Retrieve historical organization metrics. (Legacy alias for GET /metrics)
     """
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_metrics").select("*").order("date").limit(limit).execute()
     return result.data
 
 @router.get("/metrics", response_model=List[OrganizationMetricRead])
 def get_organization_metrics(limit: int = 100):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_metrics").select("*").order("date").limit(limit).execute()
     return result.data
 
-@router.get("/anomalies")
-def get_organization_anomalies():
-    """Returns detected anomalies. Currently mocked, but ready to be hooked to ML models."""
-    return [
-        {
-            "id": "anom_1",
-            "type": "negative",
-            "title": "Satisfaction Anomaly Flagged",
-            "description": "Unsupervised anomaly model detected a statistically significant dip in employee satisfaction (z-score: -2.8).",
-            "color": "rose"
-        },
-        {
-            "id": "anom_2",
-            "type": "positive",
-            "title": "Engineering Velocity Peak",
-            "description": "Productivity score in Engineering is 92%, driven by recent Agile adoption and automation tools.",
-            "color": "emerald"
-        },
-        {
-            "id": "anom_3",
-            "type": "neutral",
-            "title": "Retention Stabilized",
-            "description": "Attrition risk has decreased by 1.2% globally following the new wellness initiatives launched in Q1.",
-            "color": "blue"
-        }
-    ]
-
 @router.post("/metrics", response_model=OrganizationMetricRead, status_code=status.HTTP_201_CREATED)
 def create_organization_metric(metric: OrganizationMetricCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_metrics").insert(metric.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create metric")
@@ -91,7 +63,7 @@ def create_organization_metric(metric: OrganizationMetricCreate):
 
 @router.put("/metrics/{id}", response_model=OrganizationMetricRead)
 def update_organization_metric(id: str, metric: OrganizationMetricUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = metric.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -102,7 +74,7 @@ def update_organization_metric(id: str, metric: OrganizationMetricUpdate):
 
 @router.delete("/metrics/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_organization_metric(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_metrics").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Metric not found")
@@ -113,13 +85,13 @@ def delete_organization_metric(id: str):
 
 @router.get("/scenarios", response_model=List[OrganizationScenarioRead])
 def get_organization_scenarios():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_scenarios").select("*").execute()
     return result.data
 
 @router.post("/scenarios", response_model=OrganizationScenarioRead, status_code=status.HTTP_201_CREATED)
 def create_organization_scenario(scenario: OrganizationScenarioCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_scenarios").insert(scenario.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create scenario")
@@ -127,7 +99,7 @@ def create_organization_scenario(scenario: OrganizationScenarioCreate):
 
 @router.put("/scenarios/{id}", response_model=OrganizationScenarioRead)
 def update_organization_scenario(id: str, scenario: OrganizationScenarioUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = scenario.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -138,7 +110,7 @@ def update_organization_scenario(id: str, scenario: OrganizationScenarioUpdate):
 
 @router.delete("/scenarios/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_organization_scenario(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("organization_scenarios").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Scenario not found")
@@ -149,25 +121,13 @@ def delete_organization_scenario(id: str):
 
 @router.get("/innovation/ideas", response_model=List[OrgInnovationIdeaRead])
 def get_innovation_ideas():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_innovation_ideas").select("*").execute()
     return result.data
 
-@router.post("/innovation/score", response_model=IdeaScoreResponse)
-def score_innovation_idea(request: IdeaScoreRequest):
-    sb = get_supabase_admin()
-    # Fetch existing ideas to find similarities
-    ideas_result = sb.table("org_innovation_ideas").select("title, description").execute()
-    db_ideas = ideas_result.data if ideas_result.data else []
-    
-    # Run the classical ML NLP heuristic pipeline
-    score_result = score_idea(request.title, request.description, db_ideas)
-    
-    return score_result
-
 @router.post("/innovation/ideas", response_model=OrgInnovationIdeaRead, status_code=status.HTTP_201_CREATED)
 def create_innovation_idea(idea: OrgInnovationIdeaCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_innovation_ideas").insert(idea.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create innovation idea")
@@ -175,7 +135,7 @@ def create_innovation_idea(idea: OrgInnovationIdeaCreate):
 
 @router.put("/innovation/ideas/{id}", response_model=OrgInnovationIdeaRead)
 def update_innovation_idea(id: str, idea: OrgInnovationIdeaUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = idea.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -186,7 +146,7 @@ def update_innovation_idea(id: str, idea: OrgInnovationIdeaUpdate):
 
 @router.delete("/innovation/ideas/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_innovation_idea(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_innovation_ideas").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Innovation idea not found")
@@ -197,13 +157,13 @@ def delete_innovation_idea(id: str):
 
 @router.get("/innovation/communities", response_model=List[OrgInnovationCommunityRead])
 def get_innovation_communities():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_innovation_communities").select("*").execute()
     return result.data
 
 @router.post("/innovation/communities", response_model=OrgInnovationCommunityRead, status_code=status.HTTP_201_CREATED)
 def create_innovation_community(community: OrgInnovationCommunityCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_innovation_communities").insert(community.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create innovation community")
@@ -211,7 +171,7 @@ def create_innovation_community(community: OrgInnovationCommunityCreate):
 
 @router.put("/innovation/communities/{id}", response_model=OrgInnovationCommunityRead)
 def update_innovation_community(id: str, community: OrgInnovationCommunityUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = community.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -222,100 +182,24 @@ def update_innovation_community(id: str, community: OrgInnovationCommunityUpdate
 
 @router.delete("/innovation/communities/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_innovation_community(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_innovation_communities").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Innovation community not found")
     return None
 
 
-# --- At Risk Employees & Talent ---
-
-@router.get("/talent/skill-shortages")
-def get_skill_shortages():
-    """Returns predictive skill shortages using real workforce data + ML burnout forecasting."""
-    sb = get_supabase_admin()
-    # Fetch active employees with fields needed for burnout calc
-    res = sb.table("employees").select("role, department, twin_health, years_experience").eq("employment_status", "Active").execute()
-    employees = res.data
-
-    current_headcount = len(employees)
-    if current_headcount == 0:
-        return []
-
-    # Build skill inventory with role→skill mapping
-    core_skill_map = {
-        "Software Engineer": "Full-stack Development",
-        "Data Scientist": "Machine Learning",
-        "Data Engineer": "Data Pipeline Architecture",
-        "Account Executive": "B2B Sales",
-        "HR Manager": "Talent Acquisition",
-        "Product Manager": "Agile Methodologies",
-        "UX Designer": "Advanced Prototyping",
-        "DevOps Engineer": "Kubernetes Administration",
-        "Sales Representative": "Client Relations"
-    }
-    skill_inventory = {}
-    for emp in employees:
-        role = emp.get("role", "Unknown Role")
-        dept = emp.get("department", "General")
-        core_skill = core_skill_map.get(role, f"{role} Core Skills")
-        if role not in skill_inventory:
-            skill_inventory[role] = {"count": 0, "dept": dept, "core_skill": core_skill}
-        skill_inventory[role]["count"] += 1
-
-    # Use ML burnout model for dynamic attrition forecast
-    avg_burnout = calculate_average_burnout(employees)
-    comp_ratio = 1.05
-    industry_demand = 82.0
-    avg_tenure = 4.2
-    planned_retirements = 15
-
-    projected_loss = forecast_headcount_loss(
-        current_headcount=current_headcount,
-        average_burnout_score=avg_burnout,
-        comp_ratio=comp_ratio,
-        industry_demand=industry_demand,
-        average_tenure=avg_tenure,
-        planned_retirements=planned_retirements
-    )
-
-    growth_target = 15.0
-    raw_shortages = rank_skill_shortages(skill_inventory, growth_target, current_headcount, projected_loss)
-
-    result = []
-    for s in raw_shortages:
-        gap_value = abs(s["gap"])
-        if gap_value == 0:
-            continue
-        risk_score = min(9.9, gap_value * 1.5)
-        role_name = s.get("role") or f"{s['dept']} Lead"
-        skill_name = s.get("skill") or "Core Technical Competency"
-        urgency_val = s.get("urgency") or ("HIGH" if gap_value >= 5 else "MEDIUM")
-        
-        result.append({
-            "role": role_name,
-            "skill": skill_name,
-            "core_skill": skill_name,
-            "dept": s["dept"],
-            "gap": f"-{gap_value}",
-            "shortfall_projection": gap_value,
-            "urgency": urgency_val,
-            "risk_score": round(risk_score, 1)
-        })
-
-    result.sort(key=lambda x: x["shortfall_projection"], reverse=True)
-    return result[:15]
+# --- At Risk Employees ---
 
 @router.get("/talent/risks", response_model=List[OrgAtRiskEmployeeRead])
 def get_at_risk_employees():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_at_risk_employees").select("*").execute()
     return result.data
 
 @router.post("/talent/risks", response_model=OrgAtRiskEmployeeRead, status_code=status.HTTP_201_CREATED)
 def create_at_risk_employee(risk: OrgAtRiskEmployeeCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_at_risk_employees").insert(risk.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create at-risk employee record")
@@ -323,7 +207,7 @@ def create_at_risk_employee(risk: OrgAtRiskEmployeeCreate):
 
 @router.put("/talent/risks/{id}", response_model=OrgAtRiskEmployeeRead)
 def update_at_risk_employee(id: str, risk: OrgAtRiskEmployeeUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = risk.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -334,7 +218,7 @@ def update_at_risk_employee(id: str, risk: OrgAtRiskEmployeeUpdate):
 
 @router.delete("/talent/risks/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_at_risk_employee(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_at_risk_employees").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="At-risk employee record not found")
@@ -345,29 +229,13 @@ def delete_at_risk_employee(id: str):
 
 @router.get("/talent/gigs", response_model=List[OrgTalentGigRead])
 def get_talent_gigs():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_talent_gigs").select("*").execute()
     return result.data
 
 @router.post("/talent/gigs", response_model=OrgTalentGigRead, status_code=status.HTTP_201_CREATED)
 def create_talent_gig(gig: OrgTalentGigCreate):
-    sb = get_supabase_admin()
-    
-    # Auto-match employees if not provided
-    if not gig.matched_employees:
-        import random
-        res = sb.table("employees").select("id, full_name, department").limit(20).execute()
-        if res.data:
-            dept_matches = [emp for emp in res.data if emp["department"] == gig.department]
-            if not dept_matches:
-                dept_matches = res.data
-            sampled = random.sample(dept_matches, min(3, len(dept_matches)))
-            gig.matched_employees = [
-                {"id": emp["id"], "name": emp["full_name"], "match": random.randint(75, 98)}
-                for emp in sampled
-            ]
-            gig.matched_employees.sort(key=lambda x: x["match"], reverse=True)
-
+    sb = get_db()
     result = sb.table("org_talent_gigs").insert(gig.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create talent gig")
@@ -375,7 +243,7 @@ def create_talent_gig(gig: OrgTalentGigCreate):
 
 @router.put("/talent/gigs/{id}", response_model=OrgTalentGigRead)
 def update_talent_gig(id: str, gig: OrgTalentGigUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = gig.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -386,60 +254,24 @@ def update_talent_gig(id: str, gig: OrgTalentGigUpdate):
 
 @router.delete("/talent/gigs/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_talent_gig(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_talent_gigs").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Talent gig not found")
     return None
 
 
-# --- Talent Applications ---
-
-@router.get("/talent/applications", response_model=List[OrgTalentApplicationRead])
-def get_talent_applications(opportunity_type: str = None, employee_id: str = None):
-    """List all applications, optionally filtered by type or employee."""
-    sb = get_supabase_admin()
-    query = sb.table("org_talent_applications").select("*").order("created_at", desc=True)
-    if opportunity_type:
-        query = query.eq("opportunity_type", opportunity_type)
-    if employee_id:
-        query = query.eq("applicant_employee_id", employee_id)
-    result = query.execute()
-    return result.data
-
-@router.post("/talent/applications", response_model=OrgTalentApplicationRead, status_code=status.HTTP_201_CREATED)
-def create_talent_application(application: OrgTalentApplicationCreate):
-    """Submit a gig application or mentorship request."""
-    sb = get_supabase_admin()
-    result = sb.table("org_talent_applications").insert(application.model_dump()).execute()
-    if not result.data:
-        raise HTTPException(status_code=400, detail="Failed to submit application")
-    return result.data[0]
-
-@router.patch("/talent/applications/{id}", response_model=OrgTalentApplicationRead)
-def update_application_status(id: str, update: OrgTalentApplicationUpdate):
-    """Update application status (Under Review / Accepted / Rejected)."""
-    sb = get_supabase_admin()
-    update_data = update.model_dump(exclude_unset=True)
-    if not update_data:
-        raise HTTPException(status_code=400, detail="No fields provided")
-    result = sb.table("org_talent_applications").update(update_data).eq("id", id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Application not found")
-    return result.data[0]
-
-
 # --- Talent Mentors ---
 
 @router.get("/talent/mentors", response_model=List[OrgTalentMentorRead])
 def get_talent_mentors():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_talent_mentors").select("*").execute()
     return result.data
 
 @router.post("/talent/mentors", response_model=OrgTalentMentorRead, status_code=status.HTTP_201_CREATED)
 def create_talent_mentor(mentor: OrgTalentMentorCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_talent_mentors").insert(mentor.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create talent mentor")
@@ -447,7 +279,7 @@ def create_talent_mentor(mentor: OrgTalentMentorCreate):
 
 @router.put("/talent/mentors/{id}", response_model=OrgTalentMentorRead)
 def update_talent_mentor(id: str, mentor: OrgTalentMentorUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = mentor.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -458,7 +290,7 @@ def update_talent_mentor(id: str, mentor: OrgTalentMentorUpdate):
 
 @router.delete("/talent/mentors/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_talent_mentor(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_talent_mentors").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Talent mentor not found")
@@ -469,13 +301,13 @@ def delete_talent_mentor(id: str):
 
 @router.get("/talent/team-builder", response_model=List[OrgTeamBuilderOptionRead])
 def get_team_builder_options():
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_team_builder_options").select("*").execute()
     return result.data
 
 @router.post("/talent/team-builder", response_model=OrgTeamBuilderOptionRead, status_code=status.HTTP_201_CREATED)
 def create_team_builder_option(option: OrgTeamBuilderOptionCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_team_builder_options").insert(option.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create team builder option")
@@ -483,7 +315,7 @@ def create_team_builder_option(option: OrgTeamBuilderOptionCreate):
 
 @router.put("/talent/team-builder/{id}", response_model=OrgTeamBuilderOptionRead)
 def update_team_builder_option(id: str, option: OrgTeamBuilderOptionUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = option.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -494,15 +326,121 @@ def update_team_builder_option(id: str, option: OrgTeamBuilderOptionUpdate):
 
 @router.delete("/talent/team-builder/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_team_builder_option(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("org_team_builder_options").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Team builder option not found")
     return None
 
+
+# --- Strategy OKRs ---
+
+@router.get("/strategy/okrs", response_model=List[OrgOKRRead])
+def get_okrs():
+    sb = get_db()
+    result = sb.table("org_okrs").select("*").execute()
+    return result.data
+
+@router.post("/strategy/okrs", response_model=OrgOKRRead, status_code=status.HTTP_201_CREATED)
+def create_okr(okr: OrgOKRCreate):
+    sb = get_db()
+    result = sb.table("org_okrs").insert(okr.model_dump()).execute()
+    if not result.data:
+        raise HTTPException(status_code=400, detail="Failed to create OKR")
+    return result.data[0]
+
+@router.put("/strategy/okrs/{id}", response_model=OrgOKRRead)
+def update_okr(id: str, okr: OrgOKRUpdate):
+    sb = get_db()
+    update_data = okr.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+    result = sb.table("org_okrs").update(update_data).eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="OKR not found")
+    return result.data[0]
+
+@router.delete("/strategy/okrs/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_okr(id: str):
+    sb = get_db()
+    result = sb.table("org_okrs").delete().eq("id", id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="OKR not found")
+    return None
+
+# --- Organization Context & Strategy ---
+
+@router.get("/strategy/vision", response_model=List[OrgStrategyVisionResponse])
+def get_strategy_vision():
+    sb = get_db()
+    result = sb.table("org_strategy_vision").select("*").execute()
+    return result.data
+
+@router.get("/strategy/ai-readiness", response_model=List[OrgAIReadinessResponse])
+def get_ai_readiness():
+    sb = get_db()
+    result = sb.table("org_ai_readiness").select("*").execute()
+    return result.data
+
+@router.get("/strategy/capabilities", response_model=List[OrgCapabilityResponse])
+def get_capabilities():
+    sb = get_db()
+    result = sb.table("org_capabilities").select("*").execute()
+    return result.data
+
+@router.get("/strategy/transformations", response_model=List[OrgTransformationResponse])
+def get_transformations():
+    sb = get_db()
+    result = sb.table("org_transformations").select("*").execute()
+    return result.data
+
+@router.get("/talent/skill-shortages")
+def get_skill_shortages():
+    sb = get_db()
+    # 1. Fetch current employees to build skill inventory and calculate burnout
+    res = sb.table("employees").select("role, department, twin_health, years_experience").execute()
+    employees = res.data
+    
+    current_headcount = len(employees)
+    
+    # Build inventory
+    skill_inventory = {}
+    for emp in employees:
+        role = emp.get("role", "Unknown")
+        dept = emp.get("department", "Unknown")
+        if role not in skill_inventory:
+            skill_inventory[role] = {"count": 0, "dept": dept, "core_skill": f"{role} Core Skills"}
+        skill_inventory[role]["count"] += 1
+        
+    # 2. Calculate dynamic average burnout for the whole org based on Proxy Metrics
+    avg_burnout = calculate_average_burnout(employees)
+    
+    # Other features (Mocked for now)
+    comp_ratio = 1.05
+    industry_demand = 82.0
+    avg_tenure = 4.2
+    planned_retirements = 15 # Mocked
+    
+    # 3. Forecast loss using trained ML model
+    projected_loss = forecast_headcount_loss(
+        current_headcount=current_headcount, 
+        average_burnout_score=avg_burnout, 
+        comp_ratio=comp_ratio, 
+        industry_demand=industry_demand, 
+        average_tenure=avg_tenure, 
+        planned_retirements=planned_retirements
+    )
+    
+    # 4. Rank shortages using Rule-weighted ML scoring (Assume 15% growth target)
+    growth_target = 15.0
+    shortages = rank_skill_shortages(skill_inventory, growth_target, current_headcount, projected_loss)
+    
+    # Return top 15 shortages
+    return shortages[:15]
+
 @router.post("/talent/team-builder/optimize", response_model=List[OrgTeamBuilderOptionRead])
 def optimize_team_builder(request: TeamBuilderOptimizationRequest):
-    sb = get_supabase_admin()
+    sb = get_db()
     
     # Fetch active employees
     res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
@@ -541,22 +479,9 @@ def optimize_team_builder(request: TeamBuilderOptimizationRequest):
     
     return options
 
-@router.get("/talent/risks", response_model=List[RiskProfile])
-def get_risk_profiles():
-    sb = get_supabase_admin()
-    
-    # Fetch active employees
-    res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
-    employees = res.data
-    
-    # Run uplift modeling engine
-    risk_profiles = predict_attrition_risk(employees)
-    
-    return risk_profiles
-
 @router.get("/interventions/effectiveness", response_model=List[InterventionEffectiveness])
 def get_intervention_effectiveness():
-    sb = get_supabase_admin()
+    sb = get_db()
     
     # Fetch active employees to seed the ML insights
     res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
@@ -567,7 +492,7 @@ def get_intervention_effectiveness():
 
 @router.post("/simulation/run")
 def run_simulation(request: SimulationRequest):
-    sb = get_supabase_admin()
+    sb = get_db()
     
     # Fetch historical metrics to seed the simulation baseline
     res = sb.table("organization_metrics").select("*").order("month", desc=False).execute()
@@ -579,13 +504,12 @@ def run_simulation(request: SimulationRequest):
     simulation_results = run_causal_simulation(params, historical_metrics, request.isSnapshot)
     return simulation_results
 
-
 # ==================== STRATEGY ROLE ARCHITECT ====================
 
 @router.get("/strategy/role-specs")
 def get_strategy_role_specs(department: str = None):
     """Retrieve translated future role specifications & requirements."""
-    sb = get_supabase_admin()
+    sb = get_db()
     try:
         query = sb.table("org_strategy_role_specs").select("*").order("rank")
         if department and department != "All Departments":
@@ -594,7 +518,7 @@ def get_strategy_role_specs(department: str = None):
         if res.data:
             return res.data
     except Exception as e:
-        print(f"Supabase fetch for org_strategy_role_specs failed: {e}")
+        print(f"Fabric fetch for org_strategy_role_specs failed: {e}")
 
     # Default fallback data
     fallback_specs = [
@@ -625,13 +549,13 @@ def get_strategy_forecast_timeline():
 @router.get("/strategy/primary-inputs")
 def get_strategy_primary_inputs():
     """Retrieve corporate strategy documents & business scenarios parsed by AI."""
-    sb = get_supabase_admin()
+    sb = get_db()
     try:
         res = sb.table("org_strategy_primary_inputs").select("*").execute()
         if res.data:
             return res.data
     except Exception as e:
-        print(f"Supabase fetch for org_strategy_primary_inputs failed: {e}")
+        print(f"Fabric fetch for org_strategy_primary_inputs failed: {e}")
 
     return [
         { "title": "Corporate Strategy 2025-2030", "type": "Strategy Doc", "status": "Parsed by AI", "date": "Aug 2025" },
@@ -643,13 +567,13 @@ def get_strategy_primary_inputs():
 @router.get("/strategy/knowledge-assets")
 def get_strategy_knowledge_assets():
     """Retrieve institutional wiki, role-skill maps, and knowledge graph asset counts."""
-    sb = get_supabase_admin()
+    sb = get_db()
     try:
         res = sb.table("org_strategy_knowledge_assets").select("*").execute()
         if res.data:
             return res.data
     except Exception as e:
-        print(f"Supabase fetch for org_strategy_knowledge_assets failed: {e}")
+        print(f"Fabric fetch for org_strategy_knowledge_assets failed: {e}")
 
     return [
         { "name": "Role-Skill Map Templates", "count": "62 Templates", "color": "#3b82f6" },
@@ -673,7 +597,7 @@ def get_strategy_competency_radar():
 @router.get("/strategy/overview")
 def get_strategy_overview(department: str = "All Departments"):
     """Single aggregated payload for Strategy Role Architect dashboard."""
-    sb = get_supabase_admin()
+    sb = get_db()
     specs = get_strategy_role_specs(department)
     forecast = get_strategy_forecast_timeline()
     inputs = get_strategy_primary_inputs()
@@ -687,7 +611,7 @@ def get_strategy_overview(department: str = "All Departments"):
         if emp_res.count and emp_res.count > 0:
             current_headcount = emp_res.count
     except Exception as e:
-        print(f"Supabase fetch for employee count failed: {e}")
+        print(f"Fabric fetch for employee count failed: {e}")
 
     # Calculate planned growth from role specs gap column
     planned_growth = 0
@@ -747,7 +671,7 @@ def translate_strategy(req: Optional[StrategyTranslateRequest] = None):
 @router.get("/strategy/knowledge-search")
 def search_knowledge_graph(q: str = ""):
     """Search Knowledge Graph nodes, role specifications, and knowledge assets by keyword."""
-    sb = get_supabase_admin()
+    sb = get_db()
     query_str = q.strip().lower()
     
     results = []
@@ -816,5 +740,6 @@ def search_knowledge_graph(q: str = ""):
         "results": results,
         "total": len(results)
     }
+
 
 

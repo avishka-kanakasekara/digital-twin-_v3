@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bot, Network, Briefcase, Database, BarChart3, Sparkles,
-  Users, Trophy,
+  Users, Trophy, HandHeart,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useDigitalTwin } from './hooks/useDigitalTwin';
 import { EmployeeSelector } from '../../components/EmployeeSelector';
 import { Card } from '../../components/Card';
@@ -17,14 +18,16 @@ import { GamificationBoard } from './components/twin/GamificationBoard';
 import { TwinSummary } from './components/twin/TwinSummary';
 import { CollaborationIntelligence } from './components/twin/CollaborationIntelligence';
 import { AIRecommendations } from './components/twin/AIRecommendations';
+import { PeerRecommendations } from './components/twin/PeerRecommendations';
 
-type TabId = 'overview' | 'skills' | 'projects' | 'knowledge' | 'progress';
+type TabId = 'overview' | 'skills' | 'projects' | 'knowledge' | 'peers' | 'progress';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: 'Overview', icon: <Bot size={14} /> },
   { id: 'skills', label: 'Skills', icon: <Network size={14} /> },
   { id: 'projects', label: 'Projects', icon: <Briefcase size={14} /> },
   { id: 'knowledge', label: 'Knowledge', icon: <Database size={14} /> },
+  { id: 'peers', label: 'Peers', icon: <HandHeart size={14} /> },
   { id: 'progress', label: 'Progress', icon: <BarChart3 size={14} /> },
 ];
 
@@ -47,7 +50,21 @@ const SectionHead: React.FC<{
 );
 
 const EmployeeTwin: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab: TabId = TABS.some((t) => t.id === tabParam) ? (tabParam as TabId) : 'overview';
+  const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+
+  useEffect(() => {
+    if (TABS.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam as TabId);
+    }
+  }, [tabParam]);
+
+  const setTab = (id: TabId) => {
+    setActiveTab(id);
+    setSearchParams(id === 'overview' ? {} : { tab: id }, { replace: true });
+  };
 
   const {
     profile, updateProfile,
@@ -72,7 +89,7 @@ const EmployeeTwin: React.FC = () => {
         <div>
           <h1 className="pd-page-head__title">Personal Dashboard</h1>
           <p className="pd-page-head__sub">
-            Your live digital twin — identity, skills, projects, and AI insights in one place.
+            One live twin across career, learning, XP, and peer recognition.
           </p>
         </div>
         <div className="pd-head-right">
@@ -84,7 +101,7 @@ const EmployeeTwin: React.FC = () => {
                   type="button"
                   role="tab"
                   aria-selected={activeTab === tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => setTab(tab.id)}
                   className={`pd-tab ${activeTab === tab.id ? 'pd-tab--active' : ''}`}
                 >
                   {tab.icon} {tab.label}
@@ -123,7 +140,7 @@ const EmployeeTwin: React.FC = () => {
                 title="AI recommendations"
                 subtitle="Next actions based on your twin profile"
                 action={
-                  <button type="button" className="pd-link-btn" onClick={() => setActiveTab('skills')}>
+                  <button type="button" className="pd-link-btn" onClick={() => setTab('skills')}>
                     View skills
                   </button>
                 }
@@ -133,6 +150,20 @@ const EmployeeTwin: React.FC = () => {
           </div>
 
           <div className="pd-stack">
+            <Card glass={false} className="glass-panel pd-section">
+              <SectionHead
+                icon={<HandHeart size={20} />}
+                title="Peer recommendations"
+                subtitle="What colleagues say about you — and who you can recommend"
+                action={
+                  <button type="button" className="pd-link-btn" onClick={() => setTab('peers')}>
+                    Open peers
+                  </button>
+                }
+              />
+              <PeerRecommendations compact />
+            </Card>
+
             <Card glass={false} className="glass-panel pd-section">
               <SectionHead
                 icon={<Users size={20} />}
@@ -148,7 +179,7 @@ const EmployeeTwin: React.FC = () => {
                 title="Knowledge sources"
                 subtitle="Documents feeding your twin"
                 action={
-                  <button type="button" className="pd-link-btn" onClick={() => setActiveTab('knowledge')}>
+                  <button type="button" className="pd-link-btn" onClick={() => setTab('knowledge')}>
                     Manage
                   </button>
                 }
@@ -229,6 +260,17 @@ const EmployeeTwin: React.FC = () => {
             onUpload={uploadKnowledgeSource}
             onPipelineComplete={refreshAllData}
           />
+        </Card>
+      )}
+
+      {activeTab === 'peers' && (
+        <Card glass={false} className="glass-panel pd-section">
+          <SectionHead
+            icon={<HandHeart size={20} />}
+            title="Peer recommendations"
+            subtitle="Every teammate can recommend any other — view what you received and give recognition"
+          />
+          <PeerRecommendations />
         </Card>
       )}
 

@@ -91,16 +91,6 @@ class OrgInnovationIdeaRead(OrgInnovationIdeaBase):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-class IdeaScoreRequest(BaseModel):
-    title: str
-    description: str
-
-class IdeaScoreResponse(BaseModel):
-    impact: str
-    impact_score: int
-    feasibility: str
-    similar: int
-
 class OrgInnovationCommunityBase(BaseModel):
     name: str
     members: int
@@ -163,45 +153,52 @@ class OrgTeamBuilderOptionRead(OrgTeamBuilderOptionBase):
     id: str
     model_config = ConfigDict(from_attributes=True)
 
-class TeamBuilderOptimizationRequest(BaseModel):
-    project_type: str
-    headcount: int
-    core_competencies: List[str] = []
-    context: Optional[str] = None
+class OrgOKRBase(BaseModel):
+    title: str
+    owner: str
+    progress: int
+    status: str
+    initiatives: List[Dict[str, Any]] = []
 
-class RiskProfile(BaseModel):
-    employee_id: str
-    risk_level: str
-    risk_score: float
-    primary_factor: str
-    burnout_probability: float
-    compensation_satisfaction: float
-    career_stagnation_score: float
-    last_1_on_1: str
-    ai_retention_suggestion: str
+class OrgOKRRead(OrgOKRBase):
+    id: str
+    model_config = ConfigDict(from_attributes=True)
 
-class InterventionEffectiveness(BaseModel):
-    role_group: str
-    intervention_name: str
-    risk_reduction_percentage: int
-    description: str
-    theme_color: str
+# ==================== STRATEGY & CONTEXT ====================
 
-class SimulationRequest(BaseModel):
-    headcountChange: float
-    salaryChange: float
-    remoteDays: float
-    trainingBudget: float
-    restructuringLevel: float
-    automationLevel: float = 0.0
-    businessLineModel: str = "Standard Core"
-    isSnapshot: bool = False
+class OrgStrategyVisionResponse(BaseModel):
+    id: str
+    vision_text: str
+    tech_app_features: List[str]
+    tech_team_goals: List[str]
+    habits: List[str]
+    created_at: Optional[datetime] = None
 
-# Simulation returns a dictionary of string keys to float values per month
-class SimulationResult(BaseModel):
-    pass # In FastAPI we can just return List[Dict[str, Any]] for simplicity if it's dynamic
+class OrgAIReadinessResponse(BaseModel):
+    id: str
+    overall_score: int
+    literacy_score: int
+    adoption_score: int
+    automation_opportunities: List[Dict[str, Any]]
+    dept_projects: List[Dict[str, Any]]
+    created_at: Optional[datetime] = None
 
+class OrgCapabilityResponse(BaseModel):
+    id: str
+    name: str
+    type: str
+    maturity: int
+    gap: int
+    created_at: Optional[datetime] = None
 
+class OrgTransformationResponse(BaseModel):
+    id: str
+    name: str
+    owner: str
+    progress: int
+    status: str
+    milestones: List[Dict[str, Any]]
+    created_at: Optional[datetime] = None
 
 class OrganizationMetricUpdate(BaseModel):
     month: Optional[str] = None
@@ -316,10 +313,25 @@ class OrgTeamBuilderOptionUpdate(BaseModel):
     rationale: Optional[str] = None
     members: Optional[List[Dict[str, Any]]] = None
 
+class OrgOKRCreate(OrgOKRBase):
+    pass
 
+class OrgOKRUpdate(BaseModel):
+    title: Optional[str] = None
+    owner: Optional[str] = None
+    progress: Optional[int] = None
+    status: Optional[str] = None
+    initiatives: Optional[List[Dict[str, Any]]] = None
 
+class IdeaScoreRequest(BaseModel):
+    title: str
+    description: str
 
-# ==================== TALENT APPLICATIONS ====================
+class IdeaScoreResponse(BaseModel):
+    impact: str
+    impact_score: int
+    feasibility: str
+    similar: int
 
 class OrgTalentApplicationBase(BaseModel):
     applicant_employee_id: Optional[str] = None   # null = anonymous / manager-posted
@@ -328,13 +340,54 @@ class OrgTalentApplicationBase(BaseModel):
     opportunity_title: str
     status: str = "Under Review"                  # Under Review | Accepted | Rejected
 
-class OrgTalentApplicationCreate(OrgTalentApplicationBase):
-    pass
 
 class OrgTalentApplicationRead(OrgTalentApplicationBase):
     id: str
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
+class OrgTalentApplicationCreate(OrgTalentApplicationBase):
+    pass
+
 class OrgTalentApplicationUpdate(BaseModel):
     status: Optional[str] = None
+
+class TeamBuilderOptimizationRequest(BaseModel):
+    project_type: str
+    headcount: int
+    core_competencies: List[str] = []
+    context: Optional[str] = None
+
+class RiskProfile(BaseModel):
+    employee_id: str
+    risk_level: str
+    risk_score: float
+    primary_factor: str
+    burnout_probability: float
+    compensation_satisfaction: float
+    career_stagnation_score: float
+    last_1_on_1: str
+    ai_retention_suggestion: str
+
+class InterventionEffectiveness(BaseModel):
+    role_group: str
+    intervention_name: str
+    risk_reduction_percentage: int
+    description: str
+    theme_color: str
+
+class SimulationRequest(BaseModel):
+    headcountChange: float
+    salaryChange: float
+    remoteDays: float
+    trainingBudget: float
+    restructuringLevel: float
+    automationLevel: float = 0.0
+    businessLineModel: str = "Standard Core"
+    isSnapshot: bool = False
+
+# Simulation returns a dictionary of string keys to float values per month
+
+class SimulationResult(BaseModel):
+    pass # In FastAPI we can just return List[Dict[str, Any]] for simplicity if it's dynamic
+

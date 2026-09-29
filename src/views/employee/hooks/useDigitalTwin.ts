@@ -1,41 +1,67 @@
 import { useState, useEffect, useCallback } from 'react';
 import { employeeAPI, gamificationAPI, knowledgeAPI } from '../../../lib/api';
 import { useEmployee } from '../../../contexts/EmployeeContext';
-import * as digitalTwinMockData from '../../../dummy/employee/digitalTwinMockData';
-import * as gamificationData from '../../../dummy/employee/gamificationHubData';
+
+const emptyProfile = {
+  id: '',
+  avatarUrl: '',
+  initials: '—',
+  status: 'Offline',
+  fullName: '',
+  department: '',
+  role: '',
+  team: '',
+  manager: '',
+  location: '',
+  timezone: '',
+  email: '',
+  phone: '',
+  education: '',
+  experience: 0,
+  yearsInCompany: 0,
+  employmentType: '',
+  languages: [],
+  biography: '',
+  headline: '',
+};
+
+const emptyGamification = {
+  level: 1,
+  xp: 0,
+  nextLevelXp: 1000,
+  totalXpEarned: 0,
+  streakDays: 0,
+  title: 'Newcomer',
+  streaks: { learning: 0, project: 0 },
+  missions: [],
+  achievements: [],
+  aiScore: 0,
+  impactRank: 'Unranked',
+};
 
 export const useDigitalTwin = () => {
   const { currentEmployee } = useEmployee();
-  const [profile, setProfile] = useState(digitalTwinMockData.employeeProfile);
+  const [profile, setProfile] = useState(emptyProfile);
   const [projects, setProjects] = useState<any>({ current: [], completed: [] });
   const [knowledge, setKnowledge] = useState<any[]>([]);
-  const [gamification, setGamification] = useState<any>({
-    ...gamificationData.playerProfile,
-    streaks: { learning: 14, project: 7 },
-    missions: [
-      { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
-      { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
-      { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
-    ],
-    achievements: [
-      { id: 'a1', name: 'First Steps', description: 'Completed your first learning module', unlocked: true },
-      { id: 'a2', name: 'Streak Master', description: 'Maintained a 7-day learning streak', unlocked: true },
-      { id: 'a3', name: 'Team Player', description: 'Collaborated on 5 projects', unlocked: true },
-      { id: 'a4', name: 'Code Reviewer', description: 'Reviewed 10 peer submissions', unlocked: false },
-      { id: 'a5', name: 'Knowledge Sharer', description: 'Shared 5 knowledge sources', unlocked: false },
-    ],
-    aiScore: 92,
-    impactRank: 'Top 5%',
-  });
+  const [gamification, setGamification] = useState<any>(emptyGamification);
   const [skills, setSkills] = useState<any[]>([]);
-  const [twinSummary, setTwinSummary] = useState(digitalTwinMockData.twinSummary);
-  const [personalAnalytics, setPersonalAnalytics] = useState(digitalTwinMockData.personalAnalytics);
+  const [twinSummary, setTwinSummary] = useState({
+    aiConfidence: 0,
+    profileCompleteness: 0,
+    knowledgeFreshness: 'Low',
+    lastUpdated: '',
+    representationQuality: 'Needs Data',
+    twinHealth: 0,
+    summaryText: '',
+  });
+  const [personalAnalytics, setPersonalAnalytics] = useState({ productivity: [], skills: [] });
   const [personalAnalyticsAI, setPersonalAnalyticsAI] = useState<any>(null);
-  const [skillsData, setSkillsData] = useState(digitalTwinMockData.skillsData);
-  const [certifications, setCertifications] = useState(digitalTwinMockData.certificationsTimeline);
-  const [twinMemory, setTwinMemory] = useState(digitalTwinMockData.twinMemory);
-  const [collaborationIntel, setCollaborationIntel] = useState(digitalTwinMockData.collaborationIntel);
-  const [aiRecommendations, setAIRecommendations] = useState(digitalTwinMockData.aiRecommendations);
+  const [skillsData, setSkillsData] = useState<any>({});
+  const [certifications, setCertifications] = useState<any[]>([]);
+  const [twinMemory, setTwinMemory] = useState<any[]>([]);
+  const [collaborationIntel, setCollaborationIntel] = useState<any>({});
+  const [aiRecommendations, setAIRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [useAPI, setUseAPI] = useState(false);
 
@@ -48,7 +74,7 @@ export const useDigitalTwin = () => {
         const empData = await employeeAPI.get(currentEmployee.id);
         // Transform API data to match mock structure
         setProfile({
-          ...digitalTwinMockData.employeeProfile,
+          ...emptyProfile,
           id: empData.id,
           fullName: empData.full_name,
           initials: empData.initials,
@@ -62,7 +88,7 @@ export const useDigitalTwin = () => {
           phone: empData.phone || '',
           experience: empData.years_experience || 0,
           yearsInCompany: empData.years_in_company || 0,
-          headline: empData.headline || digitalTwinMockData.employeeProfile.headline,
+          headline: empData.headline || '',
           biography: empData.biography || '',
         });
         setUseAPI(true);
@@ -115,14 +141,15 @@ export const useDigitalTwin = () => {
           const gamProfile = await gamificationAPI.getProfile(currentEmployee.id);
           const gamAchievements = await gamificationAPI.getAchievements(currentEmployee.id);
           const gamStreak = await gamificationAPI.getStreak(currentEmployee.id);
-          const missions = await gamificationAPI.getMissions(currentEmployee.id).catch(() => []);
+          const missionsRaw = await gamificationAPI.getMissions(currentEmployee.id).catch(() => []);
+          const missions = Array.isArray(missionsRaw) ? missionsRaw : (missionsRaw?.missions || []);
           const totalPlayers = gamProfile.total_players || 0;
           const rankPct = gamProfile.company_rank && totalPlayers
             ? Math.max(1, Math.round((gamProfile.company_rank / totalPlayers) * 100))
             : null;
 
           setGamification({
-            ...gamificationData.playerProfile,
+            ...emptyGamification,
             level: gamProfile.level,
             xp: gamProfile.xp,
             nextLevelXp: gamProfile.next_level_xp,
@@ -158,27 +185,10 @@ export const useDigitalTwin = () => {
 
         console.log('✅ Loaded data from API');
       } catch (error) {
-        console.log('⚠️ API not available, using mock data');
+        console.log('⚠️ API not available');
         setUseAPI(false);
         setProjects({ current: [], completed: [] });
-        setGamification({
-          ...gamificationData.playerProfile,
-          streaks: { learning: 14, project: 7 },
-          missions: [
-            { id: 1, name: 'Complete AI Course', xp: 100, completed: false },
-            { id: 2, name: 'Submit Project Update', xp: 50, completed: true },
-            { id: 3, name: 'Review Peer Code', xp: 75, completed: false },
-          ],
-          achievements: [
-            { id: 'a1', name: 'First Steps', description: 'Completed your first learning module', unlocked: true },
-            { id: 'a2', name: 'Streak Master', description: 'Maintained a 7-day learning streak', unlocked: true },
-            { id: 'a3', name: 'Team Player', description: 'Collaborated on 5 projects', unlocked: true },
-            { id: 'a4', name: 'Code Reviewer', description: 'Reviewed 10 peer submissions', unlocked: false },
-            { id: 'a5', name: 'Knowledge Sharer', description: 'Shared 5 knowledge sources', unlocked: false },
-          ],
-          aiScore: 92,
-          impactRank: 'Top 5%',
-        });
+        setGamification(emptyGamification);
       } finally {
         setLoading(false);
       }
@@ -209,7 +219,7 @@ export const useDigitalTwin = () => {
     }
   }, [currentEmployee]);
 
-  const updateProfile = useCallback(async (updates: Partial<typeof digitalTwinMockData.employeeProfile>) => {
+  const updateProfile = useCallback(async (updates: Partial<typeof emptyProfile>) => {
     if (useAPI && currentEmployee) {
       try {
         const payload: Record<string, any> = {};
@@ -312,16 +322,49 @@ export const useDigitalTwin = () => {
     }));
   }, [useAPI, currentEmployee]);
 
-  const completeMission = useCallback((missionIndex: number) => {
-    setGamification((prev: any) => {
-      const newMissions = [...(prev.missions || [])];
-      const mission = newMissions[missionIndex];
-      if (!mission || mission.completed || mission.type === 'challenge') {
-        return prev;
+  const completeMission = useCallback(async (missionIndex: number) => {
+    if (!currentEmployee) return;
+    try {
+      const missionsRaw = await gamificationAPI.getMissions(currentEmployee.id).catch(() => []);
+      const missionsNow = Array.isArray(missionsRaw) ? missionsRaw : (missionsRaw?.missions || []);
+      const mission = (missionsNow || [])[missionIndex];
+      if (!mission || mission.completed) return;
+
+      if (mission.type === 'daily' || mission.id === 'daily_login') {
+        await employeeAPI.dailyCheckin(currentEmployee.id);
+        const [gamProfile, missionsResp] = await Promise.all([
+          gamificationAPI.getProfile(currentEmployee.id),
+          gamificationAPI.getMissions(currentEmployee.id).catch(() => []),
+        ]);
+        const missions = Array.isArray(missionsResp) ? missionsResp : (missionsResp?.missions || []);
+        setGamification((prev: any) => ({
+          ...prev,
+          level: gamProfile.level,
+          xp: gamProfile.xp,
+          nextLevelXp: gamProfile.next_level_xp,
+          totalXpEarned: gamProfile.total_xp_earned,
+          streakDays: gamProfile.streak_days,
+          title: gamProfile.title,
+          missions: (missions || []).map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            xp: m.xp,
+            completed: !!m.completed,
+            type: m.type,
+          })),
+        }));
+        return;
       }
-      return prev;
-    });
-  }, []);
+
+      if (mission.type === 'challenge') {
+        window.location.assign('/gamification-hub');
+      } else if (mission.type === 'learning') {
+        window.location.assign('/learning-hub');
+      }
+    } catch (error) {
+      console.error('Failed to complete mission:', error);
+    }
+  }, [currentEmployee]);
 
   const updateProjectProgress = useCallback(async (projectId: string, status: string, progress?: number) => {
     if (useAPI && currentEmployee) {

@@ -5,7 +5,8 @@ from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 
-from app.database import get_supabase_admin
+from app.database import get_db
+from app.db.errors import FabricDataError
 from app.schemas.career import (
     CareerAnalysisResponse,
     CareerChatRequest,
@@ -63,7 +64,7 @@ def _require_active_goal(employee_id: str, sb):
 
 @router.get("/{employee_id}/goal", response_model=CareerGoalResponse | None)
 def get_active_goal(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
     if not goal_rows:
         return None
@@ -87,7 +88,7 @@ def get_active_goal(employee_id: str):
 
 @router.post("/{employee_id}/goal", response_model=CareerGoalResponse, status_code=201)
 def set_or_update_goal(employee_id: str, data: CareerGoalCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     existing_rows = sb.table("career_goals").select("id").eq("employee_id", employee_id).eq("is_active", True).execute().data or []
     for row in existing_rows:
         sb.table("career_goals").update({"is_active": False, "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}).eq("id", row["id"]).execute()
@@ -127,24 +128,40 @@ def set_or_update_goal(employee_id: str, data: CareerGoalCreate):
 
 @router.get("/{employee_id}/analysis", response_model=CareerAnalysisResponse)
 def get_analysis(employee_id: str, refresh: bool = Query(default=False)):
-    sb = get_supabase_admin()
-    goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
-    if not goal_rows:
-        default_goal = CareerGoalCreate(target_role="Senior Software Engineer", timeline="12 months", focus_area="Engineering")
-        set_or_update_goal(employee_id, default_goal)
+    sb = get_db()
+    try:
         goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
+        if not goal_rows:
+            default_goal = CareerGoalCreate(target_role="Senior Software Engineer", timeline="12 months", focus_area="Engineering")
+            set_or_update_goal(employee_id, default_goal)
+            goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
 
-    goal = goal_rows[0]
-    refresh_ai = refresh or not goal_has_ai_plan(sb, goal["id"])
-    state = compute_career_state(employee_id, sb, refresh_ai=refresh_ai)
-    if state.get("ai_cache"):
-        _persist_state(sb, employee_id, state)
-    return analysis_response_from_state(employee_id, sb, state)
+        goal = goal_rows[0]
+        refresh_ai = refresh or not goal_has_ai_plan(sb, goal["id"])
+        state = compute_career_state(employee_id, sb, refresh_ai=refresh_ai)
+        if state.get("ai_cache"):
+            _persist_state(sb, employee_id, state)
+        return analysis_response_from_state(employee_id, sb, state)
+    except FabricDataError:
+        # One more attempt after pool reset — long Gemini calls often leave stale Fabric sockets.
+        from app.database import reset_db_clients
+
+        reset_db_clients()
+        sb = get_db()
+        goal_rows = sb.table("career_goals").select("*").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
+        if not goal_rows:
+            raise HTTPException(status_code=404, detail="No active career goal")
+        goal = goal_rows[0]
+        # Prefer cached AI plan on retry to avoid another long Gemini wait on a flaky link.
+        state = compute_career_state(employee_id, sb, refresh_ai=False)
+        if state.get("ai_cache"):
+            _persist_state(sb, employee_id, state)
+        return analysis_response_from_state(employee_id, sb, state)
 
 
 @router.patch("/roadmap/{step_id}")
 def update_roadmap_step(step_id: str, data: CareerRoadmapStepUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     step_rows = sb.table("career_roadmap_steps").select("*").eq("id", step_id).limit(1).execute().data or []
     if not step_rows:
         raise HTTPException(status_code=404, detail="Roadmap step not found")
@@ -186,7 +203,7 @@ async def submit_evidence(
     description: str | None = Form(default=None),
     file: UploadFile | None = File(default=None),
 ):
-    sb = get_supabase_admin()
+    sb = get_db()
     _require_active_goal(employee_id, sb)
 
     if not skill_gap_id and not roadmap_step_id:
@@ -241,21 +258,21 @@ async def submit_evidence(
 
 @router.get("/{employee_id}/internal-roles", response_model=list[InternalRoleMatchResponse])
 def get_internal_roles(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     state = compute_career_state(employee_id, sb)
     return [InternalRoleMatchResponse(**row) for row in state["internal_roles"]]
 
 
 @router.get("/{employee_id}/mentors", response_model=list[MentorMatchResponse])
 def get_mentors(employee_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     state = compute_career_state(employee_id, sb)
     return [MentorMatchResponse(**row) for row in state["mentors"]]
 
 
 @router.post("/{employee_id}/mentors/{mentor_id}/request-intro", response_model=MentorIntroRequestResponse)
 def request_mentor_intro(employee_id: str, mentor_id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     existing = sb.table("mentor_matches").select("*").eq("employee_id", employee_id).eq("mentor_employee_id", mentor_id).limit(1).execute().data or []
     if not existing:
         state = compute_career_state(employee_id, sb)
@@ -271,14 +288,14 @@ def request_mentor_intro(employee_id: str, mentor_id: str):
 
 @router.post("/{employee_id}/chat", response_model=CareerChatResponse)
 def grounded_chat(employee_id: str, request: CareerChatRequest):
-    sb = get_supabase_admin()
+    sb = get_db()
     response, grounding = build_grounded_chat_response(employee_id, request.message, request.history, sb)
     return CareerChatResponse(response=response, grounding_points=grounding)
 
 
 @router.patch("/{employee_id}/visibility", response_model=CareerGoalResponse)
 def update_visibility(employee_id: str, data: CareerGoalVisibilityUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     goal = _require_active_goal(employee_id, sb)
     sb.table("career_goals").update({"visible_to_manager": data.visible_to_manager}).eq("id", goal["id"]).execute()
     return get_active_goal(employee_id)
@@ -286,7 +303,7 @@ def update_visibility(employee_id: str, data: CareerGoalVisibilityUpdate):
 
 @router.post("/stall-flags/scan", response_model=StallScanResponse)
 def scan_stall_flags(days: int = 14):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = scan_for_stalled_goals(sb, days)
     return StallScanResponse(
         scanned_goals=result["scanned_goals"],

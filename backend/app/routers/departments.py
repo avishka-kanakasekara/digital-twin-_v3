@@ -5,7 +5,7 @@ API routes for Department module.
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.schemas.department import DepartmentRead, DepartmentCreate, DepartmentUpdate
 
 router = APIRouter(
@@ -22,7 +22,7 @@ def get_departments(
     limit: int = Query(100, le=500),
 ):
     """Get all departments with optional filters."""
-    sb = get_supabase_admin()
+    sb = get_db()
     query = sb.table("departments").select("*")
 
     if region:
@@ -39,7 +39,7 @@ def get_departments(
 @router.get("/summary", tags=["Departments"])
 def get_departments_summary():
     """Get aggregate summary stats across all departments."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("departments").select("*").execute()
     data = result.data
 
@@ -80,7 +80,7 @@ def get_departments_summary():
 @router.get("/{id}", response_model=DepartmentRead)
 def get_department(id: str):
     """Get a single department by ID."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("departments").select("*").eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -89,7 +89,7 @@ def get_department(id: str):
 
 @router.post("", response_model=DepartmentRead, status_code=status.HTTP_201_CREATED)
 def create_department(dept: DepartmentCreate):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("departments").insert(dept.model_dump()).execute()
     if not result.data:
         raise HTTPException(status_code=400, detail="Failed to create department")
@@ -98,7 +98,7 @@ def create_department(dept: DepartmentCreate):
 
 @router.put("/{id}", response_model=DepartmentRead)
 def update_department(id: str, dept: DepartmentUpdate):
-    sb = get_supabase_admin()
+    sb = get_db()
     update_data = dept.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -110,7 +110,7 @@ def update_department(id: str, dept: DepartmentUpdate):
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_department(id: str):
-    sb = get_supabase_admin()
+    sb = get_db()
     result = sb.table("departments").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Department not found")
