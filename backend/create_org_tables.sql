@@ -169,6 +169,18 @@ CREATE TABLE IF NOT EXISTS org_strategy_knowledge_assets (
     created_at  TIMESTAMPTZ DEFAULT now()
 );
 
+-- 13. Strategy HR Inputs Checklist
+CREATE TABLE IF NOT EXISTS org_strategy_hr_inputs (
+    id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    category            VARCHAR(255) NOT NULL,
+    data_to_request     TEXT NOT NULL,
+    priority            VARCHAR(100) NOT NULL,
+    system_source       VARCHAR(255) NOT NULL,
+    integration_status  VARCHAR(100) NOT NULL,
+    output_impact       TEXT NOT NULL,
+    created_at          TIMESTAMPTZ DEFAULT now()
+);
+
 -- ── RLS Policies ────────────────────────────────────────────────
 ALTER TABLE organization_metrics       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE organization_scenarios     ENABLE ROW LEVEL SECURITY;
@@ -182,6 +194,7 @@ ALTER TABLE org_okrs                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_strategy_role_specs    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_strategy_primary_inputs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE org_strategy_knowledge_assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_strategy_hr_inputs     ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all for service_role" ON organization_metrics       FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON organization_scenarios     FOR ALL USING (true) WITH CHECK (true);
@@ -195,5 +208,6 @@ CREATE POLICY "Allow all for service_role" ON org_okrs                   FOR ALL
 CREATE POLICY "Allow all for service_role" ON org_strategy_role_specs    FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON org_strategy_primary_inputs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all for service_role" ON org_strategy_knowledge_assets FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all for service_role" ON org_strategy_hr_inputs     FOR ALL USING (true) WITH CHECK (true);
 
 -- Done!

@@ -582,6 +582,59 @@ def run_simulation(request: SimulationRequest):
 
 # ==================== STRATEGY ROLE ARCHITECT ====================
 
+SAMPLE_STRATEGY_DRIVERS = [
+    {
+        "id": "DRV-101",
+        "title": "Scale AI-enabled analytics across retail lines",
+        "description": "Enterprise strategic push to embed predictive ML models in store & digital operations",
+        "horizon_start_fy": 2025,
+        "horizon_end_fy": 2028,
+        "status": "Active",
+        "owner": "Chief Digital Officer",
+        "business_unit": "Enterprise Analytics"
+    },
+    {
+        "id": "DRV-102",
+        "title": "Network modernization & SD-WAN rollout",
+        "description": "Multi-year infrastructure upgrade replacing legacy MPLS with automated SD-WAN architecture",
+        "horizon_start_fy": 2025,
+        "horizon_end_fy": 2027,
+        "status": "Active",
+        "owner": "Head of IT Infrastructure",
+        "business_unit": "Core Network Operations"
+    },
+    {
+        "id": "DRV-103",
+        "title": "Enterprise-wide People Analytics Maturity",
+        "description": "Transform HR decision-making with automated talent analytics, skill twin models, and attrition prediction",
+        "horizon_start_fy": 2025,
+        "horizon_end_fy": 2026,
+        "status": "Active",
+        "owner": "Chief Human Resources Officer",
+        "business_unit": "People & Culture"
+    },
+    {
+        "id": "DRV-104",
+        "title": "Legacy Mainframe Infrastructure Phase-Out",
+        "description": "Decommission legacy IBM z/OS mainframes and migrate core banking workloads to AWS cloud",
+        "horizon_start_fy": 2021,
+        "horizon_end_fy": 2024,
+        "status": "Expired",
+        "owner": "Legacy Systems Director",
+        "business_unit": "Core Infrastructure"
+    },
+    {
+        "id": "DRV-105",
+        "title": "Digital Branch Automation Initiative",
+        "description": "Automate retail branch teller workflows and deploy self-service kiosk terminals",
+        "horizon_start_fy": 2023,
+        "horizon_end_fy": 2025,
+        "status": "Archived",
+        "owner": "Retail Operations Lead",
+        "business_unit": "Retail Operations"
+    }
+]
+
 SAMPLE_ROLE_ARCHITECT_DATA = [
     {
         "role_id": "ROLE-2001",
@@ -592,6 +645,10 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
         "business_unit": "Enterprise Analytics",
         "level": "L4 Senior",
         "career_hierarchy": "Analyst → Senior Analyst → Data Scientist → Senior Data Scientist",
+        "strategy_driver_id": "DRV-101",
+        "status": "Live",
+        "version": "v1.0",
+        "version_history": [],
         "skill": "Python (Advanced), Machine Learning, MLOps, Statistics",
         "role_spec": "Senior Data Scientist — owns ML model lifecycle; leads production ML pipeline deployment",
         "target_headcount": "9 FTE by FY26",
@@ -604,11 +661,21 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
         "fulfillment_5b_breakdown": {"build": 60, "buy": 40, "borrow": 0, "bot": 0, "bridge": 0},
         "capability_gap_targets": "MLOps gap (avg L2 vs target L3); High priority",
         "skill_proficiency_map": [
-            {"skill": "Python", "current": 3, "target": 4},
-            {"skill": "Machine Learning", "current": 2, "target": 4},
-            {"skill": "MLOps", "current": 2, "target": 3},
-            {"skill": "Statistics", "current": 3, "target": 4},
-            {"skill": "Cloud Architecture", "current": 2, "target": 3}
+            {"skill": "Python", "current": 3, "target": 4, "importance": "Critical"},
+            {"skill": "Machine Learning", "current": 2, "target": 4, "importance": "Critical"},
+            {"skill": "MLOps", "current": 2, "target": 3, "importance": "Important"},
+            {"skill": "Statistics", "current": 3, "target": 4, "importance": "Important"},
+            {"skill": "Cloud Architecture", "current": 2, "target": 3, "importance": "Desirable"}
+        ],
+        "demand_lines": [
+            {
+                "id": "dl-2001-1",
+                "fiscal_year": 2026,
+                "demand_headcount_growth": 2,
+                "demand_headcount_attrition": 1,
+                "demand_headcount_gross": 3,
+                "created_at": "2026-01-15T00:00:00Z"
+            }
         ],
         "internal_mobility": ["Data Analyst L3", "BI Developer L3"],
         "market_risk": "High — Cloud/ML skills, competitive market",
@@ -644,6 +711,10 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
         "business_unit": "Core Network Operations",
         "level": "L4 Senior",
         "career_hierarchy": "Engineer → Senior Engineer → Automation Engineer → Architect",
+        "strategy_driver_id": "DRV-102",
+        "status": "Live",
+        "version": "v1.0",
+        "version_history": [],
         "skill": "SD-WAN, Network Automation (Python/Ansible), Routing & Switching",
         "role_spec": "Network Automation Engineer — designs/maintains automated network provisioning & monitoring",
         "target_headcount": "7 FTE by FY26",
@@ -656,10 +727,20 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
         "fulfillment_5b_breakdown": {"build": 50, "buy": 20, "borrow": 30, "bot": 0, "bridge": 0},
         "capability_gap_targets": "Automation scripting gap (avg L1 vs target L2); High priority",
         "skill_proficiency_map": [
-            {"skill": "Network Automation", "current": 1, "target": 3},
-            {"skill": "SD-WAN", "current": 2, "target": 3},
-            {"skill": "Routing & Switching", "current": 3, "target": 4},
-            {"skill": "Scripting / Python", "current": 1, "target": 2}
+            {"skill": "Network Automation", "current": 1, "target": 3, "importance": "Critical"},
+            {"skill": "SD-WAN", "current": 2, "target": 3, "importance": "Critical"},
+            {"skill": "Routing & Switching", "current": 3, "target": 4, "importance": "Important"},
+            {"skill": "Scripting / Python", "current": 1, "target": 2, "importance": "Desirable"}
+        ],
+        "demand_lines": [
+            {
+                "id": "dl-2002-1",
+                "fiscal_year": 2026,
+                "demand_headcount_growth": 2,
+                "demand_headcount_attrition": 1,
+                "demand_headcount_gross": 3,
+                "created_at": "2026-01-15T00:00:00Z"
+            }
         ],
         "internal_mobility": ["Senior Network Engineer", "NOC Technician L3"],
         "market_risk": "Medium-High — SD-WAN automation talent scarce regionally",
@@ -695,6 +776,10 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
         "business_unit": "People & Culture",
         "level": "L4 Lead",
         "career_hierarchy": "HR Executive → HRBP → People Analytics Specialist → People Analytics Lead",
+        "strategy_driver_id": "DRV-103",
+        "status": "Live",
+        "version": "v1.0",
+        "version_history": [],
         "skill": "Workforce Analytics, HR Data Modelling, Stakeholder Reporting",
         "role_spec": "People Analytics Lead — builds workforce dashboards; advises leadership on capability risk",
         "target_headcount": "3 FTE by FY26",
@@ -707,10 +792,20 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
         "fulfillment_5b_breakdown": {"build": 50, "buy": 50, "borrow": 0, "bot": 0, "bridge": 0},
         "capability_gap_targets": "Workforce Analytics gap (avg L1 vs target L3); Medium priority",
         "skill_proficiency_map": [
-            {"skill": "Workforce Analytics", "current": 1, "target": 3},
-            {"skill": "HR Data Modelling", "current": 2, "target": 3},
-            {"skill": "Stakeholder Reporting", "current": 3, "target": 4},
-            {"skill": "Employee Relations", "current": 3, "target": 3}
+            {"skill": "Workforce Analytics", "current": 1, "target": 3, "importance": "Critical"},
+            {"skill": "HR Data Modelling", "current": 2, "target": 3, "importance": "Important"},
+            {"skill": "Stakeholder Reporting", "current": 3, "target": 4, "importance": "Important"},
+            {"skill": "Employee Relations", "current": 3, "target": 3, "importance": "Desirable"}
+        ],
+        "demand_lines": [
+            {
+                "id": "dl-2003-1",
+                "fiscal_year": 2026,
+                "demand_headcount_growth": 1,
+                "demand_headcount_attrition": 1,
+                "demand_headcount_gross": 2,
+                "created_at": "2026-01-15T00:00:00Z"
+            }
         ],
         "internal_mobility": ["HR Business Partner", "HR Data Analyst"],
         "market_risk": "Medium — niche HR analytics skillset",
@@ -735,6 +830,70 @@ SAMPLE_ROLE_ARCHITECT_DATA = [
             "genai_impact": "+15% (automated dashboards)",
             "criticality_index": "Medium – Tier 2 (supports, doesn't block)",
             "opex_budget_ceiling": "LKR 12M/yr (People & Culture, FY26)"
+        }
+    },
+    {
+        "role_id": "ROLE-2004",
+        "rank": 4,
+        "role": "Legacy Mainframe Specialist",
+        "job_code": "RA-IT-08",
+        "dept": "Core Infrastructure",
+        "business_unit": "IT Operations",
+        "level": "L3 Specialist",
+        "career_hierarchy": "System Operator → Mainframe Specialist → Senior Mainframe Specialist",
+        "strategy_driver_id": "DRV-104",
+        "status": "Live",
+        "version": "v1.0",
+        "version_history": [],
+        "skill": "COBOL Mainframe, JCL Scripting, DB2 Legacy",
+        "role_spec": "Legacy Mainframe Specialist — maintains legacy banking system mainframe during cloud transition phase",
+        "target_headcount": "2 FTE by FY24",
+        "current_headcount": 4,
+        "budgeted_headcount": "2 (FY24)",
+        "gap": "-2",
+        "urgency": "LOW",
+        "role_evolution": "Sunsetting",
+        "fulfillment_5b": "Bridge 100% (retrain & migrate)",
+        "fulfillment_5b_breakdown": {"build": 0, "buy": 0, "borrow": 0, "bot": 0, "bridge": 100},
+        "capability_gap_targets": "Mainframe sun-setting gap; Low priority (phase-out)",
+        "skill_proficiency_map": [
+            {"skill": "COBOL Mainframe", "current": 4, "target": 4, "importance": "Critical"},
+            {"skill": "JCL Scripting", "current": 3, "target": 3, "importance": "Important"},
+            {"skill": "DB2 Legacy", "current": 3, "target": 3, "importance": "Desirable"}
+        ],
+        "demand_lines": [
+            {
+                "id": "dl-2004-1",
+                "fiscal_year": 2024,
+                "demand_headcount_growth": 0,
+                "demand_headcount_attrition": 2,
+                "demand_headcount_gross": 2,
+                "created_at": "2024-01-15T00:00:00Z"
+            }
+        ],
+        "internal_mobility": ["Cloud Migration Engineer", "Linux SysAdmin"],
+        "market_risk": "Low — skills being phased out",
+        "hr_inputs": {
+            "business_unit": "IT Operations",
+            "job_code": "RA-IT-08; Legacy Mainframe Specialist; IT; L3",
+            "hierarchy": "System Operator → Mainframe Specialist → Senior Mainframe Specialist",
+            "required_skills": "COBOL Mainframe, JCL Scripting, DB2 Legacy",
+            "current_headcount": 4,
+            "budgeted_headcount": "2 (FY24)",
+            "compensation_band": "Band 5",
+            "strategy_driver": "Decommission legacy IBM mainframes",
+            "future_operating_model": "Phased shutdown; cloud migration to AWS",
+            "workforce_assumptions": "-50% headcount by FY25 | -2 HC (FY24)",
+            "target_salary_band": "Band 5 – Band 6",
+            "historical_attrition": "4% annual",
+            "skill_baseline": "COBOL L4, JCL L3",
+            "time_to_hire": "90 days external",
+            "location_work_model": "Colombo Data Center; On-site",
+            "employment_mix": "100% FTE",
+            "sunsetting_context": "Mainframe environment fully phased out by end of FY25",
+            "genai_impact": "0%",
+            "criticality_index": "Low – Sunsetting role",
+            "opex_budget_ceiling": "LKR 10M/yr"
         }
     }
 ]
@@ -768,6 +927,315 @@ def get_strategy_inputs(role_id: str = None):
         filtered = [item for item in SAMPLE_ROLE_ARCHITECT_DATA if item["role_id"] == role_id]
         return filtered[0]["hr_inputs"] if filtered else {}
     return [item["hr_inputs"] for item in SAMPLE_ROLE_ARCHITECT_DATA]
+
+
+# --- Strategy Role Architect API Endpoints & Request Models ---
+
+class StrategyRoleSaveRequest(BaseModel):
+    role_id: Optional[str] = None
+    role: str
+    job_code: Optional[str] = None
+    dept: str
+    business_unit: Optional[str] = None
+    level: str
+    strategy_driver_id: Optional[str] = None
+    status: str = "Draft"  # Live | Draft | Archived
+    version: Optional[str] = "v1.0"
+    role_evolution: Optional[str] = "Emerging"
+    skill_proficiency_map: Optional[List[Dict[str, Any]]] = []
+    fulfillment_5b: Optional[str] = None
+    capability_gap_targets: Optional[str] = None
+
+class DemandLineCreateRequest(BaseModel):
+    fiscal_year: int
+    demand_headcount_growth: int
+    demand_headcount_attrition: int
+
+class PersonaQARequest(BaseModel):
+    persona: str  # "Employee" | "Manager" | "Employer"
+    question: str
+    role_id: Optional[str] = None
+
+@router.get("/strategy/drivers")
+def get_strategy_drivers():
+    """Retrieve strategic drivers list with horizon years and statuses."""
+    sb = get_supabase_admin()
+    try:
+        res = sb.table("org_strategy_drivers").select("*").execute()
+        if res.data and len(res.data) > 0:
+            return res.data
+    except Exception as e:
+        print(f"Supabase fetch for org_strategy_drivers failed: {e}")
+    return SAMPLE_STRATEGY_DRIVERS
+
+@router.get("/strategy/orphaned-roles")
+def get_orphaned_roles():
+    """Flag any Future Role whose linked Strategy Driver has expired or been archived (AC 3.2)."""
+    drivers_dict = {d["id"]: d for d in SAMPLE_STRATEGY_DRIVERS}
+    current_fy = 2026
+    orphaned = []
+
+    for role in SAMPLE_ROLE_ARCHITECT_DATA:
+        driver_id = role.get("strategy_driver_id")
+        driver = drivers_dict.get(driver_id)
+        
+        reason = None
+        if not driver_id or not driver:
+            reason = "Role has no valid strategy driver linked (Orphaned Role)"
+        elif driver.get("status") in ["Expired", "Archived"]:
+            reason = f"Linked Strategy Driver '{driver.get('title')}' is {driver.get('status')}"
+        elif driver.get("horizon_end_fy") and driver.get("horizon_end_fy") < current_fy:
+            reason = f"Linked Strategy Driver '{driver.get('title')}' expired past FY{driver.get('horizon_end_fy')} horizon"
+            
+        if reason:
+            orphaned.append({
+                **role,
+                "is_orphaned": True,
+                "orphan_reason": reason,
+                "driver_info": driver
+            })
+
+    return orphaned
+
+@router.post("/strategy/roles")
+def save_strategy_role(req: StrategyRoleSaveRequest):
+    """
+    Create or update a Future Role specification.
+    AC 3.1: Mandatory Driver Link validation — cannot save as Live without valid strategy_driver_id.
+    AC 1.3: Versioning without losing history — increments version if skills modified on Live role.
+    """
+    drivers = get_strategy_drivers()
+    valid_driver_ids = [d["id"] for d in drivers]
+
+    # AC 3.1 Mandatory Driver Link check
+    if req.status == "Live":
+        if not req.strategy_driver_id or req.strategy_driver_id not in valid_driver_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="Mandatory Validation Error: A Future Role cannot be saved as Live without a valid strategy_driver_id reference."
+            )
+
+    # Find existing role if updating
+    existing_idx = None
+    if req.role_id:
+        for idx, r in enumerate(SAMPLE_ROLE_ARCHITECT_DATA):
+            if r.get("role_id") == req.role_id:
+                existing_idx = idx
+                break
+
+    if existing_idx is not None:
+        target_role = SAMPLE_ROLE_ARCHITECT_DATA[existing_idx]
+        # Check if skills changed to record new version history (AC 1.3)
+        old_skills = target_role.get("skill_proficiency_map", [])
+        new_skills = req.skill_proficiency_map or []
+        
+        current_ver = target_role.get("version", "v1.0")
+        if old_skills != new_skills and req.status == "Live":
+            # Record prior version history snapshot
+            v_history = target_role.get("version_history", [])
+            v_history.append({
+                "version": current_ver,
+                "updated_at": "2026-09-24T11:40:00Z",
+                "skills": old_skills,
+                "status": target_role.get("status")
+            })
+            target_role["version_history"] = v_history
+            # Bump version e.g. v1.0 -> v1.1
+            try:
+                major, minor = current_ver.replace("v", "").split(".")
+                new_ver = f"v{major}.{int(minor) + 1}"
+            except Exception:
+                new_ver = "v1.1"
+            target_role["version"] = new_ver
+
+        target_role["role"] = req.role
+        target_role["dept"] = req.dept
+        target_role["level"] = req.level
+        target_role["status"] = req.status
+        target_role["strategy_driver_id"] = req.strategy_driver_id
+        if req.job_code: target_role["job_code"] = req.job_code
+        if req.business_unit: target_role["business_unit"] = req.business_unit
+        if req.skill_proficiency_map is not None: target_role["skill_proficiency_map"] = req.skill_proficiency_map
+        if req.role_evolution: target_role["role_evolution"] = req.role_evolution
+        if req.fulfillment_5b: target_role["fulfillment_5b"] = req.fulfillment_5b
+
+        return target_role
+    else:
+        # Create new role
+        new_id = f"ROLE-{2000 + len(SAMPLE_ROLE_ARCHITECT_DATA) + 1}"
+        new_role = {
+            "role_id": new_id,
+            "rank": len(SAMPLE_ROLE_ARCHITECT_DATA) + 1,
+            "role": req.role,
+            "job_code": req.job_code or f"RA-GEN-{len(SAMPLE_ROLE_ARCHITECT_DATA)+1:02d}",
+            "dept": req.dept,
+            "business_unit": req.business_unit or req.dept,
+            "level": req.level,
+            "career_hierarchy": f"Analyst → Senior → {req.role}",
+            "strategy_driver_id": req.strategy_driver_id,
+            "status": req.status,
+            "version": "v1.0",
+            "version_history": [],
+            "skill": ", ".join([s.get("skill", "") for s in (req.skill_proficiency_map or [])]),
+            "role_spec": f"{req.role} — strategic workforce specification",
+            "target_headcount": "3 FTE by FY26",
+            "current_headcount": 1,
+            "budgeted_headcount": "3 (FY26)",
+            "gap": "+2",
+            "urgency": "HIGH",
+            "role_evolution": req.role_evolution or "Emerging",
+            "fulfillment_5b": req.fulfillment_5b or "Build 60% + Buy 40%",
+            "fulfillment_5b_breakdown": {"build": 60, "buy": 40, "borrow": 0, "bot": 0, "bridge": 0},
+            "capability_gap_targets": req.capability_gap_targets or "Skill proficiency alignment target",
+            "skill_proficiency_map": req.skill_proficiency_map or [],
+            "demand_lines": [],
+            "internal_mobility": ["Related Specialist"],
+            "market_risk": "Medium",
+            "hr_inputs": {
+                "business_unit": req.business_unit or req.dept,
+                "job_code": req.job_code or f"RA-GEN-{len(SAMPLE_ROLE_ARCHITECT_DATA)+1:02d}",
+                "hierarchy": f"Analyst → Senior → {req.role}",
+                "required_skills": ", ".join([s.get("skill", "") for s in (req.skill_proficiency_map or [])]),
+                "current_headcount": 1,
+                "budgeted_headcount": "3 (FY26)",
+                "strategy_driver": req.strategy_driver_id or "Corporate Strategic Plan"
+            }
+        }
+        SAMPLE_ROLE_ARCHITECT_DATA.append(new_role)
+        return new_role
+
+@router.post("/strategy/roles/{role_id}/demand-lines")
+def add_demand_line(role_id: str, req: DemandLineCreateRequest):
+    """
+    Generate & validate a Demand Line for a Future Role (User Story 2).
+    AC 2.1: Combine strategy-driven growth + attrition replacement -> demand_headcount_gross.
+    AC 2.2: Validate Inputs:
+      1. Fiscal year must fall within strategy driver's horizon.
+      2. demand_headcount_gross must be a positive integer (> 0).
+      Reject demand lines failing either check.
+    """
+    role = next((r for r in SAMPLE_ROLE_ARCHITECT_DATA if r.get("role_id") == role_id), None)
+    if not role:
+        raise HTTPException(status_code=404, detail=f"Role with ID '{role_id}' not found.")
+
+    gross_headcount = req.demand_headcount_growth + req.demand_headcount_attrition
+
+    # AC 2.2 Validation 1: demand_headcount_gross must be positive integer (> 0)
+    if gross_headcount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Demand Line: Gross headcount demand ({gross_headcount}) must be a positive integer greater than 0."
+        )
+
+    # AC 2.2 Validation 2: Fiscal year must fall within strategy driver horizon
+    driver_id = role.get("strategy_driver_id")
+    drivers = get_strategy_drivers()
+    driver = next((d for d in drivers if d["id"] == driver_id), None)
+
+    if not driver:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Demand Line: Role '{role.get('role')}' is not linked to an active Strategy Driver."
+        )
+
+    start_fy = driver.get("horizon_start_fy", 2025)
+    end_fy = driver.get("horizon_end_fy", 2030)
+
+    if req.fiscal_year < start_fy or req.fiscal_year > end_fy:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid Demand Line: Fiscal year FY{req.fiscal_year} is outside the strategy driver's horizon (FY{start_fy} – FY{end_fy})."
+        )
+
+    # Create new demand line
+    import uuid
+    from datetime import datetime, timezone
+    new_dl = {
+        "id": f"dl-{uuid.uuid4().hex[:6]}",
+        "fiscal_year": req.fiscal_year,
+        "demand_headcount_growth": req.demand_headcount_growth,
+        "demand_headcount_attrition": req.demand_headcount_attrition,
+        "demand_headcount_gross": gross_headcount,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    if "demand_lines" not in role or not isinstance(role["demand_lines"], list):
+        role["demand_lines"] = []
+
+    role["demand_lines"].append(new_dl)
+
+    # Recalculate target headcount gap summary on role
+    role["gap"] = f"+{gross_headcount}"
+    role["target_headcount"] = f"{role.get('current_headcount', 0) + gross_headcount} FTE by FY{req.fiscal_year}"
+
+    return {
+        "message": f"Demand Line for FY{req.fiscal_year} successfully generated and validated.",
+        "demand_line": new_dl,
+        "updated_demand_lines": role["demand_lines"]
+    }
+
+@router.post("/strategy/persona-qa")
+def ask_persona_qa(req: PersonaQARequest):
+    """
+    Persona AI Q&A Endpoint catering to Employee, Manager, and Employer sample questions.
+    """
+    persona = req.persona.strip().capitalize()
+    q = req.question.strip()
+
+    if persona == "Employee":
+        return {
+            "persona": "Employee",
+            "question": q,
+            "answer_summary": "Your role is evolving towards higher AI, automation, and analytics capability over the 2025–2030 strategic cycle.",
+            "role_evolution": "Evolving (Transitioning from legacy execution to cloud-native MLOps & automated workflows)",
+            "key_skills_to_build": [
+                {"skill": "Python Scripting & AutoML", "target_proficiency": "L3 (Intermediate)", "urgency": "High"},
+                {"skill": "MLOps & CI/CD Pipelines", "target_proficiency": "L3 (Intermediate)", "urgency": "Critical"},
+                {"skill": "Cloud Infrastructure (AWS/SD-WAN)", "target_proficiency": "L2 (Working Knowledge)", "urgency": "Medium"}
+            ],
+            "recommended_actions": [
+                "Enroll in the enterprise ML & MLOps reskilling (Build) pathway on SF-A Learning Hub.",
+                "Apply for internal talent gigs in Enterprise Analytics or Core Network Ops.",
+                "Review the living Role-Skill map target level (Target L3-L4) with your reporting manager during Q3 check-in."
+            ],
+            "5b_pathway": "Build (Reskilling) — 60% internal capability build path supported by corporate budget."
+        }
+    elif persona == "Manager":
+        return {
+            "persona": "Manager",
+            "question": q,
+            "answer_summary": "Based on your team's 2-year roadmap, your headcount & capability gaps should be addressed using a balanced 5B (Build, Buy, Borrow, Bot, Bridge) strategy.",
+            "recommended_5b_breakdown": {
+                "build": "50% — Reskill current engineers in automation & analytics",
+                "buy": "30% — External hires for Senior Lead & Specialist roles",
+                "borrow": "20% — Specialist contractors for immediate SD-WAN deployment",
+                "bot": "15% — Productivity deflator via GenAI coding copilots & automated monitoring",
+                "bridge": "0% — No immediate legacy phase-out roles in your unit"
+            },
+            "priority_roles": [
+                {"role": "Senior Data Scientist", "strategy": "Build 60% / Buy 40%", "reason": "High market risk; internal reskilling reduces time-to-productivity."},
+                {"role": "Network Automation Engineer", "strategy": "Build 50% / Borrow 30% / Buy 20%", "reason": "Immediate project delivery needs contractor mobilization."}
+            ],
+            "next_steps": [
+                "Submit FY26 Demand Lines in the Strategy Role Architect module for budget reservation.",
+                "Partner with People Analytics to review attrition replacement demand lines."
+            ]
+        }
+    else: # Employer / Executive
+        return {
+            "persona": "Employer",
+            "question": q,
+            "answer_summary": "Under our 2025–2030 digital transformation strategy, the organization will require 62 future role specifications and +727 net headcount growth (reaching 6,782 FTE capacity).",
+            "strategic_role_specs_required": [
+                {"role_family": "Data & AI", "new_roles": 14, "5b_route": "Build 60% / Buy 40%", "growth_driver": "DRV-101: Scale AI-enabled analytics"},
+                {"role_family": "Cloud & Infrastructure", "new_roles": 18, "5b_route": "Build 50% / Borrow 30% / Buy 20%", "growth_driver": "DRV-102: Network modernization & SD-WAN"},
+                {"role_family": "People & HR Tech", "new_roles": 8, "5b_route": "Buy 50% / Build 50%", "growth_driver": "DRV-103: People Analytics Maturity"},
+                {"role_family": "Legacy Systems (Phase-out)", "new_roles": -4, "5b_route": "Bridge 100% (Reskill & Migrate)", "growth_driver": "DRV-104: Mainframe Phase-out"}
+            ],
+            "organizational_5b_ratio": "Build: 55% | Buy: 25% | Borrow: 12% | Bot: 5% | Bridge: 3%",
+            "executive_recommendation": "Approve the multi-year Role-Skill Map targets and align FP&A OpEx ceilings with the Strategy Role Architect headcount ramp."
+        }
+
 
 
 
@@ -881,7 +1349,8 @@ def get_strategy_overview(department: str = "All Departments"):
         "forecast_timeline": forecast,
         "primary_inputs": inputs,
         "knowledge_assets": assets,
-        "competency_radar": radar
+        "competency_radar": radar,
+        "hr_inputs_checklist": HR_INPUT_CHECKLIST_DATA
     }
 
 
@@ -978,5 +1447,205 @@ def search_knowledge_graph(q: str = ""):
         "results": results,
         "total": len(results)
     }
+
+
+HR_INPUT_CHECKLIST_DATA = [
+    {
+        "id": "hr-input-1",
+        "category": "Role & Organization",
+        "data_to_request": "Job code, title, family & level; job description & key accountabilities; role hierarchy & career levels",
+        "priority": "Essential",
+        "system_source": "SF-A / HRIS (Job Architecture)",
+        "integration_status": "Synced",
+        "output_impact": "Role Hierarchy & Baseline Specifications"
+    },
+    {
+        "id": "hr-input-2",
+        "category": "Current Workforce",
+        "data_to_request": "Current headcount by org unit / department",
+        "priority": "Essential",
+        "system_source": "HRIS / Core Employee Roster",
+        "integration_status": "Synced",
+        "output_impact": "Baseline Capacity & Net Demand Calculation"
+    },
+    {
+        "id": "hr-input-3",
+        "category": "Skills Reference",
+        "data_to_request": "Required skills per role; enterprise & external skills taxonomy (SF-A / ESCO)",
+        "priority": "Essential where available",
+        "system_source": "ESCO Taxonomy / SF-A Competency Engine",
+        "integration_status": "Synced",
+        "output_impact": "Living Role-Skill Map & Taxonomy Alignment"
+    },
+    {
+        "id": "hr-input-4",
+        "category": "Budget & Compensation",
+        "data_to_request": "Approved / budgeted headcount; compensation band / grade",
+        "priority": "Useful",
+        "system_source": "HRIS Payroll / Finance SAP",
+        "integration_status": "Synced",
+        "output_impact": "Target Headcount Validation & Cost Alignment"
+    },
+    {
+        "id": "hr-input-5",
+        "category": "Technology Context",
+        "data_to_request": "Systems/technology in use per function, for role-skill alignment",
+        "priority": "Optional",
+        "system_source": "IT Service Catalog / Enterprise Architecture",
+        "integration_status": "Configured",
+        "output_impact": "Role-Skill Alignment to Tech Stack"
+    },
+    {
+        "id": "hr-input-6",
+        "category": "Attrition & Turnover",
+        "data_to_request": "Historical attrition rate by role & org unit — for replacement vs. net-new demand",
+        "priority": "Essential",
+        "system_source": "SF-A / HR Analytics",
+        "integration_status": "Synced",
+        "output_impact": "Replacement Sourcing Demand & Sourcing Risk"
+    },
+    {
+        "id": "hr-input-7",
+        "category": "Skill Proficiency Baseline",
+        "data_to_request": "Current skill proficiency baseline (L1–L5) — the starting point for Capability Gap Targets",
+        "priority": "Essential",
+        "system_source": "Skill Twin Matrix / Self-Manager Assessments",
+        "integration_status": "Synced",
+        "output_impact": "Capability Gap Targets & Reskilling (Build) Ratio"
+    },
+    {
+        "id": "hr-input-8",
+        "category": "Time-to-Hire / Time-to-Productivity",
+        "data_to_request": "Average time-to-hire and time-to-productivity by role family — sets mobilization lead time",
+        "priority": "Useful",
+        "system_source": "ATS (Workday / Greenhouse / SF-A)",
+        "integration_status": "Synced",
+        "output_impact": "Mobilization Lead Time & Buy/Borrow Route Selection"
+    },
+    {
+        "id": "hr-input-9",
+        "category": "Geography & Work Model",
+        "data_to_request": "Location / geographic distribution and remote-hybrid-onsite model — flags cost differentials",
+        "priority": "Useful",
+        "system_source": "HRIS Location & Work Policy",
+        "integration_status": "Synced",
+        "output_impact": "Location Sourcing Model & Cost Differential Flag"
+    },
+    {
+        "id": "hr-input-10",
+        "category": "Employment Type Mix",
+        "data_to_request": "FTE vs. contractor / contingent ratio by role",
+        "priority": "Optional",
+        "system_source": "VMS / Contingent Workforce Portal",
+        "integration_status": "Omitted (Optional)",
+        "output_impact": "5B Contingent (Borrow) Mix Strategy"
+    },
+    {
+        "id": "hr-input-11",
+        "category": "Corporate Strategy",
+        "data_to_request": "Strategy & business plans (new products, markets, expansion); 3–5 yr horizon and ≥ 1 stated priority",
+        "priority": "Essential",
+        "system_source": "Corporate Strategy Portal / Executive Board Deck",
+        "integration_status": "Parsed by AI",
+        "output_impact": "Future Role Specifications & Growth Drivers"
+    },
+    {
+        "id": "hr-input-12",
+        "category": "Future Operating Model",
+        "data_to_request": "Future operating model and technology roadmap; planned automation / digital initiatives",
+        "priority": "Essential",
+        "system_source": "Digital Transformation Roadmap",
+        "integration_status": "Active Driver",
+        "output_impact": "Emerging & Evolving Role Definitions"
+    },
+    {
+        "id": "hr-input-13",
+        "category": "Workforce Assumptions",
+        "data_to_request": "Growth / reduction assumptions; planned headcount changes by unit and year",
+        "priority": "Essential",
+        "system_source": "Strategic Workforce Plan (SWP)",
+        "integration_status": "Active Driver",
+        "output_impact": "Multi-year Target Headcount Ramp"
+    },
+    {
+        "id": "hr-input-14",
+        "category": "Cost Parameters",
+        "data_to_request": "Salary bands / cost data for target future roles",
+        "priority": "Useful",
+        "system_source": "Total Rewards / Compensation Benchmark",
+        "integration_status": "Synced",
+        "output_impact": "Future Workforce Investment Modeling"
+    },
+    {
+        "id": "hr-input-15",
+        "category": "Planning & Approval Input",
+        "data_to_request": "Business-plan inputs & scenario context; approver for the \"Live\" Role-Skill Map",
+        "priority": "Essential",
+        "system_source": "Workforce Governance Board / CHRO Office",
+        "integration_status": "Approved",
+        "output_impact": "Role-Skill Map Sign-off & Live Deployment"
+    },
+    {
+        "id": "hr-input-16",
+        "category": "Sunsetting / Phase-out Roadmap",
+        "data_to_request": "Product / technology sunsetting (phase-out) roadmap — legacy roles & skills being de-prioritized, incl. role transition needs",
+        "priority": "Essential",
+        "system_source": "Product & Tech Sunsetting Registry",
+        "integration_status": "Active Roadmap",
+        "output_impact": "Sunsetting/Phase-out Specs & Bridge/Reskill Pathways"
+    },
+    {
+        "id": "hr-input-17",
+        "category": "GenAI / Automation Impact",
+        "data_to_request": "Expected productivity gain (%) per role — adjusts future headcount demand",
+        "priority": "Useful",
+        "system_source": "AI Productivity Benchmark Model",
+        "integration_status": "Active Model",
+        "output_impact": "Bot Sourcing Allocation & Headcount Deflator"
+    },
+    {
+        "id": "hr-input-18",
+        "category": "Business Criticality / Failure Risk",
+        "data_to_request": "Criticality index — strategic impact if the future role stays unfilled",
+        "priority": "Useful",
+        "system_source": "Enterprise Risk Management (ERM)",
+        "integration_status": "Calculated",
+        "output_impact": "Sourcing Risk Priority & Urgency Score"
+    },
+    {
+        "id": "hr-input-19",
+        "category": "OpEx Budget Ceiling",
+        "data_to_request": "Financial constraints / OpEx ceiling for future workforce growth",
+        "priority": "Useful",
+        "system_source": "FP&A / Annual Budget Plan",
+        "integration_status": "Bounded",
+        "output_impact": "Growth Feasibility & Budget Cap Guardrail"
+    }
+]
+
+
+@router.get("/strategy/hr-inputs-checklist")
+def get_hr_inputs_checklist():
+    """Retrieve standard HR Input request checklist (19 categories) for Strategy Role Architect."""
+    sb = get_supabase_admin()
+    items = []
+    try:
+        res = sb.table("org_strategy_hr_inputs").select("*").execute()
+        if res.data and len(res.data) > 0:
+            items = res.data
+    except Exception as e:
+        print(f"Supabase fetch for org_strategy_hr_inputs note: {e}")
+
+    if not items:
+        items = HR_INPUT_CHECKLIST_DATA
+
+    return {
+        "total_categories": len(items),
+        "essential_count": len([i for i in items if "Essential" in str(i.get("priority", ""))]),
+        "useful_count": len([i for i in items if i.get("priority") == "Useful"]),
+        "optional_count": len([i for i in items if i.get("priority") == "Optional"]),
+        "items": items
+    }
+
 
 

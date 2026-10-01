@@ -25,6 +25,8 @@ def seed():
     # ════════════════════════════════════════════════════════
     print("  🗑️  Clearing existing data...")
     tables_to_clear = [
+        "org_strategy_hr_inputs", "org_strategy_role_specs", "org_strategy_primary_inputs", "org_strategy_knowledge_assets",
+        "org_innovation_ideas", "org_talent_gigs", "org_okrs",
         "reward_claims", "recognitions", "projects", "knowledge_sources",
         "career_roadmap_steps", "career_goals",
         "weekly_schedule_entries", "certifications", "employee_courses", "courses",
@@ -78,7 +80,16 @@ def seed():
         "ai_confidence": 94,
         "profile_completeness": 98,
     }
-    sb.table("employees").insert(alex).execute()
+    try:
+        res = sb.table("employees").select("id").eq("employee_code", alex["employee_code"]).execute()
+        if res.data:
+            alex_id = res.data[0]["id"]
+            alex["id"] = alex_id
+            sb.table("employees").update(alex).eq("id", alex_id).execute()
+        else:
+            sb.table("employees").insert(alex).execute()
+    except Exception as e:
+        print(f"  ⚠️ Alex Carter employee creation note: {e}")
 
     # Other employees for leaderboard
     other_employees_data = [
@@ -95,17 +106,24 @@ def seed():
     other_emps = []
     for code, name, initials, email, dept, level, xp in other_employees_data:
         emp_id = _uid()
-        sb.table("employees").insert({
-            "id": emp_id,
-            "employee_code": code,
-            "full_name": name,
-            "initials": initials,
-            "email": email,
-            "password_hash": hash_password("password123"),
-            "department": dept,
-            "role": "Engineer",
-            "employment_status": "Active",
-        }).execute()
+        try:
+            res_e = sb.table("employees").select("id").eq("employee_code", code).execute()
+            if res_e.data:
+                emp_id = res_e.data[0]["id"]
+            else:
+                sb.table("employees").insert({
+                    "id": emp_id,
+                    "employee_code": code,
+                    "full_name": name,
+                    "initials": initials,
+                    "email": email,
+                    "password_hash": hash_password("password123"),
+                    "department": dept,
+                    "role": "Engineer",
+                    "employment_status": "Active",
+                }).execute()
+        except Exception:
+            pass
         other_emps.append((emp_id, level, xp))
 
     print(f"  ✅ {1 + len(other_emps)} employees created")
@@ -558,6 +576,263 @@ def seed():
         })
     sb.table("reward_items").insert(rewards_to_insert).execute()
     print("  ✅ Reward store items created")
+
+    # ════════════════════════════════════════════════════════
+    # 16. ORGANIZATION MODULE & STRATEGY HR INPUTS
+    # ════════════════════════════════════════════════════════
+    # 16a. Innovation Ideas
+    ideas = [
+        {
+            "id": _uid(),
+            "title": "AI-Powered Customer Onboarding",
+            "author_initials": "JD",
+            "author_bg": "bg-indigo-600",
+            "description": "Automate the KYC process using computer vision and LLMs.",
+            "full_description": "A comprehensive system to verify customer identities using live video and AI-driven document analysis.",
+            "roi": "$1.2M/yr",
+            "timeline": "3 Months",
+            "budget": "$50k",
+            "risks": "Regulatory compliance, false positives in CV.",
+            "team_required": "2 AI Engineers, 1 Product Manager, 1 Legal.",
+            "impact_score": 92,
+            "feasibility": "High",
+            "status": "In Review",
+            "patent_pending": True,
+            "created_at": now.isoformat()
+        },
+        {
+            "id": _uid(),
+            "title": "Sustainable Supply Chain Predictor",
+            "author_initials": "MS",
+            "author_bg": "bg-emerald-600",
+            "description": "Optimize logistics routes to reduce carbon emissions by 15%.",
+            "full_description": "Uses real-time traffic, weather, and shipment weight to dynamically route delivery trucks.",
+            "roi": "$500k/yr",
+            "timeline": "6 Months",
+            "budget": "$100k",
+            "risks": "Driver adoption, third-party API costs.",
+            "team_required": "1 Data Scientist, 2 Backend Engineers.",
+            "impact_score": 85,
+            "feasibility": "Medium",
+            "status": "Approved",
+            "patent_pending": False,
+            "created_at": now.isoformat()
+        }
+    ]
+    try:
+        sb.table("org_innovation_ideas").insert(ideas).execute()
+        print(f"  ✅ {len(ideas)} Innovation Ideas created")
+    except Exception as e:
+        print(f"  ⚠️ Skipping org_innovation_ideas seed: {e}")
+
+    # 16b. Talent Gigs
+    gigs = [
+        {
+            "id": _uid(),
+            "role_title": "Senior AI Architect",
+            "department": "Engineering",
+            "required_skills": ["Python", "TensorFlow", "System Design"],
+            "matched_employees": [
+                {"name": "Alex Carter", "match_score": 95, "role": "Senior Cloud Engineer"}
+            ],
+            "urgency": "High"
+        },
+        {
+            "id": _uid(),
+            "role_title": "Product Growth Lead",
+            "department": "Product",
+            "required_skills": ["A/B Testing", "Analytics", "Strategy"],
+            "matched_employees": [
+                {"name": "Priya Sharma", "match_score": 88, "role": "AI Research"}
+            ],
+            "urgency": "Medium"
+        }
+    ]
+    try:
+        sb.table("org_talent_gigs").insert(gigs).execute()
+        print(f"  ✅ {len(gigs)} Talent Gigs created")
+    except Exception as e:
+        print(f"  ⚠️ Skipping org_talent_gigs seed: {e}")
+
+    # 16c. Strategy HR Inputs (19 Categories)
+    hr_inputs = [
+        {
+            "id": _uid(),
+            "category": "Role & Organization",
+            "data_to_request": "Job code, title, family & level; job description & key accountabilities; role hierarchy & career levels",
+            "priority": "Essential",
+            "system_source": "SF-A / HRIS (Job Architecture)",
+            "integration_status": "Synced",
+            "output_impact": "Role Hierarchy & Baseline Specifications"
+        },
+        {
+            "id": _uid(),
+            "category": "Current Workforce",
+            "data_to_request": "Current headcount by org unit / department",
+            "priority": "Essential",
+            "system_source": "HRIS / Core Employee Roster",
+            "integration_status": "Synced",
+            "output_impact": "Baseline Capacity & Net Demand Calculation"
+        },
+        {
+            "id": _uid(),
+            "category": "Skills Reference",
+            "data_to_request": "Required skills per role; enterprise & external skills taxonomy (SF-A / ESCO)",
+            "priority": "Essential where available",
+            "system_source": "ESCO Taxonomy / SF-A Competency Engine",
+            "integration_status": "Synced",
+            "output_impact": "Living Role-Skill Map & Taxonomy Alignment"
+        },
+        {
+            "id": _uid(),
+            "category": "Budget & Compensation",
+            "data_to_request": "Approved / budgeted headcount; compensation band / grade",
+            "priority": "Useful",
+            "system_source": "HRIS Payroll / Finance SAP",
+            "integration_status": "Synced",
+            "output_impact": "Target Headcount Validation & Cost Alignment"
+        },
+        {
+            "id": _uid(),
+            "category": "Technology Context",
+            "data_to_request": "Systems/technology in use per function, for role-skill alignment",
+            "priority": "Optional",
+            "system_source": "IT Service Catalog / Enterprise Architecture",
+            "integration_status": "Configured",
+            "output_impact": "Role-Skill Alignment to Tech Stack"
+        },
+        {
+            "id": _uid(),
+            "category": "Attrition & Turnover",
+            "data_to_request": "Historical attrition rate by role & org unit — for replacement vs. net-new demand",
+            "priority": "Essential",
+            "system_source": "SF-A / HR Analytics",
+            "integration_status": "Synced",
+            "output_impact": "Replacement Sourcing Demand & Sourcing Risk"
+        },
+        {
+            "id": _uid(),
+            "category": "Skill Proficiency Baseline",
+            "data_to_request": "Current skill proficiency baseline (L1–L5) — the starting point for Capability Gap Targets",
+            "priority": "Essential",
+            "system_source": "Skill Twin Matrix / Self-Manager Assessments",
+            "integration_status": "Synced",
+            "output_impact": "Capability Gap Targets & Reskilling (Build) Ratio"
+        },
+        {
+            "id": _uid(),
+            "category": "Time-to-Hire / Time-to-Productivity",
+            "data_to_request": "Average time-to-hire and time-to-productivity by role family — sets mobilization lead time",
+            "priority": "Useful",
+            "system_source": "ATS (Workday / Greenhouse / SF-A)",
+            "integration_status": "Synced",
+            "output_impact": "Mobilization Lead Time & Buy/Borrow Route Selection"
+        },
+        {
+            "id": _uid(),
+            "category": "Geography & Work Model",
+            "data_to_request": "Location / geographic distribution and remote-hybrid-onsite model — flags cost differentials",
+            "priority": "Useful",
+            "system_source": "HRIS Location & Work Policy",
+            "integration_status": "Synced",
+            "output_impact": "Location Sourcing Model & Cost Differential Flag"
+        },
+        {
+            "id": _uid(),
+            "category": "Employment Type Mix",
+            "data_to_request": "FTE vs. contractor / contingent ratio by role",
+            "priority": "Optional",
+            "system_source": "VMS / Contingent Workforce Portal",
+            "integration_status": "Omitted (Optional)",
+            "output_impact": "5B Contingent (Borrow) Mix Strategy"
+        },
+        {
+            "id": _uid(),
+            "category": "Corporate Strategy",
+            "data_to_request": "Strategy & business plans (new products, markets, expansion); 3–5 yr horizon and ≥ 1 stated priority",
+            "priority": "Essential",
+            "system_source": "Corporate Strategy Portal / Executive Board Deck",
+            "integration_status": "Parsed by AI",
+            "output_impact": "Future Role Specifications & Growth Drivers"
+        },
+        {
+            "id": _uid(),
+            "category": "Future Operating Model",
+            "data_to_request": "Future operating model and technology roadmap; planned automation / digital initiatives",
+            "priority": "Essential",
+            "system_source": "Digital Transformation Roadmap",
+            "integration_status": "Active Driver",
+            "output_impact": "Emerging & Evolving Role Definitions"
+        },
+        {
+            "id": _uid(),
+            "category": "Workforce Assumptions",
+            "data_to_request": "Growth / reduction assumptions; planned headcount changes by unit and year",
+            "priority": "Essential",
+            "system_source": "Strategic Workforce Plan (SWP)",
+            "integration_status": "Active Driver",
+            "output_impact": "Multi-year Target Headcount Ramp"
+        },
+        {
+            "id": _uid(),
+            "category": "Cost Parameters",
+            "data_to_request": "Salary bands / cost data for target future roles",
+            "priority": "Useful",
+            "system_source": "Total Rewards / Compensation Benchmark",
+            "integration_status": "Synced",
+            "output_impact": "Future Workforce Investment Modeling"
+        },
+        {
+            "id": _uid(),
+            "category": "Planning & Approval Input",
+            "data_to_request": "Business-plan inputs & scenario context; approver for the \"Live\" Role-Skill Map",
+            "priority": "Essential",
+            "system_source": "Workforce Governance Board / CHRO Office",
+            "integration_status": "Approved",
+            "output_impact": "Role-Skill Map Sign-off & Live Deployment"
+        },
+        {
+            "id": _uid(),
+            "category": "Sunsetting / Phase-out Roadmap",
+            "data_to_request": "Product / technology sunsetting (phase-out) roadmap — legacy roles & skills being de-prioritized, incl. role transition needs",
+            "priority": "Essential",
+            "system_source": "Product & Tech Sunsetting Registry",
+            "integration_status": "Active Roadmap",
+            "output_impact": "Sunsetting/Phase-out Specs & Bridge/Reskill Pathways"
+        },
+        {
+            "id": _uid(),
+            "category": "GenAI / Automation Impact",
+            "data_to_request": "Expected productivity gain (%) per role — adjusts future headcount demand",
+            "priority": "Useful",
+            "system_source": "AI Productivity Benchmark Model",
+            "integration_status": "Active Model",
+            "output_impact": "Bot Sourcing Allocation & Headcount Deflator"
+        },
+        {
+            "id": _uid(),
+            "category": "Business Criticality / Failure Risk",
+            "data_to_request": "Criticality index — strategic impact if the future role stays unfilled",
+            "priority": "Useful",
+            "system_source": "Enterprise Risk Management (ERM)",
+            "integration_status": "Calculated",
+            "output_impact": "Sourcing Risk Priority & Urgency Score"
+        },
+        {
+            "id": _uid(),
+            "category": "OpEx Budget Ceiling",
+            "data_to_request": "Financial constraints / OpEx ceiling for future workforce growth",
+            "priority": "Useful",
+            "system_source": "FP&A / Annual Budget Plan",
+            "integration_status": "Bounded",
+            "output_impact": "Growth Feasibility & Budget Cap Guardrail"
+        }
+    ]
+    try:
+        sb.table("org_strategy_hr_inputs").insert(hr_inputs).execute()
+        print(f"  ✅ {len(hr_inputs)} Strategy HR Inputs Checklist categories created")
+    except Exception as e:
+        print(f"  ⚠️ Skipping org_strategy_hr_inputs seed: {e}")
 
     print("\n🎉 Supabase database seeded successfully!")
     print("   Login with: alex.carter@company.com / password123")

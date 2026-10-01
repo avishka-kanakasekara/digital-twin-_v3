@@ -884,6 +884,30 @@ export const organizationAPI = {
   getStrategyRoleSpecs: (department?: string) =>
     fetchAPI<any[]>(`/api/organization/strategy/role-specs${buildQueryString({ department })}`),
 
+  getStrategyDrivers: () =>
+    fetchAPI<any[]>('/api/organization/strategy/drivers'),
+
+  getOrphanedRoles: () =>
+    fetchAPI<any[]>('/api/organization/strategy/orphaned-roles'),
+
+  saveStrategyRole: (data: any) =>
+    fetchAPI<any>('/api/organization/strategy/roles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  addDemandLine: (roleId: string, data: { fiscal_year: number; demand_headcount_growth: number; demand_headcount_attrition: number }) =>
+    fetchAPI<any>(`/api/organization/strategy/roles/${roleId}/demand-lines`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  askPersonaQA: (data: { persona: string; question: string; role_id?: string }) =>
+    fetchAPI<any>('/api/organization/strategy/persona-qa', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   getStrategyInputs: (roleId?: string) =>
     fetchAPI<any>(`/api/organization/strategy/inputs${buildQueryString({ role_id: roleId })}`),
 
@@ -895,6 +919,9 @@ export const organizationAPI = {
 
   searchKnowledgeGraph: (q: string) =>
     fetchAPI<{ results: any[]; total: number }>(`/api/organization/strategy/knowledge-search${buildQueryString({ q })}`),
+
+  getHrInputsChecklist: () =>
+    fetchAPI<{ total_categories: number; essential_count: number; useful_count: number; optional_count: number; items: any[] }>('/api/organization/strategy/hr-inputs-checklist'),
 
   // Applications
   getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
