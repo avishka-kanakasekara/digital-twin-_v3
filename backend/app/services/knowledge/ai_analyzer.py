@@ -12,6 +12,7 @@ Design principles:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -233,7 +234,7 @@ def _extract_rule_based(extracted_text: str, document_type: str) -> AnalysisResu
     
     KNOWN_SKILLS = [
         "python", "javascript", "typescript", "react", "next.js", "node.js", "fastapi", "express",
-        "aws", "docker", "kubernetes", "postgresql", "mongodb", "supabase", "sqlite", "redis",
+        "aws", "docker", "kubernetes", "postgresql", "mongodb", "sqlite", "redis",
         "terraform", "git", "ci/cd", "graphql", "rest api", "html", "css", "tailwind", "c++", "java",
         "c#", "go", "rust", "machine learning", "ai", "deep learning", "nlp", "devops", "linux", "sql"
     ]
@@ -309,19 +310,20 @@ def _extract_rule_based(extracted_text: str, document_type: str) -> AnalysisResu
 def analyze_document(
     extracted_text: str,
     document_type: str,
-    api_key: str,
+    api_key: str | None = None,
 ) -> AnalysisResult:
     """
     Run AI extraction on the extracted document text.
     
-    Uses Gemini with strict JSON output and prompt injection protection.
+    Uses Gemini (Vertex AI via gemini_client, or API key) with strict JSON output.
     Retries up to 3 times with exponential backoff.
     Validates output against schema before returning.
     
     Never writes directly to database — returns structured extraction.
     """
-    if not api_key:
-        return _rule_based_extract(extracted_text, document_type)
+    use_ai = bool(api_key) or _vertex_configured()
+    if not use_ai:
+        return _extract_rule_based(extracted_text, document_type)
 
     if not extracted_text or not extracted_text.strip():
         return AnalysisResult(
@@ -346,7 +348,7 @@ Respond with the JSON extraction schema. Be precise. Do not invent information."
     last_error: str = ""
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            raw_response = _call_gemini(api_key, user_prompt)
+            raw_response = _call_gemini(api_key or "", user_prompt)
             extraction = _parse_and_validate(raw_response, MODEL_NAME)
             return AnalysisResult(
                 success=True,
@@ -378,6 +380,12 @@ Respond with the JSON extraction schema. Be precise. Do not invent information."
                 time.sleep(delay)
             continue
 
+    # Vertex/AI failed — fall back to deterministic extraction so uploads still complete
+    fallback = _extract_rule_based(extracted_text, document_type)
+    if fallback.success:
+        fallback.error_message = f"AI unavailable ({last_error[:120]}); used rule-based extraction."
+        return fallback
+
     return AnalysisResult(
         success=False,
         error_code="AI_ANALYSIS_FAILED",
@@ -386,10 +394,31 @@ Respond with the JSON extraction schema. Be precise. Do not invent information."
     )
 
 
+def _vertex_configured() -> bool:
+    """True when Vertex AI project/location are available (settings or env)."""
+    try:
+        from app.config import settings
+
+        project = settings.GCP_PROJECT_ID or os.environ.get("GCP_PROJECT_ID")
+        location = settings.GCP_LOCATION or os.environ.get("GCP_LOCATION")
+        if project and location:
+            os.environ.setdefault("GCP_PROJECT_ID", project)
+            os.environ.setdefault("GCP_LOCATION", location)
+            if settings.GOOGLE_APPLICATION_CREDENTIALS:
+                os.environ.setdefault(
+                    "GOOGLE_APPLICATION_CREDENTIALS",
+                    settings.GOOGLE_APPLICATION_CREDENTIALS,
+                )
+            return True
+    except Exception:
+        pass
+    return bool(os.environ.get("GCP_PROJECT_ID") and os.environ.get("GCP_LOCATION"))
+
+
 # ── Gemini Call ───────────────────────────────────────────────
 
 def _call_gemini(api_key: str, user_prompt: str) -> str:
-    """Call Google Gemini and return raw response text."""
+    """Call Google Gemini (Vertex) and return raw response text."""
     try:
         from gemini_client import ask_gemini
 

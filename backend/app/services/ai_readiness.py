@@ -16,7 +16,7 @@ Returns:
 import json
 from dataclasses import dataclass, field
 from typing import Any
-from supabase import Client
+from app.database import Client
 
 
 @dataclass
@@ -109,11 +109,11 @@ def analyze_ai_readiness(
     """
     Analyze employee's AI readiness using LLM or personalized data-driven analysis.
     
-    Fetches employee data from Supabase and uses AI to calculate readiness scores.
+    Fetches employee data from Fabric and uses AI to calculate readiness scores.
     """
     # Fetch employee data for the specific user
     employee_data = _fetch_employee_data(employee_id, sb)
-    # Always return data-driven scores from Supabase so the dashboard never hangs on Gemini.
+    # Always return data-driven scores from Fabric so the dashboard never hangs on Gemini.
     try:
         from app.services.gemini_safe import ask_gemini_timed
         analysis_context = _prepare_analysis_context(employee_data)
@@ -138,7 +138,7 @@ Provide scores for each of the 8 AI readiness dimensions with specific reasoning
 
 
 def _fetch_employee_data(employee_id: str, sb: Client) -> dict:
-    """Fetch all relevant employee data from Supabase."""
+    """Fetch all relevant employee data from Fabric."""
     # Fetch skills
     skills_result = sb.table("skills").select("*").eq("employee_id", employee_id).execute()
     skills = skills_result.data or []
@@ -269,7 +269,7 @@ def _clamp_score(val: Any) -> int:
 
 
 def _calculate_user_readiness(data: dict) -> AIReadinessResult:
-    """Calculate dynamic personalized AI readiness based strictly on user's skills, projects, and knowledge sources in Supabase."""
+    """Calculate dynamic personalized AI readiness based strictly on user's skills, projects, and knowledge sources in Fabric."""
     skills = data.get("skills", [])
     projects = data.get("projects", [])
     sources = data.get("knowledge_sources", [])

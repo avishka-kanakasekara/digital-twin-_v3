@@ -1,21 +1,25 @@
 from __future__ import annotations
 """
 Employees router — CRUD for employee profiles, twin summary, skills, knowledge pipeline.
-Uses Supabase as the database backend.
+Operational data is stored in Microsoft Fabric SQL Database.
 """
 
 import os
 import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
-from supabase import Client
+from app.database import Client
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.schemas.employee import (
     EmployeeCreate,
     EmployeeUpdate,
     EmployeeResponse,
     EmployeeListResponse,
     TwinSummaryResponse,
+    PeerRecommendationCreate,
+    PeerRecommendationResponse,
+    PeerRecommendationSummary,
+    PEER_REC_CATEGORIES,
 )
 from app.schemas.skill import SkillCreate, SkillUpdate, SkillResponse
 from app.schemas.knowledge import KnowledgeSourceResponse, UploadResponse
@@ -36,24 +40,21 @@ def list_employees(
     department: str | None = None,
 ):
     """List all employees with optional department filter."""
-    sb = get_supabase_admin()
+    from app.repositories.employee_repository import EmployeeRepository
 
-    query = sb.table("employees").select("*", count="exact")
-    if department:
-        query = query.eq("department", department)
-
-    result = query.order("full_name").range(skip, skip + limit - 1).execute()
+    result = EmployeeRepository().list_employees(skip=skip, limit=limit, department=department)
     return EmployeeListResponse(employees=result.data, total=result.count or len(result.data))
 
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)
 def get_employee(employee_id: str):
     """Get a single employee by ID."""
-    sb = get_supabase_admin()
-    result = sb.table("employees").select("*").eq("id", employee_id).execute()
-    if not result.data:
+    from app.repositories.employee_repository import EmployeeRepository
+
+    employee = EmployeeRepository().get(employee_id)
+    if not employee:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
-    return result.data[0]
+    return employee
 
 
 @router.post("", response_model=EmployeeResponse, status_code=status.HTTP_201_CREATED)
@@ -61,7 +62,7 @@ def create_employee(data: EmployeeCreate):
     """Create a new employee (admin use — separate from register)."""
     from app.utils.auth import hash_password
 
-    sb = get_supabase_admin()
+    sb = get_db()
     employee_id = str(uuid.uuid4())
 
     emp_data = {
@@ -88,13 +89,12 @@ def create_employee(data: EmployeeCreate):
         "employment_type": data.employment_type,
         "employment_status": data.employment_status or "Active",
     }
-    result = sb.table("employees").insert(emp_data).execute()
-
-    # Auto-create gamification profile
-    sb.table("gamification_profiles").insert({
-        "id": str(uuid.uuid4()),
-        "employee_id": employee_id,
-    }).execute()
+    with sb.transaction():
+        result = sb.table("employees").insert(emp_data).execute()
+        sb.table("gamification_profiles").insert({
+            "id": str(uuid.uuid4()),
+            "employee_id": employee_id,
+        }).execute()
 
     return result.data[0]
 
@@ -102,7 +102,7 @@ def create_employee(data: EmployeeCreate):
 @router.patch("/{employee_id}", response_model=EmployeeResponse)
 def update_employee(employee_id: str, data: EmployeeUpdate):
     """Partially update an employee profile."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     # Check exists
     existing = sb.table("employees").select("*").eq("id", employee_id).execute()
@@ -130,7 +130,7 @@ def update_employee(employee_id: str, data: EmployeeUpdate):
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_employee(employee_id: str):
     """Delete an employee and all related data (cascades)."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     existing = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not existing.data:
@@ -144,22 +144,42 @@ def delete_employee(employee_id: str):
 @router.get("/{employee_id}/twin-summary", response_model=TwinSummaryResponse)
 def get_twin_summary(employee_id: str):
     """Get AI twin health metrics for an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     result = sb.table("employees").select("*").eq("id", employee_id).execute()
     if not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
     employee = result.data[0]
 
-    ks_result = sb.table("knowledge_sources").select("id", count="exact").eq("employee_id", employee_id).execute()
-    ks_count = ks_result.count or 0
+    ks_result = (
+        sb.table("knowledge_sources")
+        .select("id,status,confidence")
+        .eq("employee_id", employee_id)
+        .execute()
+    )
+    ks_rows = ks_result.data or []
+    ks_count = len(ks_rows)
+    completed_ks = [
+        int(r.get("confidence") or 0)
+        for r in ks_rows
+        if (r.get("status") or "").upper() == "COMPLETED" and (r.get("confidence") or 0) > 0
+    ]
+
+    ai_confidence = int(employee.get("ai_confidence") or 0)
+    # Self-heal: if knowledge exists but employee confidence was never written
+    if completed_ks and ai_confidence < 40:
+        from app.services.knowledge.pipeline import _refresh_employee_ai_confidence
+        _refresh_employee_ai_confidence(sb, employee_id, max(completed_ks))
+        refreshed = sb.table("employees").select("ai_confidence").eq("id", employee_id).execute()
+        if refreshed.data:
+            ai_confidence = int(refreshed.data[0].get("ai_confidence") or ai_confidence)
 
     freshness = "High" if ks_count >= 3 else "Medium" if ks_count >= 1 else "Low"
     completeness = _compute_profile_completeness(employee)
-    health = min(100, int(completeness * 0.4 + employee.get("ai_confidence", 0) * 0.3 + (ks_count * 10) * 0.3))
+    health = min(100, int(completeness * 0.4 + ai_confidence * 0.3 + (ks_count * 10) * 0.3))
 
     return TwinSummaryResponse(
-        ai_confidence=employee.get("ai_confidence", 0),
+        ai_confidence=ai_confidence,
         profile_completeness=completeness,
         knowledge_freshness=freshness,
         twin_health=health,
@@ -170,12 +190,36 @@ def get_twin_summary(employee_id: str):
     )
 
 
+@router.get("/{employee_id}/command-center")
+def get_command_center(employee_id: str):
+    """Live snapshot that unifies career, learning, XP, peers, and next actions."""
+    sb = get_db()
+    from app.services.command_center import build_command_center
+
+    payload = build_command_center(sb, employee_id)
+    if payload.get("ok") is False:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=payload.get("detail") or "Employee not found")
+    return payload
+
+
+@router.post("/{employee_id}/daily-checkin")
+def post_daily_checkin(employee_id: str):
+    """Award daily streak XP once per UTC day."""
+    sb = get_db()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    from app.services.command_center import daily_checkin
+
+    return daily_checkin(sb, employee_id)
+
+
 # ─── Skills CRUD ──────────────────────────────────────────────
 
 @router.get("/{employee_id}/skills")
 def get_employee_skills(employee_id: str):
-    """Get all skills for an employee from Supabase."""
-    sb = get_supabase_admin()
+    """Get all skills for an employee."""
+    sb = get_db()
     result = sb.table("skills").select("*").eq("employee_id", employee_id).order("category").order("name").execute()
     return result.data or []
 
@@ -183,7 +227,7 @@ def get_employee_skills(employee_id: str):
 @router.post("/{employee_id}/skills", response_model=SkillResponse, status_code=status.HTTP_201_CREATED)
 def add_skill(employee_id: str, data: SkillCreate):
     """Add a new skill to an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
@@ -215,7 +259,7 @@ def add_skill(employee_id: str, data: SkillCreate):
 @router.put("/{employee_id}/skills/{skill_id}", response_model=SkillResponse)
 def update_skill(employee_id: str, skill_id: str, data: SkillUpdate):
     """Update a skill's proficiency, trend, etc."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     existing = sb.table("skills").select("*").eq("id", skill_id).eq("employee_id", employee_id).execute()
     if not existing.data:
@@ -232,7 +276,7 @@ def update_skill(employee_id: str, skill_id: str, data: SkillUpdate):
 @router.delete("/{employee_id}/skills/{skill_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_skill(employee_id: str, skill_id: str):
     """Remove a skill from an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     existing = sb.table("skills").select("id").eq("id", skill_id).eq("employee_id", employee_id).execute()
     if not existing.data:
@@ -244,8 +288,8 @@ def delete_skill(employee_id: str, skill_id: str):
 # ─── Projects ───────────────────────────────────────────────
 
 @router.get("/{employee_id}/projects")
-def get_projects(employee_id: str, sb: Client = Depends(get_supabase_admin)):
-    """Get projects for an employee from Supabase."""
+def get_projects(employee_id: str, sb: Client = Depends(get_db)):
+    """Get projects for an employee."""
     result = sb.table("projects").select("*").eq("employee_id", employee_id).execute()
     all_projects = result.data or []
 
@@ -288,8 +332,8 @@ def get_projects(employee_id: str, sb: Client = Depends(get_supabase_admin)):
 
 
 @router.post("/{employee_id}/projects")
-def create_project(employee_id: str, project_data: dict, sb: Client = Depends(get_supabase_admin)):
-    """Create a new project for an employee in Supabase."""
+def create_project(employee_id: str, project_data: dict, sb: Client = Depends(get_db)):
+    """Create a new project for an employee."""
     try:
         # Check employee exists
         emp = sb.table("employees").select("id").eq("id", employee_id).execute()
@@ -314,13 +358,15 @@ def create_project(employee_id: str, project_data: dict, sb: Client = Depends(ge
         result = sb.table("projects").insert(new_project).execute()
         return result.data[0]
     except Exception as e:
+        if isinstance(e, HTTPException):
+            raise
         print(f"Error creating project: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Project could not be saved")
 
 
 @router.put("/{employee_id}/projects/{project_id}")
-def update_project(employee_id: str, project_id: str, project_data: dict, sb: Client = Depends(get_supabase_admin)):
-    """Update a project (e.g., status, progress) in Supabase."""
+def update_project(employee_id: str, project_id: str, project_data: dict, sb: Client = Depends(get_db)):
+    """Update a project (e.g., status, progress)."""
     # Check project exists and belongs to employee
     existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
     if not existing.data:
@@ -340,8 +386,8 @@ def update_project(employee_id: str, project_id: str, project_data: dict, sb: Cl
 
 
 @router.delete("/{employee_id}/projects/{project_id}")
-def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_supabase_admin)):
-    """Delete a project from Supabase."""
+def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_db)):
+    """Delete a project."""
     # Check project exists and belongs to employee
     existing = sb.table("projects").select("*").eq("id", project_id).eq("employee_id", employee_id).execute()
     if not existing.data:
@@ -354,14 +400,14 @@ def delete_project(employee_id: str, project_id: str, sb: Client = Depends(get_s
 # ─── Tasks ───────────────────────────────────────────────────────
 
 @router.get("/{employee_id}/projects/{project_id}/tasks")
-def get_tasks(employee_id: str, project_id: str, sb: Client = Depends(get_supabase_admin)):
+def get_tasks(employee_id: str, project_id: str, sb: Client = Depends(get_db)):
     """Get all tasks for a project."""
     result = sb.table("tasks").select("*").eq("project_id", project_id).execute()
     return result.data or []
 
 
 @router.post("/{employee_id}/projects/{project_id}/tasks")
-def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client = Depends(get_supabase_admin)):
+def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client = Depends(get_db)):
     """Create a new task for a project."""
     try:
         # Check project exists and belongs to employee
@@ -392,12 +438,14 @@ def create_task(employee_id: str, project_id: str, task_data: dict, sb: Client =
 
         return result.data[0]
     except Exception as e:
-        print(f"Error creating task: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        if isinstance(e, HTTPException):
+            raise
+        print("Error creating task")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Task could not be saved")
 
 
 @router.put("/{employee_id}/projects/{project_id}/tasks/{task_id}")
-def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict, sb: Client = Depends(get_supabase_admin)):
+def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict, sb: Client = Depends(get_db)):
     """Update a task (e.g., status)."""
     # Check task exists and belongs to project
     existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
@@ -433,7 +481,7 @@ def update_task(employee_id: str, project_id: str, task_id: str, task_data: dict
 
 
 @router.delete("/{employee_id}/projects/{project_id}/tasks/{task_id}")
-def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = Depends(get_supabase_admin)):
+def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = Depends(get_db)):
     """Delete a task."""
     # Check task exists and belongs to project
     existing = sb.table("tasks").select("*").eq("id", task_id).eq("project_id", project_id).execute()
@@ -458,7 +506,7 @@ def delete_task(employee_id: str, project_id: str, task_id: str, sb: Client = De
 # ─── AI Readiness ───────────────────────────────────────────────
 
 @router.get("/{employee_id}/ai-readiness")
-def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase_admin)):
+def get_ai_readiness(employee_id: str, sb: Client = Depends(get_db)):
     """Get AI readiness score and analysis for an employee."""
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
@@ -487,7 +535,7 @@ def get_ai_readiness(employee_id: str, sb: Client = Depends(get_supabase_admin))
 
 
 @router.post("/{employee_id}/ai-chat")
-def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supabase_admin)):
+def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_db)):
     """Process a chat message with the AI Twin Assistant using RAG."""
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
@@ -514,7 +562,7 @@ def ai_chat(employee_id: str, message_data: dict, sb: Client = Depends(get_supab
 
 
 @router.get("/{employee_id}/personal-analytics")
-def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase_admin)):
+def get_personal_analytics(employee_id: str, sb: Client = Depends(get_db)):
     """Get AI-powered personal analytics for an employee."""
     # Check employee exists
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
@@ -532,7 +580,7 @@ def get_personal_analytics(employee_id: str, sb: Client = Depends(get_supabase_a
 @router.get("/{employee_id}/knowledge-sources")
 def get_knowledge_sources(employee_id: str):
     """Get all knowledge sources for an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = (
         sb.table("knowledge_sources")
         .select("*")
@@ -556,7 +604,7 @@ async def upload_knowledge_source(
     Poll GET /knowledge-sources to track progress.
     """
     # Verify employee exists
-    sb = get_supabase_admin()
+    sb = get_db()
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
@@ -598,7 +646,7 @@ async def upload_knowledge_source_sync(
     Blocks until the full pipeline completes. Use for testing.
     For production use the async /upload endpoint.
     """
-    sb = get_supabase_admin()
+    sb = get_db()
     emp = sb.table("employees").select("id").eq("id", employee_id).execute()
     if not emp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
@@ -641,7 +689,7 @@ async def upload_knowledge_source_sync(
 @router.get("/{employee_id}/knowledge-sources/{source_id}")
 def get_knowledge_source(employee_id: str, source_id: str):
     """Get a single knowledge source with full status details."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = (
         sb.table("knowledge_sources")
         .select("*")
@@ -661,7 +709,7 @@ async def reprocess_knowledge_source(
     background_tasks: BackgroundTasks,
 ):
     """Reprocess an existing knowledge source (re-runs the full pipeline)."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = (
         sb.table("knowledge_sources")
         .select("*")
@@ -682,17 +730,21 @@ async def reprocess_knowledge_source(
             detail="No stored file found for this knowledge source. Please re-upload.",
         )
 
-    from app.config import settings
-    from pathlib import Path
+    from app.services.onelake_storage_service import file_exists, read_bytes
+    from app.db.errors import StorageError
 
-    full_path = Path(settings.UPLOAD_DIR) / storage_path
-    if not full_path.exists():
+    if not file_exists(storage_path):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Stored file not found. Please re-upload.",
         )
-
-    content = full_path.read_bytes()
+    try:
+        content = read_bytes(storage_path)
+    except StorageError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Stored file not found. Please re-upload.",
+        )
 
     # Reset status
     sb.table("knowledge_sources").update({
@@ -709,6 +761,8 @@ async def reprocess_knowledge_source(
             employee_id=employee_id,
             filename=filename,
             content=content,
+            existing_source_id=source_id,
+            existing_storage_path=storage_path,
         )
 
     background_tasks.add_task(_run)
@@ -718,7 +772,7 @@ async def reprocess_knowledge_source(
 @router.delete("/{employee_id}/knowledge-sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_knowledge_source(employee_id: str, source_id: str):
     """Delete a knowledge source and its stored file."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = (
         sb.table("knowledge_sources")
         .select("*")
@@ -744,7 +798,7 @@ def delete_knowledge_source(employee_id: str, source_id: str):
 @router.get("/{employee_id}/knowledge-sources/{source_id}/changes")
 def get_knowledge_source_changes(employee_id: str, source_id: str):
     """Get the audit trail of changes made by this knowledge source."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = (
         sb.table("knowledge_update_events")
         .select("*")
@@ -759,7 +813,7 @@ def get_knowledge_source_changes(employee_id: str, source_id: str):
 @router.get("/{employee_id}/knowledge/change-history")
 def get_knowledge_change_history(employee_id: str):
     """Get full knowledge change history for an employee."""
-    sb = get_supabase_admin()
+    sb = get_db()
     result = (
         sb.table("knowledge_update_events")
         .select("*")
@@ -773,19 +827,388 @@ def get_knowledge_change_history(employee_id: str):
 
 # ─── Recognitions ─────────────────────────────────────────────
 
+_PEER_TYPE = "peer_recommendation"
+
+
 @router.get("/{employee_id}/recognitions")
 def get_recognitions(employee_id: str):
-    """Get all recognitions for an employee."""
-    sb = get_supabase_admin()
-    result = sb.table("recognitions").select("*").eq("employee_id", employee_id).order("date", desc=True).execute()
+    """Get award-style recognitions for an employee (excludes peer recommendations)."""
+    sb = get_db()
+    result = (
+        sb.table("recognitions")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .neq("type", _PEER_TYPE)
+        .order("date", desc=True)
+        .execute()
+    )
     return result.data
+
+
+# ─── Peer recommendations (any employee → any other) ───────────
+# Stored in `recognitions` with type=peer_recommendation so it works without a new
+# table. Optional: set PEER_REC_USE_DEDICATED_TABLE=1 to use peer_recommendations.
+
+_EMP_FIELDS = "id, full_name, role, initials, department"
+
+
+def _use_dedicated_peer_table() -> bool:
+    return os.getenv("PEER_REC_USE_DEDICATED_TABLE", "").strip() in ("1", "true", "yes")
+
+
+def _parse_peer_title(title: str) -> tuple[str, str | None]:
+    """title format: 'category' or 'category · skill'."""
+    if not title:
+        return "general", None
+    if " · " in title:
+        cat, skill = title.split(" · ", 1)
+        return (cat.strip().lower() or "general"), (skill.strip() or None)
+    return title.strip().lower() or "general", None
+
+
+def _parse_peer_description(description: str) -> tuple[str, int | None]:
+    """description may end with '\\n\\n__rating__:N'."""
+    text = description or ""
+    rating = None
+    marker = "\n\n__rating__:"
+    if marker in text:
+        body, _, tail = text.rpartition(marker)
+        try:
+            rating = int(tail.strip())
+        except ValueError:
+            body = text
+        text = body
+    return text.strip(), rating
+
+
+def _employee_map(sb: Client, ids: set[str]) -> dict[str, dict]:
+    clean = [i for i in ids if i]
+    if not clean:
+        return {}
+    result = sb.table("employees").select(_EMP_FIELDS).in_("id", clean).execute()
+    return {e["id"]: e for e in (result.data or [])}
+
+
+def _row_from_dedicated(row: dict, emp_map: dict[str, dict]) -> dict:
+    giver = emp_map.get(row.get("from_employee_id") or "", {})
+    receiver = emp_map.get(row.get("to_employee_id") or "", {})
+    return {
+        **row,
+        "from_employee_name": giver.get("full_name"),
+        "from_employee_role": giver.get("role"),
+        "from_employee_initials": giver.get("initials"),
+        "from_employee_department": giver.get("department"),
+        "to_employee_name": receiver.get("full_name"),
+        "to_employee_role": receiver.get("role"),
+        "to_employee_initials": receiver.get("initials"),
+        "to_employee_department": receiver.get("department"),
+    }
+
+
+def _row_from_recognition(row: dict, emp_map: dict[str, dict]) -> dict:
+    category, skill = _parse_peer_title(row.get("title") or "")
+    message, rating = _parse_peer_description(row.get("description") or "")
+    from_id = row.get("awarded_by") or ""
+    to_id = row.get("employee_id") or ""
+    giver = emp_map.get(from_id, {})
+    receiver = emp_map.get(to_id, {})
+    # Legacy rows may store a name in awarded_by instead of an id
+    from_name = giver.get("full_name") or (from_id if from_id and from_id not in emp_map else None)
+    return {
+        "id": row.get("id"),
+        "from_employee_id": from_id if from_id in emp_map else from_id,
+        "to_employee_id": to_id,
+        "category": category,
+        "skill": skill,
+        "message": message,
+        "rating": rating if rating is not None else 5,
+        "created_at": row.get("created_at") or row.get("date"),
+        "from_employee_name": from_name,
+        "from_employee_role": giver.get("role"),
+        "from_employee_initials": giver.get("initials"),
+        "from_employee_department": giver.get("department"),
+        "to_employee_name": receiver.get("full_name"),
+        "to_employee_role": receiver.get("role"),
+        "to_employee_initials": receiver.get("initials"),
+        "to_employee_department": receiver.get("department"),
+    }
+
+
+def _load_peer_received(sb: Client, employee_id: str) -> list[dict]:
+    if _use_dedicated_peer_table():
+        result = (
+            sb.table("peer_recommendations")
+            .select("*")
+            .eq("to_employee_id", employee_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        rows = result.data or []
+        ids = {r.get("from_employee_id") for r in rows} | {r.get("to_employee_id") for r in rows} | {employee_id}
+        emp_map = _employee_map(sb, {i for i in ids if i})
+        return [_row_from_dedicated(r, emp_map) for r in rows]
+
+    result = (
+        sb.table("recognitions")
+        .select("*")
+        .eq("employee_id", employee_id)
+        .eq("type", _PEER_TYPE)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    rows = result.data or []
+    ids = {r.get("awarded_by") for r in rows} | {employee_id}
+    emp_map = _employee_map(sb, {i for i in ids if i})
+    return [_row_from_recognition(r, emp_map) for r in rows]
+
+
+def _load_peer_sent(sb: Client, employee_id: str) -> list[dict]:
+    if _use_dedicated_peer_table():
+        result = (
+            sb.table("peer_recommendations")
+            .select("*")
+            .eq("from_employee_id", employee_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        rows = result.data or []
+        ids = {r.get("from_employee_id") for r in rows} | {r.get("to_employee_id") for r in rows} | {employee_id}
+        emp_map = _employee_map(sb, {i for i in ids if i})
+        return [_row_from_dedicated(r, emp_map) for r in rows]
+
+    result = (
+        sb.table("recognitions")
+        .select("*")
+        .eq("awarded_by", employee_id)
+        .eq("type", _PEER_TYPE)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    rows = result.data or []
+    ids = {r.get("employee_id") for r in rows} | {employee_id}
+    emp_map = _employee_map(sb, {i for i in ids if i})
+    return [_row_from_recognition(r, emp_map) for r in rows]
+
+
+@router.get("/{employee_id}/peer-recommendations", response_model=list[PeerRecommendationResponse])
+def get_peer_recommendations_received(employee_id: str):
+    """Recommendations this employee has received from colleagues."""
+    sb = get_db()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    return _load_peer_received(sb, employee_id)
+
+
+@router.get("/{employee_id}/peer-recommendations/sent", response_model=list[PeerRecommendationResponse])
+def get_peer_recommendations_sent(employee_id: str):
+    """Recommendations this employee has written for others."""
+    sb = get_db()
+    emp = sb.table("employees").select("id").eq("id", employee_id).execute()
+    if not emp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employee not found")
+    return _load_peer_sent(sb, employee_id)
+
+
+@router.get("/{employee_id}/peer-recommendations/summary", response_model=PeerRecommendationSummary)
+def get_peer_recommendations_summary(employee_id: str):
+    """Counts and highlight categories for the dashboard header."""
+    sb = get_db()
+    rows = _load_peer_received(sb, employee_id)
+    given = _load_peer_sent(sb, employee_id)
+    ratings = [r["rating"] for r in rows if isinstance(r.get("rating"), (int, float))]
+    cat_counts: dict[str, int] = {}
+    for r in rows:
+        cat = (r.get("category") or "general").lower()
+        cat_counts[cat] = cat_counts.get(cat, 0) + 1
+    top = sorted(cat_counts.keys(), key=lambda c: cat_counts[c], reverse=True)[:3]
+    return PeerRecommendationSummary(
+        received_count=len(rows),
+        given_count=len(given),
+        average_rating=(sum(ratings) / len(ratings)) if ratings else None,
+        top_categories=top,
+    )
+
+
+@router.post(
+    "/{employee_id}/peer-recommendations",
+    response_model=PeerRecommendationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_peer_recommendation(employee_id: str, data: PeerRecommendationCreate):
+    """
+    Give a recommendation to another employee.
+    Path employee_id = giver. Body.to_employee_id = receiver.
+    """
+    sb = get_db()
+    message = (data.message or "").strip()
+    if len(message) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Recommendation message must be at least 10 characters.",
+        )
+    if data.to_employee_id == employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot recommend yourself.",
+        )
+
+    category = (data.category or "general").strip().lower()
+    if category not in PEER_REC_CATEGORIES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid category. Choose one of: {', '.join(PEER_REC_CATEGORIES)}",
+        )
+
+    rating = data.rating if data.rating is not None else 5
+    if rating < 1 or rating > 5:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Rating must be 1–5.")
+
+    people = sb.table("employees").select("id").in_("id", [employee_id, data.to_employee_id]).execute()
+    found = {e["id"] for e in (people.data or [])}
+    if employee_id not in found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Giver employee not found")
+    if data.to_employee_id not in found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recipient employee not found")
+
+    from datetime import datetime, timezone, timedelta
+
+    since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    if _use_dedicated_peer_table():
+        recent = (
+            sb.table("peer_recommendations")
+            .select("id")
+            .eq("from_employee_id", employee_id)
+            .eq("to_employee_id", data.to_employee_id)
+            .gte("created_at", since)
+            .limit(1)
+            .execute()
+        )
+    else:
+        recent = (
+            sb.table("recognitions")
+            .select("id")
+            .eq("awarded_by", employee_id)
+            .eq("employee_id", data.to_employee_id)
+            .eq("type", _PEER_TYPE)
+            .gte("created_at", since)
+            .limit(1)
+            .execute()
+        )
+    if recent.data:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You already recommended this colleague today. Try again tomorrow.",
+        )
+
+    skill = (data.skill or "").strip() or None
+    rec_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+
+    if _use_dedicated_peer_table():
+        payload = {
+            "id": rec_id,
+            "from_employee_id": employee_id,
+            "to_employee_id": data.to_employee_id,
+            "category": category,
+            "skill": skill,
+            "message": message,
+            "rating": rating,
+        }
+        inserted = sb.table("peer_recommendations").insert(payload).execute()
+        row = (inserted.data or [payload])[0]
+        emp_map = _employee_map(sb, {employee_id, data.to_employee_id})
+        enriched = _row_from_dedicated(row, emp_map)
+    else:
+        title = category if not skill else f"{category} · {skill}"
+        description = f"{message}\n\n__rating__:{rating}"
+        payload = {
+            "id": rec_id,
+            "employee_id": data.to_employee_id,
+            "type": _PEER_TYPE,
+            "title": title,
+            "description": description,
+            "date": now.date().isoformat(),
+            "awarded_by": employee_id,
+        }
+        inserted = sb.table("recognitions").insert(payload).execute()
+        row = (inserted.data or [payload])[0]
+        emp_map = _employee_map(sb, {employee_id, data.to_employee_id})
+        enriched = _row_from_recognition(row, emp_map)
+
+    xp_awarded = 0
+    try:
+        from app.services.gamification_engine import award_xp
+
+        award_xp(
+            sb,
+            employee_id,
+            25,
+            f"Gave a peer recommendation to {enriched.get('to_employee_name') or 'a colleague'}",
+            "recognition",
+            "👏",
+        )
+        award_xp(
+            sb,
+            data.to_employee_id,
+            40,
+            f"Received a peer recommendation from {enriched.get('from_employee_name') or 'a colleague'}",
+            "recognition",
+            "🌟",
+        )
+        xp_awarded = 40
+    except Exception as xp_err:
+        print(f"[peer_recommendations] XP award skipped: {xp_err}")
+
+    enriched["xp_awarded"] = xp_awarded
+    return enriched
+
+
+@router.delete(
+    "/{employee_id}/peer-recommendations/{recommendation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_peer_recommendation(employee_id: str, recommendation_id: str):
+    """Giver can withdraw their own recommendation."""
+    sb = get_db()
+    if _use_dedicated_peer_table():
+        existing = (
+            sb.table("peer_recommendations")
+            .select("id, from_employee_id")
+            .eq("id", recommendation_id)
+            .execute()
+        )
+        if not existing.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recommendation not found")
+        if existing.data[0]["from_employee_id"] != employee_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the author can withdraw this recommendation.",
+            )
+        sb.table("peer_recommendations").delete().eq("id", recommendation_id).execute()
+    else:
+        existing = (
+            sb.table("recognitions")
+            .select("id, awarded_by, type")
+            .eq("id", recommendation_id)
+            .execute()
+        )
+        if not existing.data or existing.data[0].get("type") != _PEER_TYPE:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Recommendation not found")
+        if existing.data[0].get("awarded_by") != employee_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the author can withdraw this recommendation.",
+            )
+        sb.table("recognitions").delete().eq("id", recommendation_id).execute()
+    return None
 
 
 # ─── Certifications ──────────────────────────────────────────
 
 @router.get("/{employee_id}/certifications")
-def get_certifications(employee_id: str, sb: Client = Depends(get_supabase_admin)):
-    """Get certifications for an employee from Supabase."""
+def get_certifications(employee_id: str, sb: Client = Depends(get_db)):
+    """Get certifications for an employee."""
     result = sb.table("certifications").select("*").eq("employee_id", employee_id).execute()
     return result.data or []
 
@@ -795,7 +1218,7 @@ def get_certifications(employee_id: str, sb: Client = Depends(get_supabase_admin
 @router.get("/{employee_id}/analytics")
 def get_personal_analytics_charts(employee_id: str):
     """Productivity and skill growth series derived from XP + skills — not static mock data."""
-    sb = get_supabase_admin()
+    sb = get_db()
     from datetime import datetime, timezone, timedelta
 
     since = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
@@ -848,7 +1271,7 @@ def get_personal_analytics_charts(employee_id: str):
 @router.get("/{employee_id}/twin-memory")
 def get_twin_memory(employee_id: str):
     """Activity memory from knowledge, projects, skills, and XP events."""
-    sb = get_supabase_admin()
+    sb = get_db()
     events = []
 
     sources = sb.table("knowledge_sources").select("name, created_at, type").eq(
@@ -878,7 +1301,7 @@ def get_twin_memory(employee_id: str):
 @router.get("/{employee_id}/collaboration")
 def get_collaboration_intel(employee_id: str):
     """Collaboration snapshot from profile, projects, and knowledge sources."""
-    sb = get_supabase_admin()
+    sb = get_db()
     emp = sb.table("employees").select("*").eq("id", employee_id).execute()
     employee = emp.data[0] if emp.data else {}
     projects = sb.table("projects").select("id, name, status").eq("employee_id", employee_id).execute().data or []
@@ -888,12 +1311,25 @@ def get_collaboration_intel(employee_id: str):
     top_names = ", ".join(s.get("name") for s in top) or employee.get("role") or "your domain"
 
     active = [p for p in projects if str(p.get("status", "")).lower() in ("active", "in_progress", "in progress")]
+    peers = 0
+    try:
+        peers = (
+            sb.table("recognitions")
+            .select("id", count="exact")
+            .eq("employee_id", employee_id)
+            .eq("type", "peer_recommendation")
+            .execute()
+            .count
+            or 0
+        )
+    except Exception:
+        peers = 0
     return {
         "stats": {
             "availability": f"{employee.get('employment_status') or 'Active'} · {len(active)} live projects",
             "bestCommunication": employee.get("location") or "Async (Digital Twin)",
-            "reputation": f"Known for {top_names}",
-            "knowledgeConfidence": min(99, 60 + len(sources) * 6 + len(skills)),
+            "reputation": f"Known for {top_names}" + (f" · {peers} peer recs" if peers else ""),
+            "knowledgeConfidence": min(99, 60 + len(sources) * 6 + len(skills) + peers * 2),
         },
         "questions": [
             f"Can this employee help with {top[0]['name']}?" if top else "What are this employee's strongest skills?",
@@ -908,7 +1344,7 @@ def get_collaboration_intel(employee_id: str):
 @router.get("/{employee_id}/project-prediction")
 def get_project_prediction(employee_id: str):
     """Heuristic success prediction from skill/project coverage."""
-    sb = get_supabase_admin()
+    sb = get_db()
     skills = sb.table("skills").select("proficiency, name").eq("employee_id", employee_id).execute().data or []
     projects = sb.table("projects").select("status, name, progress").eq("employee_id", employee_id).execute().data or []
     completed = [p for p in projects if str(p.get("status", "")).lower() == "completed"]
@@ -943,15 +1379,62 @@ def get_project_prediction(employee_id: str):
 
 @router.get("/{employee_id}/ai-recommendations")
 def get_ai_recommendations(employee_id: str):
-    """Recommendations from skills gaps, incomplete projects, and career goal."""
-    sb = get_supabase_admin()
+    """Actionable twin recommendations with deep-links into employee hubs."""
+    sb = get_db()
+    from app.services.command_center import build_command_center
+
+    try:
+        cc = build_command_center(sb, employee_id)
+    except Exception:
+        cc = {}
+
     recs = []
-    goal = sb.table("career_goals").select("target_role").eq("employee_id", employee_id).eq("is_active", True).execute()
-    if goal.data:
+    for item in (cc.get("weekly_focus") or [])[:4]:
+        recs.append({
+            "id": f"focus-{item.get('id')}",
+            "text": item.get("title") or "Next twin action",
+            "detail": item.get("detail") or "",
+            "type": (item.get("hub") or "Twin").replace("dashboard", "Profile").title(),
+            "href": item.get("href") or "/employee-twin",
+            "cta": item.get("cta") or "Open",
+            "priority": item.get("priority") or "medium",
+        })
+
+    career = cc.get("career") or {}
+    if career.get("has_goal") and career.get("target_role") and not any(r.get("type") == "Career" for r in recs):
         recs.append({
             "id": "r-goal",
-            "text": f"Stay on the Career Coach roadmap toward {goal.data[0]['target_role']}.",
+            "text": f"Continue readiness path toward {career['target_role']}",
+            "detail": career.get("next_action", {}).get("description") if career.get("next_action") else "",
             "type": "Career",
+            "href": "/career-coach",
+            "cta": "Open Career Coach",
+            "priority": "high",
+        })
+
+    learning = cc.get("learning") or {}
+    if learning.get("active_path") and not any(r.get("href") == "/learning-hub" for r in recs):
+        path = learning["active_path"]
+        recs.append({
+            "id": "r-learn",
+            "text": f"Advance learning path: {path.get('title')}",
+            "detail": f"{path.get('progress') or 0}% complete",
+            "type": "Learning",
+            "href": "/learning-hub",
+            "cta": "Continue learning",
+            "priority": "medium",
+        })
+
+    social = cc.get("social") or {}
+    if int(social.get("received") or 0) == 0:
+        recs.append({
+            "id": "r-peer",
+            "text": "Give a peer recommendation to strengthen both twins",
+            "detail": "Peer recognition awards XP and builds reputation.",
+            "type": "Peers",
+            "href": "/employee-twin?tab=peers",
+            "cta": "Open Peers",
+            "priority": "low",
         })
 
     skills = sb.table("skills").select("name, proficiency, target_level").eq("employee_id", employee_id).execute().data or []
@@ -961,43 +1444,59 @@ def get_ai_recommendations(employee_id: str):
         if target > current:
             recs.append({
                 "id": f"r-skill-{s.get('name')}",
-                "text": f"Close the {s.get('name')} gap ({current} → {target}) via Learning Hub paths.",
+                "text": f"Close the {s.get('name')} gap ({current} → {target})",
+                "detail": "Learning Hub can generate a path for this gap.",
                 "type": "Skill",
+                "href": "/learning-hub",
+                "cta": "Open Learning Hub",
+                "priority": "high",
             })
-            if len(recs) >= 4:
-                break
+            break
 
     projects = sb.table("projects").select("name, progress, status").eq("employee_id", employee_id).execute().data or []
     for p in projects:
         if str(p.get("status", "")).lower() not in ("completed",) and int(p.get("progress") or 0) < 100:
             recs.append({
                 "id": f"r-proj-{p.get('name')}",
-                "text": f"Advance '{p.get('name')}' (currently {p.get('progress') or 0}%) to strengthen delivery proof.",
+                "text": f"Advance '{p.get('name')}' ({p.get('progress') or 0}%)",
+                "detail": "Delivery proof strengthens Career Coach readiness.",
                 "type": "Project",
+                "href": "/employee-twin?tab=projects",
+                "cta": "Open projects",
+                "priority": "medium",
             })
             break
 
-    certs = sb.table("certifications").select("name, status").eq("employee_id", employee_id).execute().data or []
-    planned = [c for c in certs if str(c.get("status", "")).lower() in ("planned", "in_progress", "in progress")]
-    if planned:
-        recs.append({
-            "id": "r-cert",
-            "text": f"Finish certification: {planned[0].get('name')}.",
-            "type": "Certification",
-        })
+    # Deduplicate by text
+    seen = set()
+    out = []
+    for r in recs:
+        key = (r.get("text") or "").strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+        if len(out) >= 6:
+            break
 
-    if not recs:
-        recs = [
-            {"id": "r1", "text": "Add skills and a career goal so the twin can produce targeted recommendations.", "type": "Profile"},
-        ]
-    return recs[:5]
+    if not out:
+        out = [{
+            "id": "r1",
+            "text": "Add skills and a career goal so the twin can produce targeted recommendations.",
+            "detail": "Start in Career Coach, then generate a Learning path.",
+            "type": "Profile",
+            "href": "/career-coach",
+            "cta": "Set a goal",
+            "priority": "critical",
+        }]
+    return out
 
 
 # ─── Skills Data (Grouped by Category) ───────────────────────
 
 @router.get("/{employee_id}/skills-grouped")
-def get_skills_grouped(employee_id: str, sb: Client = Depends(get_supabase_admin)):
-    """Get skills grouped by category for the dashboard from Supabase."""
+def get_skills_grouped(employee_id: str, sb: Client = Depends(get_db)):
+    """Get skills grouped by category for the dashboard."""
     from app.services.knowledge.skill_normalizer import normalize_skill
 
     result = sb.table("skills").select("*").eq("employee_id", employee_id).execute()

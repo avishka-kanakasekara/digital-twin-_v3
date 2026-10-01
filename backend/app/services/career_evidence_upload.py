@@ -3,8 +3,6 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from app.config import settings
-
 ALLOWED_EXTENSIONS = {
     ".pdf", ".docx", ".txt", ".md", ".json", ".csv",
     ".png", ".jpg", ".jpeg", ".gif", ".webp",
@@ -23,11 +21,10 @@ def save_career_evidence(employee_id: str, filename: str, content: bytes) -> dic
         raise ValueError(f"File type '{ext or 'unknown'}' is not allowed.")
 
     safe_name = f"{uuid.uuid4().hex}_{Path(filename or 'evidence').name.replace(' ', '_')}"
-    rel_dir = Path("career-evidence") / employee_id
-    upload_root = Path(settings.UPLOAD_DIR) / rel_dir
-    upload_root.mkdir(parents=True, exist_ok=True)
-    full_path = upload_root / safe_name
-    full_path.write_bytes(content)
+    file_ref = f"career-evidence/{employee_id}/{safe_name}"
+    from app.services.onelake_storage_service import save_bytes
+
+    save_bytes(file_ref, content)
 
     preview = ""
     if ext in {".txt", ".md", ".json", ".csv"}:
@@ -38,7 +35,7 @@ def save_career_evidence(employee_id: str, filename: str, content: bytes) -> dic
         preview = f"[File evidence uploaded: {filename}]"
 
     return {
-        "file_ref": str(rel_dir / safe_name),
+        "file_ref": file_ref,
         "filename": filename,
         "content_preview": preview,
         "size": len(content),

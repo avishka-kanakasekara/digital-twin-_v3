@@ -81,6 +81,10 @@ coverage/
 *.tmp
 *.temp
 
+# Local Fabric stand-in and migration output
+backend/data/
+migration_reports/
+
 # ==============================
 # Secrets
 # ==============================
@@ -88,3 +92,6 @@ coverage/
 secrets/
 backend/secrets/
 
+
+# Local uploaded files
+backend/uploads/

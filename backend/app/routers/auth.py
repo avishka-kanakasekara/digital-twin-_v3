@@ -1,13 +1,13 @@
 from __future__ import annotations
 """
 Auth router — register, login, me.
-Uses Supabase as the database backend.
+Operational data is stored in Microsoft Fabric SQL Database.
 """
 
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.database import get_supabase_admin
+from app.database import get_db
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.employee import EmployeeResponse
 from app.utils.auth import (
@@ -23,9 +23,8 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(req: RegisterRequest):
     """Register a new employee and return a JWT token."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
-    # Check email uniqueness
     existing = sb.table("employees").select("id").eq("email", req.email).execute()
     if existing.data:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -49,14 +48,18 @@ def register(req: RegisterRequest):
         "department": req.department,
         "role": req.role,
     }
-    sb.table("employees").insert(emp_data).execute()
-
-    # Create gamification profile
-    gam_data = {
-        "id": str(uuid.uuid4()),
-        "employee_id": employee_id,
-    }
-    sb.table("gamification_profiles").insert(gam_data).execute()
+    with sb.transaction():
+        sb.table("employees").insert(emp_data).execute()
+        sb.table("gamification_profiles").insert({
+            "id": str(uuid.uuid4()),
+            "employee_id": employee_id,
+        }).execute()
+        sb.table("user_identities").insert({
+            "employee_id": employee_id,
+            "provider": "local",
+            "subject": employee_id,
+            "email": req.email,
+        }).execute()
 
     token = create_access_token({"sub": employee_id})
     return TokenResponse(
@@ -69,7 +72,7 @@ def register(req: RegisterRequest):
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest):
     """Authenticate with email + password, return JWT token."""
-    sb = get_supabase_admin()
+    sb = get_db()
 
     result = sb.table("employees").select("*").eq("email", req.email).execute()
     if not result.data:

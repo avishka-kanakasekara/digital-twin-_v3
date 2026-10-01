@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from supabase import Client
+from app.database import Client
 
 from app.schemas.career import (
     CareerAnalysisResponse,
@@ -1242,7 +1242,7 @@ def analysis_response_from_state(employee_id: str, sb: Client, state: dict[str, 
             resolved=bool(row.get("resolved", False)),
             message="You have not logged career progress recently. Pick one small step this week to keep momentum."
         )
-
+        
     return CareerAnalysisResponse(
         goal=goal,
         readiness_score=state["readiness_score"],
