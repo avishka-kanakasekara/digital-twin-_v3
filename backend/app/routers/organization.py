@@ -510,17 +510,6 @@ def run_simulation(request: SimulationRequest):
 def get_strategy_role_specs(department: str = None):
     """Retrieve translated future role specifications & requirements."""
     sb = get_db()
-    try:
-        query = sb.table("org_strategy_role_specs").select("*").order("rank")
-        if department and department != "All Departments":
-            query = query.eq("dept", department)
-        res = query.execute()
-        if res.data:
-            return res.data
-    except Exception as e:
-        print(f"Fabric fetch for org_strategy_role_specs failed: {e}")
-
-    # Default fallback data
     fallback_specs = [
         { "rank": 1, "role": "Senior Cloud Architect", "skill": "AWS / Azure & Terraform", "dept": "Engineering", "level": "L5 Staff", "gap": "+14", "urgency": "HIGH", "status": "In Strategy Plan" },
         { "rank": 2, "role": "AI / MLOps Specialist", "skill": "LLM Fine-tuning & PyTorch", "dept": "Engineering", "level": "L4 Senior", "gap": "+10", "urgency": "HIGH", "status": "In Strategy Plan" },
@@ -528,8 +517,21 @@ def get_strategy_role_specs(department: str = None):
         { "rank": 4, "role": "DevSecOps Engineer", "skill": "CI/CD & Container Security", "dept": "Operations", "level": "L4 Senior", "gap": "+8", "urgency": "MEDIUM", "status": "In Strategy Plan" },
         { "rank": 5, "role": "Product Growth Strategist", "skill": "SaaS Metrics & A/B Testing", "dept": "Product", "level": "L4 Senior", "gap": "+5", "urgency": "MEDIUM", "status": "In Strategy Plan" }
     ]
+
+    try:
+        query = sb.table("org_strategy_role_specs").select("*").order("rank")
+        if department and department != "All Departments":
+            query = query.eq("dept", department)
+        res = query.execute()
+        if res.data and len(res.data) > 0:
+            return res.data
+    except Exception as e:
+        print(f"Fabric fetch for org_strategy_role_specs failed: {e}")
+
     if department and department != "All Departments":
-        fallback_specs = [s for s in fallback_specs if s["dept"] == department]
+        filtered = [s for s in fallback_specs if s["dept"] == department]
+        if len(filtered) > 0:
+            return filtered
     return fallback_specs
 
 

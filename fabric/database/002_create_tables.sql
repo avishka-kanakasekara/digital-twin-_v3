@@ -901,3 +901,45 @@ CREATE TABLE [dbo].[org_okrs] (
 );
 END
 GO
+
+IF OBJECT_ID(N'dbo.org_strategy_role_specs', N'U') IS NULL
+BEGIN
+CREATE TABLE [dbo].[org_strategy_role_specs] (
+    [id] NVARCHAR(400) NOT NULL,
+    [rank] INT NOT NULL,
+    [role] NVARCHAR(400) NOT NULL,
+    [skill] NVARCHAR(MAX) NOT NULL,
+    [dept] NVARCHAR(400) NOT NULL,
+    [level] NVARCHAR(400) NOT NULL,
+    [gap] NVARCHAR(400) NOT NULL,
+    [urgency] NVARCHAR(400) NOT NULL,
+    [status] NVARCHAR(400) NOT NULL,
+    PRIMARY KEY ([id])
+);
+END
+GO
+
+IF OBJECT_ID(N'dbo.org_strategy_primary_inputs', N'U') IS NULL
+BEGIN
+CREATE TABLE [dbo].[org_strategy_primary_inputs] (
+    [id] NVARCHAR(400) NOT NULL,
+    [title] NVARCHAR(MAX) NOT NULL,
+    [type] NVARCHAR(400) NOT NULL,
+    [status] NVARCHAR(400) NOT NULL,
+    [date] NVARCHAR(400) NOT NULL,
+    PRIMARY KEY ([id])
+);
+END
+GO
+
+IF OBJECT_ID(N'dbo.org_strategy_knowledge_assets', N'U') IS NULL
+BEGIN
+CREATE TABLE [dbo].[org_strategy_knowledge_assets] (
+    [id] NVARCHAR(400) NOT NULL,
+    [name] NVARCHAR(400) NOT NULL,
+    [count] NVARCHAR(400) NOT NULL,
+    [color] NVARCHAR(400) NOT NULL,
+    PRIMARY KEY ([id])
+);
+END
+GO

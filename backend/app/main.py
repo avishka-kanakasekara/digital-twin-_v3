@@ -17,7 +17,7 @@ from app.db.errors import FabricDataError, StorageError
 from app.services.authorization import assert_employee_access, settings_enforce
 
 # Import all routers
-from app.routers import auth, employees, gamification, learning, career, organization, departments
+from app.routers import auth, employees, gamification, learning, career, organization, departments, workforce_intelligence
 
 
 def _clear_broken_local_proxies() -> None:
@@ -115,6 +115,7 @@ app.include_router(learning.router)
 app.include_router(career.router)
 app.include_router(organization.router)
 app.include_router(departments.router)
+app.include_router(workforce_intelligence.router)
 
 
 @app.get("/", tags=["Health"])

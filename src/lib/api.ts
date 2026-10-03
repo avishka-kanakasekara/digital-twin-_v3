@@ -85,18 +85,18 @@ export interface AuthResponse {
 }
 
 export const authAPI = {
-  login: (data: LoginRequest) => 
+  login: (data: LoginRequest) =>
     fetchAPI<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   register: (data: RegisterRequest) =>
     fetchAPI<AuthResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   getCurrentUser: () =>
     fetchAPI<any>('/api/auth/me'),
 };
@@ -257,16 +257,16 @@ export const employeeAPI = {
     fetchAPI<{ employees: Employee[]; total: number }>(
       `/api/employees${buildQueryString(params)}`
     ),
-  
+
   get: (id: string) =>
     fetchAPI<Employee>(`/api/employees/${id}`),
-  
+
   update: (id: string, data: Partial<Employee>) =>
     fetchAPI<Employee>(`/api/employees/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  
+
   getTwinSummary: (id: string) =>
     fetchAPI<TwinSummary>(`/api/employees/${id}/twin-summary`),
 
@@ -278,67 +278,67 @@ export const employeeAPI = {
       `/api/employees/${id}/daily-checkin`,
       { method: 'POST' },
     ),
-  
+
   getSkills: (id: string) =>
     fetchAPI<Skill[]>(`/api/employees/${id}/skills`),
-  
+
   addSkill: (id: string, data: Omit<Skill, 'id' | 'employee_id' | 'last_updated'>) =>
     fetchAPI<Skill>(`/api/employees/${id}/skills`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   updateSkill: (employeeId: string, skillId: string, data: Partial<Skill>) =>
     fetchAPI<Skill>(`/api/employees/${employeeId}/skills/${skillId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  
+
   deleteSkill: (employeeId: string, skillId: string) =>
     fetchAPI<void>(`/api/employees/${employeeId}/skills/${skillId}`, {
       method: 'DELETE',
     }),
-  
+
   getProjects: (id: string) =>
     fetchAPI<{ current: any[]; completed: any[] }>(`/api/employees/${id}/projects`),
-  
+
   createProject: (id: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   updateProject: (id: string, projectId: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects/${projectId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  
+
   deleteProject: (id: string, projectId: string) =>
     fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}`, {
       method: 'DELETE',
     }),
-  
+
   getTasks: (id: string, projectId: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/projects/${projectId}/tasks`),
-  
+
   createTask: (id: string, projectId: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   updateTask: (id: string, projectId: string, taskId: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  
+
   deleteTask: (id: string, projectId: string, taskId: string) =>
     fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
       method: 'DELETE',
     }),
-  
+
   getAIReadiness: (id: string) =>
     fetchAPI<{
       overallScore: number;
@@ -346,13 +346,13 @@ export const employeeAPI = {
       recommendation: { action: string; message: string; impact: string };
       analysisSummary: string;
     }>(`/api/employees/${id}/ai-readiness`),
-  
+
   sendAIChatMessage: (id: string, message: string, history: Array<{ role: string; content: string }>) =>
     fetchAPI<{ response: string; sources: string[] }>(`/api/employees/${id}/ai-chat`, {
       method: 'POST',
       body: JSON.stringify({ message, history }),
     }),
-  
+
   getPersonalAnalytics: (id: string) =>
     fetchAPI<{
       insights: Array<{ category: string; title: string; description: string; impact: string; actionable: boolean }>;
@@ -360,11 +360,11 @@ export const employeeAPI = {
       skill_growth: Array<{ skill_name: string; current_level: number; target_level: number; growth_rate: number; trajectory: string; category: string; recent_projects: string[] }>;
       recommendations: string[];
       overall_score: number;
-    }>(`/api/employees/${id}/personal-analytics`),
-  
+    }>(`/api/employees/${id}/personal-analytics`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
+
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
-  
+
   getRecognitions: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/recognitions`),
 
@@ -396,25 +396,25 @@ export const employeeAPI = {
     fetchAPI<void>(`/api/employees/${fromEmployeeId}/peer-recommendations/${recommendationId}`, {
       method: 'DELETE',
     }),
-  
+
   getCertifications: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/certifications`),
-  
+
   getAnalytics: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/analytics`),
-  
+
   getSkillsGrouped: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/skills-grouped`),
-  
+
   getTwinMemory: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/twin-memory`),
-  
+
   getCollaboration: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/collaboration`),
-  
+
   getProjectPrediction: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/project-prediction`),
-  
+
   getAIRecommendations: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/ai-recommendations`),
 };
@@ -480,31 +480,31 @@ export interface Achievement {
 export const gamificationAPI = {
   getProfile: (employeeId: string) =>
     fetchAPI<GamificationProfile>(`/api/gamification/${employeeId}/profile`),
-  
+
   getLeaderboard: (params?: { department?: string; limit?: number; current_employee_id?: string }) =>
     fetchAPI<any[]>(`/api/gamification/leaderboard${buildQueryString(params)}`),
-  
+
   getChallenges: (employeeId: string) =>
     fetchAPI<Challenge[]>(`/api/gamification/${employeeId}/challenges`, { timeoutMs: 45000 }),
-  
+
   updateChallengeProgress: (employeeId: string, challengeId: string, progress: number) =>
     fetchAPI<ChallengeProgress>(`/api/gamification/${employeeId}/challenges/${challengeId}/progress`, {
       method: 'POST',
       body: JSON.stringify({ progress }),
     }),
-  
+
   getAchievements: (employeeId: string) =>
     fetchAPI<Achievement[]>(`/api/gamification/${employeeId}/achievements`),
-  
+
   getXPHistory: (employeeId: string) =>
     fetchAPI<any[]>(`/api/gamification/${employeeId}/xp-history`),
-  
+
   getActivity: (employeeId: string) =>
     fetchAPI<any[]>(`/api/gamification/${employeeId}/activity`),
-  
+
   getStreak: (employeeId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/streak`),
-  
+
   getRewards: () =>
     fetchAPI<any[]>(`/api/gamification/rewards`),
 
@@ -513,19 +513,19 @@ export const gamificationAPI = {
 
   getMissions: (employeeId: string) =>
     fetchAPI<any[]>(`/api/gamification/${employeeId}/missions`),
-  
+
   claimReward: (employeeId: string, rewardId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/rewards/${rewardId}/claim`, {
       method: 'POST',
     }),
-    
+
   createChallenge: (data: any) =>
     fetchAPI<any>(`/api/gamification/admin/challenges`, {
       method: 'POST',
       body: JSON.stringify(data),
       timeoutMs: 45000,
     }),
-    
+
   getChallengeDetail: (employeeId: string, challengeId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/detail`),
 
@@ -544,7 +544,7 @@ export const gamificationAPI = {
       body: JSON.stringify({ content, storage_path: storagePath || null }),
       timeoutMs: 90000,
     }),
-    
+
   getPendingVerifications: () =>
     fetchAPI<any[]>(`/api/gamification/admin/pending-verifications`),
 
@@ -556,7 +556,7 @@ export const gamificationAPI = {
       method: 'POST',
       body: JSON.stringify({ submission_id: submissionId, approve, score, feedback }),
     }),
-    
+
   verifyChallenge: (employeeId: string, challengeId: string, approve: boolean) =>
     fetchAPI<any>(`/api/gamification/admin/verify-challenge`, {
       method: 'POST',
@@ -916,7 +916,7 @@ export interface CareerAnalysis {
 export const careerAPI = {
   getGoal: (employeeId: string) =>
     fetchAPI<CareerGoal>(`/api/career/${employeeId}/goal`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
-  
+
   setGoal: (employeeId: string, data: {
     target_role: string;
     timeline?: string;
@@ -929,12 +929,12 @@ export const careerAPI = {
       body: JSON.stringify(data),
       timeoutMs: CAREER_AI_TIMEOUT_MS,
     }),
-    
+
   getAnalysis: (employeeId: string, refresh = false) =>
     fetchAPI<CareerAnalysis>(`/api/career/${employeeId}/analysis${refresh ? '?refresh=true' : ''}`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
-    
+
   chat: (employeeId: string, message: string, history: any[] = []) =>
-    fetchAPI<{response: string; grounding_points: string[]}>(`/api/career/${employeeId}/chat`, {
+    fetchAPI<{ response: string; grounding_points: string[] }>(`/api/career/${employeeId}/chat`, {
       method: 'POST',
       body: JSON.stringify({ message, history }),
       timeoutMs: CAREER_AI_TIMEOUT_MS,
@@ -1095,20 +1095,20 @@ export interface TalentMatch {
 export const organizationAPI = {
   getHistory: (params?: { limit?: number }) =>
     fetchAPI<OrganizationMetric[]>(`/api/organization/history${buildQueryString(params)}`),
-    
+
   getScenarios: (params?: { limit?: number }) =>
     fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios${buildQueryString(params)}`),
-    
+
   getAnomalies: () =>
     fetchAPI<any[]>('/api/organization/anomalies'),
-    
+
   // Innovation Hub Endpoints
   getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
   scoreIdea: (data: { title: string, description: string }) => fetchAPI<{ impact: string, impact_score: number, feasibility: string, similar: number }>('/api/organization/innovation/score', { method: 'POST', body: JSON.stringify(data) }),
   submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/innovation/ideas', { method: 'POST', body: JSON.stringify(data) }),
   approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/innovation/ideas/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'Approved' }) }),
   getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
-  
+
   // Risk & Talent Endpoints
   getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
   getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
@@ -1183,15 +1183,7 @@ export const departmentsAPI = {
   getSummary: () => fetchAPI<any>('/api/departments/summary'),
 };
 
-export default {
-  auth: authAPI,
-  employee: employeeAPI,
-  gamification: gamificationAPI,
-  learning: learningAPI,
-  career: careerAPI,
-  organization: organizationAPI,
-  departments: departmentsAPI,
-};
+
 
 // ==================== KNOWLEDGE INTELLIGENCE ====================
 
@@ -1297,4 +1289,62 @@ export const knowledgeAPI = {
 
   getChangeHistory: (employeeId: string): Promise<KnowledgeChangeEvent[]> =>
     fetchAPI<KnowledgeChangeEvent[]>(`/api/employees/${employeeId}/knowledge/change-history`),
+};
+
+// ==================== WORKFORCE INTELLIGENCE (MODULE 2) ====================
+
+export const workforceAPI = {
+  getCapabilityGaps: () =>
+    fetchAPI<any>(`/api/workforce/capability-gaps`),
+
+  getCriticalRolesAtRisk: () =>
+    fetchAPI<any>(`/api/workforce/critical-roles-at-risk`),
+
+  getThresholds: () =>
+    fetchAPI<any>(`/api/workforce/thresholds`),
+
+  updateThresholds: (data: any) =>
+    fetchAPI<any>(`/api/workforce/thresholds`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  recordCertification: (data: any) =>
+    fetchAPI<any>(`/api/workforce/certifications/record`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getCertificationExpiry: (employeeId?: string) =>
+    fetchAPI<any[]>(`/api/workforce/certifications/expiry${buildQueryString({ employee_id: employeeId })}`),
+
+  getEmployees: () =>
+    fetchAPI<any[]>(`/api/workforce/employees`),
+
+  createEmployee: (data: any) =>
+    fetchAPI<any>(`/api/workforce/employees`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getSkills: (employeeId?: string) =>
+    fetchAPI<any[]>(`/api/workforce/skills${buildQueryString({ employee_id: employeeId })}`),
+
+  createSkill: (data: any) =>
+    fetchAPI<any>(`/api/workforce/skills`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+export default {
+  auth: authAPI,
+  employee: employeeAPI,
+  gamification: gamificationAPI,
+  learning: learningAPI,
+  career: careerAPI,
+  organization: organizationAPI,
+  departments: departmentsAPI,
+  workforce: workforceAPI,
+  knowledge: knowledgeAPI,
 };

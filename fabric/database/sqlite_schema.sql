@@ -846,3 +846,106 @@ CREATE INDEX IF NOT EXISTS "idx_departments_region" ON "departments" ("region");
 CREATE INDEX IF NOT EXISTS "idx_departments_function" ON "departments" ("function");
 
 CREATE INDEX IF NOT EXISTS "idx_departments_risk_level" ON "departments" ("risk_level");
+
+CREATE TABLE IF NOT EXISTS "org_strategy_role_specs" (
+    "id" TEXT NOT NULL,
+    "rank" INTEGER NOT NULL,
+    "role" TEXT NOT NULL,
+    "skill" TEXT NOT NULL,
+    "dept" TEXT NOT NULL,
+    "level" TEXT NOT NULL,
+    "gap" TEXT NOT NULL,
+    "urgency" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "org_strategy_primary_inputs" (
+    "id" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "date" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "org_strategy_knowledge_assets" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "count" TEXT NOT NULL,
+    "color" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "org_strategy_forecast_timeline" (
+    "id" TEXT NOT NULL,
+    "year" TEXT NOT NULL,
+    "headcount" INTEGER NOT NULL,
+    "target" INTEGER NOT NULL,
+    "engineering" INTEGER NOT NULL,
+    "operations" INTEGER NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "org_strategy_competency_radar" (
+    "id" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
+    "A" INTEGER NOT NULL,
+    "fullMark" INTEGER NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "wi_capability_gaps" (
+    "id" TEXT NOT NULL,
+    "role_id" TEXT NOT NULL,
+    "role_name" TEXT NOT NULL,
+    "department" TEXT NOT NULL,
+    "skill_name" TEXT NOT NULL,
+    "current_headcount" INTEGER NOT NULL,
+    "current_proficiency_avg" REAL NOT NULL,
+    "target_proficiency" REAL NOT NULL,
+    "demanded_headcount" INTEGER NOT NULL,
+    "headcount_gap" INTEGER NOT NULL,
+    "proficiency_gap" REAL NOT NULL,
+    "capability_gap_score" REAL NOT NULL,
+    "time_horizon" TEXT NOT NULL,
+    "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "wi_role_scores" (
+    "id" TEXT NOT NULL,
+    "role_name" TEXT NOT NULL,
+    "department" TEXT NOT NULL,
+    "overall_gap_score" REAL NOT NULL,
+    "gap_level" TEXT NOT NULL,
+    "top_missing_skills" TEXT DEFAULT '[]',
+    "criticality_index" REAL NOT NULL,
+    "succession_readiness" REAL NOT NULL,
+    "skill_scarcity_index" REAL NOT NULL,
+    "risk_flag" TEXT NOT NULL,
+    "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "wi_role_criticality" (
+    "id" TEXT NOT NULL,
+    "role_name" TEXT NOT NULL,
+    "department" TEXT NOT NULL,
+    "business_impact_score" REAL NOT NULL,
+    "succession_readiness_score" REAL NOT NULL,
+    "skill_scarcity_score" REAL NOT NULL,
+    "risk_status" TEXT NOT NULL,
+    "mitigation_plan" TEXT NOT NULL,
+    "created_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "wi_config" (
+    "id" TEXT NOT NULL,
+    "config_key" TEXT NOT NULL,
+    "config_value" TEXT NOT NULL,
+    "updated_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY ("id")
+);
+

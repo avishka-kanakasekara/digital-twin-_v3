@@ -151,9 +151,9 @@ export const GamificationMomentum: React.FC<MomentumProps> = ({
               const subtitle = mission.next_step
                 ? `Next: ${mission.next_step}`
                 : mission.detail
-                  || (mission.steps_total
-                    ? `${mission.steps_passed || 0}/${mission.steps_total} steps`
-                    : null);
+                || (mission.steps_total
+                  ? `${mission.steps_passed || 0}/${mission.steps_total} steps`
+                  : null);
               return (
                 <button
                   key={mission.id}

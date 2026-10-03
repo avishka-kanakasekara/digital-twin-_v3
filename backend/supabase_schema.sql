@@ -617,4 +617,29 @@ CREATE POLICY "Allow all for service_role" ON org_okrs FOR ALL USING (true) WITH
 
 
 -- 🎉 Schema creation complete!
--- Next: Run the seed script with `python -m scripts.seed_database`
+-- ==========================================
+-- WORKFORCE MODULE TABLES
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS workforce_employee_skill_records (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_skill_id VARCHAR(50) UNIQUE NOT NULL,
+    employee_id VARCHAR(50) NOT NULL,
+    skill_id VARCHAR(50) NOT NULL,
+    proficiency_self INT,
+    proficiency_manager INT,
+    proficiency_evidence INT,
+    proficiency_effective INT NOT NULL,
+    proficiency_source VARCHAR(50) NOT NULL,
+    steward_override_reason TEXT,
+    confidence_score NUMERIC(3,2) NOT NULL,
+    last_assessed_date DATE NOT NULL,
+    last_used_date DATE NOT NULL,
+    assessment_method VARCHAR(50) NOT NULL,
+    evidence_reference VARCHAR(100),
+    is_decayed BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+ALTER TABLE workforce_employee_skill_records ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all for service_role" ON workforce_employee_skill_records FOR ALL USING (true) WITH CHECK (true);
+
