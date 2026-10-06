@@ -683,7 +683,7 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                       <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-10 w-1.5 rounded-r-md ${emp.urgency === 'High' ? 'bg-amber-500' : emp.urgency === 'Moderate' ? 'bg-blue-500' : 'bg-rose-600'}`}></div>
 
                       {/* 1. Avatar & Info */}
-                      <div 
+                      <div
                         className="flex items-center gap-3.5 w-[200px] shrink-0 pl-2 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors p-1"
                         onClick={() => setSelectedWorkforceEmployee({ id: emp.name, name: emp.name, role: emp.role })}
                       >
@@ -798,15 +798,15 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                       </tr>
                     ) : (
                       certificationsData.sort((a, b) => a.days_to_expiry - b.days_to_expiry).map((cert, idx) => (
-                        <tr 
-                          key={cert.id || idx} 
+                        <tr
+                          key={cert.id || idx}
                           className="border-b border-slate-100 hover:bg-white hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 cursor-pointer group transform hover:-translate-y-0.5"
                           onClick={() => setSelectedWorkforceEmployee({ id: cert.employee_id, name: `Employee ${cert.employee_id.substring(0, 4).toUpperCase()}`, role: "Certified Professional" })}
                         >
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-50 to-blue-50 text-indigo-700 flex items-center justify-center font-extrabold text-xs border border-indigo-100 shadow-2xs group-hover:scale-105 transition-transform">
-                                {cert.employee_id.substring(0,2).toUpperCase()}
+                                {cert.employee_id.substring(0, 2).toUpperCase()}
                               </div>
                               <div className="flex flex-col">
                                 <span className="font-extrabold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">EMP-{cert.employee_id.split('-')[0].toUpperCase()}</span>
