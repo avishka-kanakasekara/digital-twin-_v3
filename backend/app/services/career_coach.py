@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -10,6 +11,7 @@ from app.database import Client
 from app.schemas.career import (
     CareerAnalysisResponse,
     CareerChatMessage,
+    CareerEvidenceItem,
     CareerGoalResponse,
     CareerNextActionResponse,
     CareerRoadmapStepResponse,
@@ -19,6 +21,7 @@ from app.schemas.career import (
     MentorMatchResponse,
     ReadinessComponentResponse,
     SkillGapResponse,
+    SkillRoadmapOption,
     StallFlagResponse,
 )
 
@@ -31,36 +34,93 @@ READINESS_WEIGHTS = {
 
 ROLE_SKILL_LIBRARY: dict[str, list[dict[str, Any]]] = {
     "default": [
-        {"skill": "Backend Development", "level": 8, "category": "Engineering"},
-        {"skill": "System Design", "level": 8, "category": "Architecture"},
-        {"skill": "CI/CD", "level": 7, "category": "DevOps"},
-        {"skill": "Leadership", "level": 7, "category": "Collaboration"},
+        {"skill": "Backend Development", "level": 8, "category": "Engineering", "why": "A senior engineer owns services end to end, from design to production."},
+        {"skill": "System Design", "level": 8, "category": "Architecture", "why": "Senior engineers are expected to propose designs and defend tradeoffs."},
+        {"skill": "CI/CD", "level": 7, "category": "DevOps", "why": "Shipping safely and often is part of the senior bar."},
+        {"skill": "Leadership", "level": 7, "category": "Collaboration", "why": "Reviewing, mentoring, and unblocking others is how seniority shows."},
     ],
     "principal": [
-        {"skill": "System Design", "level": 9, "category": "Architecture"},
-        {"skill": "Technical Leadership", "level": 9, "category": "Leadership"},
-        {"skill": "Stakeholder Management", "level": 8, "category": "Collaboration"},
-        {"skill": "Architecture Reviews", "level": 8, "category": "Architecture"},
+        {"skill": "System Design", "level": 9, "category": "Architecture", "why": "Staff and principal engineers set the technical direction across teams."},
+        {"skill": "Technical Leadership", "level": 9, "category": "Leadership", "why": "The role leads through influence across teams."},
+        {"skill": "Stakeholder Management", "level": 8, "category": "Collaboration", "why": "Technical plans have to be agreed with product and business leads."},
+        {"skill": "Architecture Reviews", "level": 8, "category": "Architecture", "why": "The role is accountable for the quality of other teams' designs."},
+    ],
+    "manager": [
+        {"skill": "People Leadership", "level": 8, "category": "Leadership", "why": "An engineering manager is measured on the growth and health of the team."},
+        {"skill": "Delivery Management", "level": 7, "category": "Delivery", "why": "Predictable delivery is the first thing the business expects from the role."},
+        {"skill": "Stakeholder Management", "level": 8, "category": "Collaboration", "why": "The manager negotiates scope, dates, and priorities with other leads."},
+        {"skill": "Hiring & Coaching", "level": 7, "category": "Leadership", "why": "Building the team through hiring and coaching is a core duty."},
+        {"skill": "System Design", "level": 7, "category": "Architecture", "why": "Engineering managers still need enough depth to judge technical risk."},
+    ],
+    "product": [
+        {"skill": "Product Discovery", "level": 8, "category": "Product", "why": "The role decides what to build from evidence about users."},
+        {"skill": "Roadmapping", "level": 8, "category": "Product", "why": "Turning strategy into a sequenced plan is the visible output of the role."},
+        {"skill": "Stakeholder Management", "level": 8, "category": "Collaboration", "why": "Product managers align engineering, design, and business on one plan."},
+        {"skill": "Data Analysis", "level": 7, "category": "Analytics", "why": "Decisions are expected to be backed by product data."},
+        {"skill": "User Research", "level": 7, "category": "Product", "why": "Direct user evidence is the current hiring bar for product roles."},
+    ],
+    "security": [
+        {"skill": "Cloud Security", "level": 8, "category": "Security", "why": "Most production risk now sits in cloud configuration and identity."},
+        {"skill": "Threat Modeling", "level": 8, "category": "Security", "why": "Security engineers are expected to find risk at design time."},
+        {"skill": "Identity & Access", "level": 7, "category": "Security", "why": "Identity is the main control boundary in modern systems."},
+        {"skill": "Incident Response", "level": 7, "category": "Security", "why": "The role leads the response when something goes wrong."},
+        {"skill": "Secure Coding", "level": 7, "category": "Security", "why": "Reviewing and fixing application code is part of daily work."},
+    ],
+    "platform": [
+        {"skill": "Kubernetes", "level": 8, "category": "DevOps", "why": "Most platform teams run workloads on a container platform."},
+        {"skill": "Terraform", "level": 8, "category": "DevOps", "why": "Platform changes are expected to be reviewed as code."},
+        {"skill": "CI/CD", "level": 8, "category": "DevOps", "why": "The platform team owns the path from commit to production."},
+        {"skill": "Observability", "level": 7, "category": "Operations", "why": "Reliability work starts from metrics, logs, and traces."},
+        {"skill": "Cloud Security", "level": 7, "category": "Security", "why": "Platform defaults decide how secure every service is."},
+        {"skill": "Linux", "level": 7, "category": "Operations", "why": "Debugging production still ends at the operating system."},
     ],
     "cloud": [
-        {"skill": "AWS", "level": 8, "category": "Cloud"},
-        {"skill": "Azure", "level": 7, "category": "Cloud"},
-        {"skill": "Kubernetes", "level": 8, "category": "DevOps"},
-        {"skill": "System Design", "level": 8, "category": "Architecture"},
+        {"skill": "AWS", "level": 8, "category": "Cloud", "why": "A cloud architect designs production systems on at least one major platform."},
+        {"skill": "Azure", "level": 7, "category": "Cloud", "why": "One additional platform at working depth is the usual bar."},
+        {"skill": "Terraform", "level": 8, "category": "DevOps", "why": "Infrastructure has to be reviewed as code."},
+        {"skill": "Kubernetes", "level": 8, "category": "DevOps", "why": "The runtime the architect is accountable for is usually a container platform."},
+        {"skill": "System Design", "level": 8, "category": "Architecture", "why": "The role is judged on the design tradeoffs it makes and explains."},
+        {"skill": "Cloud Security", "level": 8, "category": "Security", "why": "Identity, network boundaries, and data protection belong in the design."},
+        {"skill": "Cloud Networking", "level": 7, "category": "Cloud", "why": "Connectivity, DNS, and private access are part of the architecture."},
+        {"skill": "Cloud Cost", "level": 7, "category": "Cloud", "why": "Current hiring expects every design to account for its running cost."},
     ],
     "data": [
-        {"skill": "Python", "level": 8, "category": "Programming"},
-        {"skill": "Machine Learning", "level": 8, "category": "AI/ML"},
-        {"skill": "Data Architecture", "level": 8, "category": "Data"},
-        {"skill": "Model Deployment", "level": 7, "category": "MLOps"},
+        {"skill": "Python", "level": 8, "category": "Programming", "why": "Python is the working language of most data and ML teams."},
+        {"skill": "Machine Learning", "level": 8, "category": "AI/ML", "why": "The role is judged on models that work on real data."},
+        {"skill": "Data Architecture", "level": 7, "category": "Data", "why": "Models are only as good as the data design behind them."},
+        {"skill": "Model Deployment", "level": 7, "category": "MLOps", "why": "Current hiring expects models to reach production and stay healthy there."},
+        {"skill": "Statistics", "level": 7, "category": "Analytics", "why": "Sound model evaluation rests on statistics."},
+    ],
+    "data_engineering": [
+        {"skill": "SQL", "level": 8, "category": "Data", "why": "SQL is the daily tool for building and checking data."},
+        {"skill": "Python", "level": 7, "category": "Programming", "why": "Pipelines and tooling are usually written in Python."},
+        {"skill": "Data Pipelines", "level": 8, "category": "Data", "why": "The role owns reliable movement of data between systems."},
+        {"skill": "Data Modeling", "level": 7, "category": "Data", "why": "Good models keep analytics fast and correct."},
+        {"skill": "Cloud Data Platforms", "level": 7, "category": "Cloud", "why": "Most data work now runs on managed cloud platforms."},
     ],
     "frontend": [
-        {"skill": "React", "level": 8, "category": "Frontend"},
-        {"skill": "TypeScript", "level": 8, "category": "Frontend"},
-        {"skill": "UI/UX", "level": 7, "category": "Design"},
-        {"skill": "Performance Optimization", "level": 7, "category": "Frontend"},
+        {"skill": "React", "level": 8, "category": "Frontend", "why": "React is the most common frontend stack in current hiring."},
+        {"skill": "TypeScript", "level": 8, "category": "Frontend", "why": "Typed frontends are the expected standard for production work."},
+        {"skill": "UI/UX", "level": 7, "category": "Design", "why": "Frontend engineers are expected to judge usability as well as build screens."},
+        {"skill": "Performance Optimization", "level": 7, "category": "Frontend", "why": "Load time and responsiveness are measured product outcomes."},
     ],
 }
+
+ROLE_SUGGESTIONS = [
+    "Cloud Architect",
+    "Senior Software Engineer",
+    "Staff Engineer",
+    "Principal Engineer",
+    "Engineering Manager",
+    "Platform Engineer",
+    "Site Reliability Engineer",
+    "Security Engineer",
+    "Data Scientist",
+    "Machine Learning Engineer",
+    "Data Engineer",
+    "Frontend Engineer",
+    "Product Manager",
+]
 
 MARKET_TRENDS = [
     MarketTrendResponse(skill="System Design", category="Architecture", trend="+18%", implication="Still the clearest signal for senior and staff engineering mobility."),
@@ -128,15 +188,30 @@ def _requirements_for_goal(target_role: str, focus_area: str | None, internal_ro
                     }
                     for r in raw
                 ]
-    if "principal" in role_lower or "staff" in role_lower:
-        return ROLE_SKILL_LIBRARY["principal"]
-    if "cloud" in role_lower or "architect" in role_lower:
-        return ROLE_SKILL_LIBRARY["cloud"]
-    if "data" in role_lower or "ai" in role_lower or "machine learning" in role_lower:
-        return ROLE_SKILL_LIBRARY["data"]
-    if "frontend" in role_lower or "ui" in role_lower:
-        return ROLE_SKILL_LIBRARY["frontend"]
-    return ROLE_SKILL_LIBRARY["default"]
+    return ROLE_SKILL_LIBRARY[_role_family(role_lower)]
+
+
+def _role_family(role_lower: str) -> str:
+    words = set(re.findall(r"[a-z]+", role_lower))
+    if "principal" in words or "staff" in words:
+        return "principal"
+    if "product" in words and ("manager" in words or "owner" in words):
+        return "product"
+    if "manager" in words or "head" in words or ("team" in words and "lead" in words):
+        return "manager"
+    if "security" in words or "appsec" in words:
+        return "security"
+    if words & {"devops", "platform", "sre", "reliability", "infrastructure"}:
+        return "platform"
+    if "cloud" in words or "architect" in words:
+        return "cloud"
+    if "data" in words and "engineer" in words:
+        return "data_engineering"
+    if words & {"data", "ai", "ml", "scientist"} or "machine learning" in role_lower:
+        return "data"
+    if words & {"frontend", "ui"} or "front-end" in role_lower or "front end" in role_lower:
+        return "frontend"
+    return "default"
 
 
 def _fetch_employee_context(employee_id: str, sb: Client) -> dict[str, Any]:
@@ -849,6 +924,367 @@ def _build_roadmap(
     return roadmap
 
 
+REQUIREMENT_ALIASES: dict[str, tuple[str, ...]] = {
+    "aws": ("aws", "amazon web services"),
+    "azure": ("azure",),
+    "gcp": ("gcp", "google cloud"),
+    "terraform": ("terraform",),
+    "kubernetes": ("kubernetes", "k8s"),
+    "system design": ("system design",),
+    "cloud security": ("cloud security",),
+    "cloud networking": ("cloud networking", "networking", "network architecture"),
+    "cloud cost": ("cloud cost", "finops", "cost optimization"),
+    "ci/cd": ("ci/cd", "cicd", "continuous delivery", "continuous integration"),
+    "leadership": ("leadership", "mentoring"),
+    "backend development": ("backend", "api development", "server-side"),
+    "technical leadership": ("technical leadership", "tech lead", "leadership"),
+    "architecture reviews": ("architecture review", "design review"),
+    "stakeholder management": ("stakeholder", "communication"),
+    "people leadership": ("people leadership", "people management", "team leadership", "leadership"),
+    "delivery management": ("delivery management", "project management", "agile", "scrum"),
+    "hiring & coaching": ("hiring", "coaching", "mentoring"),
+    "product discovery": ("product discovery", "discovery"),
+    "roadmapping": ("roadmap", "product strategy"),
+    "data analysis": ("data analysis", "analytics"),
+    "user research": ("user research", "ux research"),
+    "threat modeling": ("threat model",),
+    "identity & access": ("identity", "iam", "access management"),
+    "incident response": ("incident",),
+    "secure coding": ("secure coding", "appsec", "application security"),
+    "observability": ("observability", "monitoring", "prometheus", "grafana", "datadog"),
+    "linux": ("linux",),
+    "machine learning": ("machine learning", "deep learning"),
+    "model deployment": ("model deployment", "mlops"),
+    "statistics": ("statistic",),
+    "data architecture": ("data architecture",),
+    "data pipelines": ("pipeline", "etl", "airflow"),
+    "data modeling": ("data model",),
+    "cloud data platforms": ("snowflake", "databricks", "bigquery", "redshift", "data platform"),
+    "ui/ux": ("ui/ux", "ux design", "user experience", "ui design"),
+    "performance optimization": ("performance",),
+}
+
+
+def _match_requirement_level(requirement: str, skills: list[dict[str, Any]]) -> tuple[int, str | None]:
+    key = requirement.lower().strip()
+    aliases = REQUIREMENT_ALIASES.get(key, (key,))
+    best = 0
+    matched_name = None
+    for skill in skills:
+        skill_name = str(skill.get("name") or "").strip()
+        lowered = skill_name.lower()
+        if not lowered:
+            continue
+        if any(alias == lowered or alias in lowered for alias in aliases):
+            level = _normalize_skill_level(skill.get("proficiency"))
+            if level >= best:
+                best = level
+                matched_name = skill_name
+    return best, matched_name
+
+
+def build_comparable_roadmaps(
+    goal_id: str,
+    employee: dict[str, Any],
+    skills: list[dict[str, Any]],
+    projects: list[dict[str, Any]],
+    target_role: str,
+    sb: Client,
+    persisted: list[dict[str, Any]] | None = None,
+    requirements: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Roadmaps that contain only skills the goal still requires.
+
+    The bar is the role requirement, matched to this employee's recorded skills.
+    A skill already at that bar, or a skill the goal does not require, is not a step.
+    """
+    del employee, sb
+    requirements = requirements or _requirements_for_goal(target_role, None, [])
+    needed: list[dict[str, Any]] = []
+    met: list[dict[str, Any]] = []
+    for req in requirements:
+        name = str(req.get("skill") or "").strip()
+        if len(name) < 2:
+            continue
+        required = _normalize_skill_level(req.get("level"))
+        if required <= 0:
+            continue
+        current, matched = _match_requirement_level(name, skills)
+        shown = matched or name
+        source = str(req.get("why") or f"Required for {target_role}.")
+        row = {
+            "skill": shown,
+            "requirement": name,
+            "current": current,
+            "required": required,
+            "gap": max(0, required - current),
+            "source": source,
+            "focus": True,
+        }
+        if current >= required:
+            met.append(row)
+        else:
+            needed.append(row)
+    needed.sort(key=lambda row: (-row["gap"], row["skill"]))
+
+    def steps_for(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+        built = []
+        order = 1
+        for row in rows:
+            current = int(row["current"])
+            required = int(row["required"])
+            gap = int(row["gap"])
+            skill = row["skill"]
+            source = row["source"]
+            recorded = "on the profile" if current else "not recorded on the profile"
+            project = next((
+                project.get("name") for project in projects
+                if skill.lower() in f"{project.get('name') or ''} {' '.join(project.get('technologies') or [])}".lower()
+                and str(project.get("status") or "").lower() not in {"completed", "done"}
+            ), None)
+            where = f" Do the work in “{project}”." if project else " Do it in work you already own."
+            phases: list[tuple[str, str, str, int]] = []
+            if not rows:
+                pass
+            if gap <= 1:
+                phases.append((
+                    "close",
+                    f"Raise {skill} from {current}/10 to {required}/10",
+                    (
+                        f"{target_role} requires {skill} at {required}/10. It is {recorded} at {current}/10. {source}{where} "
+                        f"The step is done when a work sample shows {required}/10."
+                    ),
+                    max(12, gap * 20),
+                ))
+            else:
+                midpoint = current + max(1, gap // 2)
+                phases.append((
+                    "practice",
+                    f"Practice {skill} from {current}/10 to {midpoint}/10",
+                    (
+                        f"{target_role} requires {skill} at {required}/10. It is {recorded} at {current}/10. {source}{where} "
+                        f"This step closes the first part of that gap."
+                    ),
+                    max(12, (midpoint - current) * 20),
+                ))
+                phases.append((
+                    "proof",
+                    f"Show {skill} at the required {required}/10",
+                    (
+                        f"Finish {skill} from {midpoint}/10 to the {required}/10 this goal requires. {source} "
+                        f"The step is done when the work sample shows that level."
+                    ),
+                    max(12, (required - midpoint) * 20),
+                ))
+            for phase, title, description, hours in phases:
+                prev = next((item for item in (persisted or []) if item.get("title") == title), None)
+                built.append({
+                    "id": (prev or {}).get("id") or str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:{key}:{skill}:{phase}")),
+                    "career_goal_id": goal_id,
+                    "step_order": order,
+                    "title": title,
+                    "description": description,
+                    "status": (prev or {}).get("status") or "upcoming",
+                    "step_type": "evidence" if phase in {"proof", "close"} else "learning",
+                    "skill": skill,
+                    "related_skill_gap_id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:gap:{skill}")),
+                    "requires_evidence": True,
+                    "evidence_type": "project",
+                    "estimated_hours": hours,
+                    "xp_reward": 80 if phase in {"proof", "close"} else 50,
+                    "due_window": f"{max(1, round(hours / 10))} months",
+                    "completed_at": (prev or {}).get("completed_at"),
+                })
+                order += 1
+        return built
+
+    def pack(key: str, title: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+        steps = steps_for(rows, key) if rows else []
+        if not rows:
+            title_step = f"The {target_role} skill bar is already met"
+            prev = next((item for item in (persisted or []) if item.get("title") == title_step), None)
+            steps = [{
+                "id": (prev or {}).get("id") or str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:{key}:met")),
+                "career_goal_id": goal_id,
+                "step_order": 1,
+                "title": title_step,
+                "description": (
+                    f"Every skill {target_role} requires is already at the required level on this profile. "
+                    "No extra skill from the profile is added, because the goal does not require it."
+                ),
+                "status": (prev or {}).get("status") or "upcoming",
+                "step_type": "milestone",
+                "related_skill_gap_id": None,
+                "requires_evidence": False,
+                "evidence_type": "manager_signoff",
+                "estimated_hours": 4,
+                "xp_reward": 40,
+                "due_window": "This month",
+                "completed_at": (prev or {}).get("completed_at"),
+            }]
+        all_rows = met + needed
+        required_sum = sum(int(row["required"]) for row in all_rows) or 1
+        covered = sum(min(int(row["current"]), int(row["required"])) for row in all_rows)
+        hours = sum(step["estimated_hours"] for step in steps)
+        months = max(1, round(hours / 10)) if rows else 1
+        met_names = ", ".join(f"{row['skill']} {row['current']}/10" for row in met[:6]) or "none yet"
+        short_names = ", ".join(f"{row['skill']} {row['current']}/10 against {row['required']}/10" for row in rows) or "none"
+        summary = (
+            f"{title}. {target_role} is scored against {len(all_rows)} required skills. "
+            f"Already at the bar: {met_names}. Still required: {short_names}. "
+            f"Skills on the profile that this goal does not require are left out. "
+            f"About {hours} hours, roughly {months} {'month' if months == 1 else 'months'} at 10 hours a month."
+        )
+        return {
+            "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:{key}")),
+            "title": title,
+            "summary": summary,
+            "measured": rows,
+            "at_bar": met,
+            "readiness_pct": round(100 * covered / required_sum),
+            "months": months,
+            "step_count": len(steps),
+            "steps": steps,
+        }
+
+    options = []
+    full = pack("role", f"Skills {target_role} still requires", needed)
+    if full:
+        options.append(full)
+    if len(needed) >= 4:
+        widest = pack("widest", f"Largest {target_role} gaps first", needed[:3])
+        if widest:
+            options.append(widest)
+    return options
+
+
+def requirement_gaps_for_employee(sb: Client, employee_id: str) -> list[dict[str, Any]] | None:
+    """Unmet skills for the active goal, using the same bar as the career roadmap.
+
+    Returns None when the employee has no active goal. An empty list means the
+    goal exists and every required skill is already at the bar.
+    """
+    goals = sb.table("career_goals").select("id, target_role").eq("employee_id", employee_id).eq("is_active", True).limit(1).execute().data or []
+    if not goals:
+        return None
+    goal = goals[0]
+    from app.services.career_market import role_profile
+
+    skills = sb.table("skills").select("*").eq("employee_id", employee_id).execute().data or []
+    target_role = str(goal.get("target_role") or "")
+    profile = role_profile(sb, employee_id, target_role, skills)
+    rows = goal_requirement_rows(str(goal["id"]), target_role, skills, profile["requirements"])
+    needed = [row["gap_row"] for row in rows if row["gap"] > 0]
+    sync_goal_gaps(sb, str(goal["id"]), needed)
+    return needed
+
+
+def _matched_level(req: dict[str, Any], skills: list[dict[str, Any]]) -> tuple[int, str | None]:
+    """Level from the Skill DNA entries named as evidence for this requirement, else alias matching."""
+    by_name = {str(skill.get("name") or "").strip().casefold(): skill for skill in skills if skill.get("name")}
+    best, best_name = 0, None
+    for name in req.get("matches") or []:
+        skill = by_name.get(str(name).strip().casefold())
+        if skill:
+            level = _normalize_skill_level(skill.get("proficiency"))
+            if best_name is None or level > best:
+                best, best_name = level, str(skill["name"])
+    if best_name is not None:
+        return best, best_name
+    return _match_requirement_level(str(req.get("skill") or ""), skills)
+
+
+def goal_requirement_rows(
+    goal_id: str,
+    target_role: str,
+    skills: list[dict[str, Any]],
+    requirements: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Every requirement of the goal, measured against the employee's recorded skills."""
+    rows: list[dict[str, Any]] = []
+    for req in requirements if requirements is not None else _requirements_for_goal(target_role, None, []):
+        name = str(req.get("skill") or "").strip()
+        if len(name) < 2:
+            continue
+        required = _normalize_skill_level(req.get("level"))
+        if required <= 0:
+            continue
+        current, matched = _matched_level(req, skills)
+        researched = "matches" in req
+        shown = name if researched else (matched or name)
+        gap = max(0, required - current)
+        gap_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:gap:{shown}"))
+        hours = int(req.get("hours_to_close") or 0)
+        estimated = min(max(hours, gap * 8), gap * 40) if hours and gap else max(gap, 1) * 20
+        rows.append({
+            "requirement": name,
+            "skill": shown,
+            "recorded_as": matched,
+            "current": current,
+            "required": required,
+            "gap": gap,
+            "category": req.get("category") or "General",
+            "why": str(req.get("why") or f"Required for {target_role}."),
+            "market_signal": req.get("market_signal"),
+            "related": req.get("related") or [],
+            "practice_task": req.get("practice_task"),
+            "proof": req.get("proof"),
+            "resources": req.get("resources") or [],
+            "hours_to_close": estimated,
+            "gap_id": gap_id,
+            "gap_row": {
+                "id": gap_id,
+                "goal_id": goal_id,
+                "skill": shown,
+                "current_level": current,
+                "target_level": required,
+                "gap": gap,
+                "recommended_path": f"Practice {shown} from {current}/10 to {required}/10, then attach a work sample at that level.",
+                "estimated_hours": estimated,
+                "status": "not_started",
+                "path_type": "project",
+                "priority": "High" if gap >= 3 else "Medium" if gap == 2 else "Low",
+                "category": "Measured",
+            },
+        })
+    return rows
+
+
+def sync_goal_gaps(sb: Client, goal_id: str, needed: list[dict[str, Any]]) -> None:
+    stored = sb.table("skill_gaps").select("id, skill, current_level").eq("goal_id", goal_id).execute().data or []
+    stored_keys = {(str(row.get("id")), str(row.get("skill")), int(row.get("current_level") or 0)) for row in stored}
+    wanted = {(row["id"], row["skill"], int(row["current_level"])) for row in needed}
+    if stored_keys != wanted:
+        sb.table("skill_gaps").delete().eq("goal_id", goal_id).execute()
+        if needed:
+            sb.table("skill_gaps").insert(_db_payload(needed, _SKILL_GAP_DB_KEYS)).execute()
+
+
+def _project_evidence(projects: list[dict[str, Any]], skill_names: list[str]) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for project in projects:
+        technologies = project.get("technologies") or []
+        if isinstance(technologies, str):
+            technologies = [technologies]
+        label = f"{project.get('name') or ''} {' '.join(str(item) for item in technologies)}".lower()
+        matched: list[str] = []
+        for skill in skill_names:
+            skill_name = skill.lower()
+            token = skill_name.split()[0]
+            if len(skill_name) >= 3 and re.search(rf"(?<!\w){re.escape(skill_name)}(?!\w)", label):
+                matched.append(skill)
+            elif len(token) >= 4 and re.search(rf"(?<!\w){re.escape(token)}(?!\w)", label):
+                matched.append(skill)
+        if not matched:
+            continue
+        status = str(project.get("status") or "In progress")
+        items.append({
+            "title": str(project.get("name") or "Project"),
+            "detail": f"{status}. Names {', '.join(matched[:4])}.",
+        })
+    return items[:6]
+
+
 def _build_internal_role_matches(employee_id: str, target_role: str, skills: list[dict[str, Any]], roles: list[dict[str, Any]]) -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
     for role in roles:
@@ -1138,6 +1574,56 @@ def compute_career_state(
         all_skills = sb.table("skills").select("employee_id, name, proficiency").execute().data or []
         mentor_matches = _build_mentor_matches(employee_id, target_role, requirements, all_employees, all_skills, persisted_mentors)
     next_action = _next_action_from_ai(ai_analysis, skill_gaps, roadmap) if ai_analysis else _choose_next_action(skill_gaps, roadmap)
+    skill_roadmaps = build_comparable_roadmaps(
+        goal_id, employee, context["skills"], context.get("projects") or [], target_role, sb, persisted_roadmap
+    )
+    selected_id = None
+    if str(ai_cache.get("selected_for_role") or "") == str(target_role) and ai_cache.get("selected_roadmap_id"):
+        selected_id = ai_cache.get("selected_roadmap_id")
+    chosen = next((item for item in skill_roadmaps if item["id"] == selected_id), None)
+    if chosen:
+        roadmap = chosen["steps"]
+    elif skill_roadmaps:
+        roadmap = []
+    if skill_roadmaps:
+        lead = (chosen or skill_roadmaps[0])["steps"][0]
+        next_action = {
+            "title": lead["title"],
+            "description": lead["description"],
+            "action_type": "roadmap_step",
+            "target_id": lead["id"],
+            "estimated_hours": lead["estimated_hours"],
+            "xp_reward": lead["xp_reward"],
+        }
+        measured: list[dict[str, Any]] = []
+        seen_skills: set[str] = set()
+        for option in skill_roadmaps:
+            for row in option.get("measured") or []:
+                if row["skill"] in seen_skills:
+                    continue
+                seen_skills.add(row["skill"])
+                measured.append(row)
+        if measured:
+            skill_gaps = []
+            for row in sorted(measured, key=lambda item: (-item["gap"], item["skill"]))[:8]:
+                skill_gaps.append({
+                    "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:gap:{row['skill']}")),
+                    "goal_id": goal_id,
+                    "skill": row["skill"],
+                    "current_level": row["current"],
+                    "target_level": row["required"],
+                    "gap": row["gap"],
+                    "recommended_path": (
+                        f"Practice {row['skill']} from {row['current']}/10 to {row['required']}/10, then attach a work sample at that level. "
+                        f"The bar comes from {row['source']}. About {max(row['gap'], 1) * 20} hours."
+                    ),
+                    "estimated_hours": max(row["gap"], 1) * 20,
+                    "status": "not_started",
+                    "path_type": "project",
+                    "priority": "High" if row["gap"] >= 3 else "Medium" if row["gap"] == 2 else "Low",
+                    "category": "Measured",
+                })
+
     evidence_rows = sb.table("evidence_submissions").select("*").eq("employee_id", employee_id).execute().data or []
     xp_rows = sb.table("xp_events").select("*").eq("employee_id", employee_id).order("timestamp", desc=True).execute().data or []
     stall_rows = sb.table("stall_flags").select("*").eq("employee_id", employee_id).eq("goal_id", goal_id).eq("resolved", False).order("flagged_at", desc=True).limit(1).execute().data or []
@@ -1155,23 +1641,131 @@ def compute_career_state(
     for step in roadmap:
         step["evidence_submitted"] = evidence_count_by_step.get(step["id"], 0) > 0
 
-    strengths = [
-        str(item).strip()
-        for item in (ai_analysis or {}).get("strengths", [])
-        if str(item).strip()
-    ][:3] or [f"Current evidence is strongest in {row['name'].replace('_', ' ')} ({row['score']}%)." for row in sorted(readiness_components, key=lambda x: -x["score"])[:2]]
-    blockers = [
-        str(item).strip()
-        for item in (ai_analysis or {}).get("blockers", [])
-        if str(item).strip()
-    ][:3] or [f"{gap['skill']} is still {gap['gap']} level(s) short of the target bar." for gap in sorted(skill_gaps, key=lambda x: (-x["gap"], x["skill"]))[:3] if gap["gap"] > 0]
-    readiness_explanation = " / ".join(f"{row['name'].replace('_', ' ')} {row['score']}%" for row in readiness_components)
-    summary = str((ai_analysis or {}).get("summary") or "").strip() or (
-        f"You are {_readiness_band(readiness_score).lower()} for {target_role} at {readiness_score}% readiness. "
-        f"The biggest gaps are {', '.join(g['skill'] for g in sorted(skill_gaps, key=lambda x: (-x['gap'], x['skill']))[:2]) or 'already covered'}. "
-        f"The fastest path this week is to {next_action['title'].lower()}." if next_action else
-        f"You are {_readiness_band(readiness_score).lower()} for {target_role} at {readiness_score}% readiness."
-    )
+    timeline_note = ""
+    manager_brief = ""
+    evidence_items: list[dict[str, str]] = []
+    steps_completed = 0
+    steps_total = 0
+
+    if skill_roadmaps:
+        measured_rows = []
+        seen_names: set[str] = set()
+        at_bar_rows: list[dict[str, Any]] = []
+        seen_bar: set[str] = set()
+        for option in skill_roadmaps:
+            for row in option.get("measured") or []:
+                if row["skill"] not in seen_names:
+                    seen_names.add(row["skill"])
+                    measured_rows.append(row)
+            for row in option.get("at_bar") or []:
+                if row["skill"] not in seen_bar:
+                    seen_bar.add(row["skill"])
+                    at_bar_rows.append(row)
+        active_plan = chosen or skill_roadmaps[0]
+        plan_rows = active_plan.get("measured") or measured_rows
+        strengths = [
+            f"{row['skill']} already meets the comparison at {row['current']}/10 ({row['source']})."
+            for row in sorted(at_bar_rows, key=lambda item: -item["current"])[:4]
+        ] or [
+            f"{row['skill']} is already {row['current']}/10."
+            for row in sorted(plan_rows, key=lambda item: -item["current"])[:3]
+        ]
+        blockers = [
+            f"{row['skill']} is {row['gap']} point(s) below {row['required']}/10 ({row['source']})."
+            for row in sorted(plan_rows, key=lambda item: -item["gap"])[:3]
+            if row["gap"] > 0
+        ]
+        summary = active_plan["summary"]
+        if not chosen and len(skill_roadmaps) > 1:
+            summary += " Other plans you can still choose: " + "; ".join(item["title"] for item in skill_roadmaps[1:]) + "."
+        readiness_score = int(active_plan["readiness_pct"])
+        plan_months = int(active_plan["months"])
+        horizon = max((int(num) for num in re.findall(r"\d+", str(timeline or ""))), default=0)
+        if horizon and plan_months > horizon:
+            timeline_note = (
+                f"The goal window is {timeline}, and this plan needs about {plan_months} months at 10 hours a month. "
+                "Those dates do not match. Extend the goal, or choose the shorter plan."
+            )
+            timeline_score = max(20, round(100 * horizon / plan_months))
+        elif horizon:
+            timeline_note = f"About {plan_months} months at 10 hours a month, which fits inside the {timeline} window."
+            timeline_score = 100
+        else:
+            timeline_note = f"About {plan_months} months at 10 hours a month. The goal has no time window to compare."
+            timeline_score = 70
+        evidence_items = _project_evidence(context.get("projects") or [], [row["skill"] for row in measured_rows] + [row["skill"] for row in at_bar_rows])
+        evidence_score = min(100, 25 * len(evidence_items)) if evidence_items else 15
+        steps_total = len(active_plan["steps"])
+        steps_completed = sum(1 for step in (roadmap if chosen else []) if step.get("status") == "achieved")
+        readiness_components = [
+            {
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:skills")),
+                "goal_id": goal_id,
+                "name": "skills_coverage",
+                "score": readiness_score,
+                "weight": 0.6,
+                "explanation": f"On this plan you already meet {readiness_score}% of the comparison bars. The ring is that skill coverage, not a mix of certificates.",
+            },
+            {
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:evidence")),
+                "goal_id": goal_id,
+                "name": "evidence_on_file",
+                "score": evidence_score,
+                "weight": 0.25,
+                "explanation": f"{len(evidence_items)} project{'s' if len(evidence_items) != 1 else ''} already name a skill in this plan." if evidence_items else "No project on file names these skills yet. The first proof step should create that link.",
+            },
+            {
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{goal_id}:timeline")),
+                "goal_id": goal_id,
+                "name": "timeline_fit",
+                "score": timeline_score,
+                "weight": 0.15,
+                "explanation": timeline_note,
+            },
+        ]
+        market_trends = [
+            {
+                "skill": row["skill"],
+                "category": "Already at the bar",
+                "trend": f"{row['current']}/10",
+                "implication": f"Meets the comparison of {row['required']}/10. Source: {row['source']}.",
+            }
+            for row in sorted(at_bar_rows, key=lambda item: -item["current"])[:3]
+        ]
+        market_trends.extend(
+            {
+                "skill": item["title"],
+                "category": "Work on file",
+                "trend": "Recorded",
+                "implication": item["detail"],
+            }
+            for item in evidence_items[:3]
+        )
+        first_gap = blockers[0] if blockers else "No large skill gap is on this plan."
+        proof = evidence_items[0]["title"] if evidence_items else "no project linked yet"
+        manager_brief = (
+            f"I am a {employee.get('role') or 'employee'} aiming at {target_role}. "
+            f"Skill coverage on the saved plan is {readiness_score}%. {first_gap} "
+            f"Work already on file includes {proof}. "
+            f"I am not asking for a decision on the role. I want agreement on the first proof step: {next_action['title'] if next_action else 'the first roadmap step'}."
+        )
+    else:
+        strengths = [
+            str(item).strip()
+            for item in (ai_analysis or {}).get("strengths", [])
+            if str(item).strip()
+        ][:3] or [f"Current evidence is strongest in {row['name'].replace('_', ' ')} ({row['score']}%)." for row in sorted(readiness_components, key=lambda x: -x["score"])[:2]]
+        blockers = [
+            str(item).strip()
+            for item in (ai_analysis or {}).get("blockers", [])
+            if str(item).strip()
+        ][:3] or [f"{gap['skill']} is still {gap['gap']} level(s) short of the target bar." for gap in sorted(skill_gaps, key=lambda x: (-x["gap"], x["skill"]))[:3] if gap["gap"] > 0]
+        summary = str((ai_analysis or {}).get("summary") or "").strip() or (
+            f"You are {_readiness_band(readiness_score).lower()} for {target_role} at {readiness_score}% readiness. "
+            f"The biggest gaps are {', '.join(g['skill'] for g in sorted(skill_gaps, key=lambda x: (-x['gap'], x['skill']))[:2]) or 'already covered'}. "
+            f"The fastest path this week is to {next_action['title'].lower()}." if next_action else
+            f"You are {_readiness_band(readiness_score).lower()} for {target_role} at {readiness_score}% readiness."
+        )
 
     ai_cache_out = None
     if ai_analysis and run_ai:
@@ -1184,6 +1778,8 @@ def compute_career_state(
             "market_trends": market_trends,
             "next_action": next_action,
             "generated_for_role": target_role,
+            "selected_roadmap_id": selected_id,
+            "selected_for_role": target_role if selected_id else None,
         }
 
     return {
@@ -1195,6 +1791,8 @@ def compute_career_state(
         "readiness_components": readiness_components,
         "skill_gaps": skill_gaps,
         "roadmap": roadmap,
+        "roadmap_options": skill_roadmaps,
+        "selected_roadmap_id": selected_id,
         "internal_roles": role_matches,
         "mentors": mentor_matches,
         "market_trends": market_trends or [row.model_dump() for row in MARKET_TRENDS],
@@ -1203,6 +1801,11 @@ def compute_career_state(
         "summary": summary,
         "strengths": strengths,
         "blockers": blockers,
+        "timeline_note": timeline_note,
+        "manager_brief": manager_brief,
+        "evidence_items": evidence_items,
+        "steps_completed": steps_completed,
+        "steps_total": steps_total,
         "xp_total": sum(int(row.get("amount") or 0) for row in xp_rows),
         "employee": employee,
         "ai_cache": ai_cache_out,
@@ -1260,6 +1863,13 @@ def analysis_response_from_state(employee_id: str, sb: Client, state: dict[str, 
             for row in state["skill_gaps"]
         ],
         roadmap_steps=[CareerRoadmapStepResponse(**row) for row in state["roadmap"]],
+        roadmap_options=[
+            SkillRoadmapOption(
+                **{**item, "steps": [CareerRoadmapStepResponse(**step) for step in item["steps"]]}
+            )
+            for item in state.get("roadmap_options") or []
+        ],
+        selected_roadmap_id=state.get("selected_roadmap_id"),
         internal_roles=[InternalRoleMatchResponse(**row) for row in state["internal_roles"]],
         mentors=[MentorMatchResponse(**row) for row in state["mentors"]],
         market_trends=[MarketTrendResponse(**row) for row in state["market_trends"]],
@@ -1268,6 +1878,11 @@ def analysis_response_from_state(employee_id: str, sb: Client, state: dict[str, 
         summary=state["summary"],
         strengths=state["strengths"],
         blockers=state["blockers"],
+        timeline_note=state.get("timeline_note") or "",
+        manager_brief=state.get("manager_brief") or "",
+        evidence_items=[CareerEvidenceItem(**row) for row in state.get("evidence_items") or []],
+        steps_completed=int(state.get("steps_completed") or 0),
+        steps_total=int(state.get("steps_total") or 0),
         xp_total=state["xp_total"],
     )
 

@@ -33,6 +33,33 @@ def ask_gemini(prompt: str, model: str = "gemini-2.5-flash") -> str:
     return response.text or ""
 
 
+def ask_gemini_grounded(prompt: str, model: str = "gemini-2.5-flash") -> tuple[str, list[dict[str, str]], list[str]]:
+    """Answer grounded with Google Search. Returns text, web sources, and the search queries used."""
+    from google.genai import types
+
+    client = _get_client()
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+            temperature=0.2,
+        ),
+    )
+    sources: list[dict[str, str]] = []
+    queries: list[str] = []
+    metadata = response.candidates[0].grounding_metadata if response.candidates else None
+    if metadata:
+        seen = set()
+        for chunk in metadata.grounding_chunks or []:
+            web = getattr(chunk, "web", None)
+            if web and web.uri and (web.title or web.uri) not in seen:
+                seen.add(web.title or web.uri)
+                sources.append({"title": web.title or web.uri, "uri": web.uri})
+        queries = list(metadata.web_search_queries or [])
+    return response.text or "", sources, queries
+
+
 def ask_gemini_with_image(
     prompt: str,
     image_bytes: bytes,

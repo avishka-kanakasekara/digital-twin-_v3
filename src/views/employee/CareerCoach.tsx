@@ -1,922 +1,1218 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
+  ArrowRight,
+  BookOpen,
   Briefcase,
+  CalendarClock,
+  Check,
   CheckCircle2,
+  Circle,
+  ClipboardCheck,
+  Copy,
   Eye,
   EyeOff,
-  Flag,
+  ExternalLink,
+  Flame,
+  Globe,
+  Hammer,
   Loader2,
   MessageSquare,
-  Milestone,
+  Minus,
+  Plus,
+  RefreshCw,
+  RotateCcw,
   Send,
-  Sparkles,
   Target,
-  TrendingUp,
+  Timer,
   Upload,
   UserPlus,
-  Zap,
-  Brain,
+  Award,
+  Users,
 } from 'lucide-react';
-import './CareerCoach.css';
-import {
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
-  ResponsiveContainer,
-  Tooltip,
-} from 'recharts';
-import { useNavigate } from 'react-router-dom';
-import { createPortal } from 'react-dom';
 
-import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Modal } from '../../components/Modal';
-import {
-  careerAPI,
-  type CareerAnalysis,
-  type CareerRoadmapStep,
-  type CareerSkillGap,
-} from '../../lib/api';
 import { useEmployee } from '../../contexts/EmployeeContext';
+import {
+  careerCoachAPI,
+  type CoachAction,
+  type CoachMarket,
+  type CoachMilestone,
+  type CoachPhase,
+  type CoachPlan,
+  type CoachRolePreview,
+} from '../../lib/api';
+import './CareerCoach.css';
 
+type Tab = 'plan' | 'skills' | 'people' | 'manager' | 'ask';
 type ChatMessage = { role: 'user' | 'assistant'; content: string; grounding?: string[] };
 
-const GOAL_DEFAULTS = {
-  target_role: 'Senior Software Engineer',
-  timeline: '12 months',
-  focus_area: 'Engineering',
-  target_industry: 'Technology',
-  visible_to_manager: false,
+const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
+  { id: 'plan', label: 'Plan', icon: CalendarClock },
+  { id: 'skills', label: 'Skill bar', icon: Target },
+  { id: 'people', label: 'People & roles', icon: Users },
+  { id: 'manager', label: 'Manager conversation', icon: Briefcase },
+  { id: 'ask', label: 'Ask the coach', icon: MessageSquare },
+];
+
+const PHASE_META: Record<CoachPhase['phase'], { label: string; icon: React.ElementType }> = {
+  learn: { label: 'Learn', icon: BookOpen },
+  apply: { label: 'Apply', icon: Hammer },
+  prove: { label: 'Confirm', icon: ClipboardCheck },
 };
 
-const evidenceTypeForStep = (step: CareerRoadmapStep) =>
-  step.evidence_type || (step.step_type === 'mentor' ? 'manager_signoff' : step.step_type === 'project' ? 'project' : 'certificate');
+const PACE_META = {
+  on_track: { label: 'On track', tone: 'good' },
+  at_risk: { label: 'Behind target', tone: 'warn' },
+  complete: { label: 'Ready', tone: 'good' },
+} as const;
 
-const priorityClass = (priority: string) => {
-  const key = priority.toLowerCase();
-  if (key === 'critical') return 'career-priority--critical';
-  if (key === 'high') return 'career-priority--high';
-  if (key === 'medium') return 'career-priority--medium';
-  return 'career-priority--low';
+const fmtDate = (iso?: string | null) => {
+  if (!iso) return '—';
+  const date = new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-const SectionHead: React.FC<{
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  action?: React.ReactNode;
-}> = ({ icon, title, subtitle, action }) => (
-  <div className="career-section__head">
-    <div className="career-section__title-row">
-      <div className="career-section__icon">{icon}</div>
-      <div>
-        <h2 className="career-section__title">{title}</h2>
-        {subtitle ? <p className="career-section__sub">{subtitle}</p> : null}
-      </div>
-    </div>
-    {action}
-  </div>
-);
+const fmtHours = (hours: number) => `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;
 
-const ReadinessRing: React.FC<{ score: number }> = ({ score }) => (
-  <div className="career-ring-wrap">
-    <svg viewBox="0 0 36 36" className="career-ring">
-      <defs>
-        <linearGradient id="careerRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#3b82f6" />
-          <stop offset="50%" stopColor="#6366f1" />
-          <stop offset="100%" stopColor="#10b981" />
-        </linearGradient>
-      </defs>
-      <path
-        className="career-ring__track"
-        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+const daysAgo = (days: number | null | undefined) => {
+  if (days === null || days === undefined) return 'No activity logged yet';
+  if (days <= 0) return 'Active today';
+  if (days === 1) return 'Active yesterday';
+  return `Last active ${days} days ago`;
+};
+
+const gapLink = (gapId?: string | null, skill?: string) => {
+  const params = new URLSearchParams();
+  if (gapId) params.set('gap', gapId);
+  if (skill) params.set('skill', skill);
+  return `/learning-hub?${params.toString()}`;
+};
+
+// ── Small pieces ─────────────────────────────────────────────────────────
+
+const Ring: React.FC<{ pct: number; size?: number }> = ({ pct, size = 112 }) => {
+  const stroke = 10;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const value = Math.max(0, Math.min(100, pct));
+  return (
+    <svg width={size} height={size} className="cc-ring" aria-label={`${value}% ready`}>
+      <circle cx={size / 2} cy={size / 2} r={radius} className="cc-ring__track" strokeWidth={stroke} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        className="cc-ring__value"
+        strokeWidth={stroke}
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * (1 - value / 100)}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
       />
-      <path
-        className="career-ring__fill"
-        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-        strokeDasharray={`${score}, 100`}
-      />
+      <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle" className="cc-ring__label">
+        {value}%
+      </text>
     </svg>
-    <div className="career-ring__center">
-      <span className="career-ring__score">{score}%</span>
-      <span className="career-ring__label">Readiness</span>
+  );
+};
+
+const LevelBar: React.FC<{ start?: number; current: number; required: number }> = ({ start, current, required }) => (
+  <div className="cc-level" aria-label={`${current} of ${required} out of 10`}>
+    <div className="cc-level__track">
+      {start !== undefined && start < current && (
+        <div className="cc-level__start" style={{ width: `${start * 10}%` }} />
+      )}
+      <div className={`cc-level__fill ${current >= required ? 'cc-level__fill--met' : ''}`} style={{ width: `${Math.min(current, 10) * 10}%` }} />
+      <div className="cc-level__bar" style={{ left: `${required * 10}%` }} title={`Role needs ${required}/10`} />
     </div>
+    <span className="cc-level__text">
+      {current}/10 <span>· needs {required}</span>
+    </span>
   </div>
 );
 
-export const CareerCoach: React.FC = () => {
-  const { currentEmployee, loading: employeeLoading } = useEmployee();
-  const navigate = useNavigate();
+const StatusIcon: React.FC<{ status: CoachPhase['status'] }> = ({ status }) => {
+  if (status === 'achieved') return <CheckCircle2 className="cc-status cc-status--done" size={20} />;
+  if (status === 'in_progress') return <Timer className="cc-status cc-status--active" size={20} />;
+  return <Circle className="cc-status" size={20} />;
+};
 
-  const [loading, setLoading] = useState(true);
-  const [savingGoal, setSavingGoal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<CareerAnalysis | null>(null);
-  const [goalForm, setGoalForm] = useState(GOAL_DEFAULTS);
-  const [goalModalOpen, setGoalModalOpen] = useState(false);
-  const [showBreakdown, setShowBreakdown] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [chatting, setChatting] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [mentorLoadingId, setMentorLoadingId] = useState<string | null>(null);
-  const [evidenceModal, setEvidenceModal] = useState<{ skillGap?: CareerSkillGap; step?: CareerRoadmapStep } | null>(null);
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
-  const [evidenceDescription, setEvidenceDescription] = useState('');
-  const [evidenceSubmitting, setEvidenceSubmitting] = useState(false);
-  const [stepUpdatingId, setStepUpdatingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+const Stepper: React.FC<{ value: number; min: number; max: number; suffix: string; onChange: (value: number) => void; disabled?: boolean }> = ({
+  value,
+  min,
+  max,
+  suffix,
+  onChange,
+  disabled,
+}) => (
+  <div className="cc-stepper">
+    <button type="button" onClick={() => onChange(Math.max(min, value - 1))} disabled={disabled || value <= min} aria-label="Decrease">
+      <Minus size={14} />
+    </button>
+    <span>
+      {value} {suffix}
+    </span>
+    <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={disabled || value >= max} aria-label="Increase">
+      <Plus size={14} />
+    </button>
+  </div>
+);
 
-  const goal = analysis?.goal;
+const Resources: React.FC<{ items?: CoachMilestone['phases'][number]['resources'] }> = ({ items }) =>
+  items && items.length > 0 ? (
+    <div className="cc-resources">
+      <span className="cc-resources__label">
+        <Award size={12} /> Recognized by employers
+      </span>
+      {items.map((item) => (
+        <span key={item.name} className="cc-resource">
+          {item.name}
+          {item.provider && <small> · {item.provider}</small>}
+        </span>
+      ))}
+    </div>
+  ) : null;
 
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message });
-    window.setTimeout(() => setToast(null), 4500);
+const MarketPanel: React.FC<{ market?: CoachMarket; role: string; busy: boolean; onRefresh?: () => void }> = ({ market, role, busy, onRefresh }) => {
+  if (!market) return null;
+  const researched = market.source === 'market';
+  return (
+    <div className={`cc-market ${researched ? '' : 'cc-market--library'}`}>
+      <div className="cc-market__head">
+        <span className="cc-market__badge">
+          <Globe size={13} />
+          {researched ? `Researched with Gemini from current ${role} postings` : 'Company role library'}
+          {market.generated_at && <small> · {fmtDate(market.generated_at)}</small>}
+        </span>
+        {onRefresh && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={onRefresh}>
+            <RefreshCw size={13} className={`mr-1 ${busy ? 'animate-spin' : ''}`} />
+            {busy ? 'Researching…' : researched ? 'Refresh research' : 'Research the market'}
+          </Button>
+        )}
+      </div>
+      {market.summary && <p>{market.summary}</p>}
+      {market.sources.length > 0 && (
+        <div className="cc-market__sources">
+          {market.sources.map((source) => (
+            <a key={source.uri} href={source.uri} target="_blank" rel="noreferrer">
+              {source.title} <ExternalLink size={11} />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Goal setup ───────────────────────────────────────────────────────────
+
+const GoalSetup: React.FC<{
+  employeeId: string;
+  roles: string[];
+  initialRole?: string;
+  initialMonths?: number;
+  initialHours?: number;
+  initialVisible?: boolean;
+  busy: boolean;
+  onSubmit: (data: { target_role: string; target_months: number; hours_per_week: number; visible_to_manager: boolean }) => void;
+}> = ({ employeeId, roles, initialRole, initialMonths, initialHours, initialVisible, busy, onSubmit }) => {
+  const [role, setRole] = useState(initialRole || '');
+  const [months, setMonths] = useState(Math.max(3, Math.min(36, initialMonths || 12)));
+  const [hours, setHours] = useState(initialHours || 5);
+  const [visible, setVisible] = useState(!!initialVisible);
+  const [preview, setPreview] = useState<CoachRolePreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [researched, setResearched] = useState(initialRole || '');
+
+  useEffect(() => {
+    const value = researched.trim();
+    if (value.length < 3) {
+      setPreview(null);
+      return;
+    }
+    let live = true;
+    setPreviewLoading(true);
+    careerCoachAPI
+      .roles(employeeId, value)
+      .then((res) => live && setPreview(res.preview || null))
+      .catch(() => live && setPreview(null))
+      .finally(() => live && setPreviewLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [employeeId, researched]);
+
+  const pick = (name: string) => {
+    setRole(name);
+    setResearched(name);
   };
 
-  const loadAnalysis = async (refresh = false) => {
-    if (!currentEmployee) return;
+  const weeks = preview ? Math.ceil(preview.total_hours / hours) : 0;
+  const fits = preview ? weeks <= months * 4.35 : true;
+
+  return (
+    <div className="cc-setup">
+      <div className="cc-setup__form">
+        <label className="cc-field">
+          <span>Role you are aiming for</span>
+          <input
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            onBlur={() => setResearched(role.trim())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                setResearched(role.trim());
+              }
+            }}
+            placeholder="e.g. Cloud Architect"
+            list="cc-role-options"
+          />
+          <datalist id="cc-role-options">
+            {roles.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        </label>
+        <div className="cc-chips">
+          {roles.slice(0, 10).map((name) => (
+            <button key={name} type="button" className={`cc-chip ${role === name ? 'cc-chip--on' : ''}`} onClick={() => pick(name)}>
+              {name}
+            </button>
+          ))}
+        </div>
+        <div className="cc-setup__row">
+          <label className="cc-field">
+            <span>Target: {months} months</span>
+            <input type="range" min={3} max={36} value={months} onChange={(e) => setMonths(Number(e.target.value))} />
+          </label>
+          <div className="cc-field">
+            <span>Time you can give each week</span>
+            <Stepper value={hours} min={1} max={20} suffix="h / week" onChange={setHours} />
+          </div>
+        </div>
+        <label className="cc-check">
+          <input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} />
+          Share this goal and progress with my manager
+        </label>
+        <Button
+          disabled={busy || previewLoading || role.trim().length < 3}
+          onClick={() => onSubmit({ target_role: role.trim(), target_months: months, hours_per_week: hours, visible_to_manager: visible })}
+        >
+          {busy ? <Loader2 size={16} className="animate-spin mr-2" /> : <Target size={16} className="mr-2" />}
+          Build my plan
+        </Button>
+      </div>
+
+      <div className="cc-setup__preview">
+        {!preview && !previewLoading && <p className="cc-muted">Pick a role to see what it asks of you compared with your profile.</p>}
+        {previewLoading && (
+          <div className="cc-researching">
+            <Loader2 size={18} className="animate-spin" />
+            <div>
+              <strong>Researching current {researched} postings</strong>
+              <p className="cc-muted">
+                Gemini is reading job postings and certification paths, then mapping them onto your Skill DNA. The first look at a role takes about a minute.
+              </p>
+            </div>
+          </div>
+        )}
+        {preview && !previewLoading && (
+          <>
+            <MarketPanel market={preview.market} role={preview.target_role} busy={false} />
+            <div className="cc-setup__score">
+              <Ring pct={preview.readiness_pct} size={88} />
+              <div>
+                <strong>
+                  {preview.met.length} of {preview.met.length + preview.to_build.length} skills already at the bar
+                </strong>
+                <p className="cc-muted">
+                  {preview.to_build.length
+                    ? `About ${preview.total_hours} hours of focused work. At ${hours}h a week that is ${weeks} weeks.`
+                    : 'You already meet every skill this role asks for.'}
+                </p>
+                {preview.to_build.length > 0 && (
+                  <span className={`cc-pill cc-pill--${fits ? 'good' : 'warn'}`}>
+                    {fits ? `Fits in ${months} months` : `Needs about ${Math.ceil(preview.total_hours / (months * 4.35))}h a week for ${months} months`}
+                  </span>
+                )}
+              </div>
+            </div>
+            {preview.to_build.length > 0 && (
+              <div className="cc-setup__list">
+                <h4>To build</h4>
+                {preview.to_build.map((row) => (
+                  <div key={row.skill} className="cc-setup__skill">
+                    <span>{row.skill}</span>
+                    <LevelBar current={row.current} required={row.required} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {preview.met.length > 0 && (
+              <div className="cc-setup__list">
+                <h4>Already strong</h4>
+                <div className="cc-chips">
+                  {preview.met.map((row) => (
+                    <span key={row.skill} className="cc-chip cc-chip--met">
+                      <Check size={12} /> {row.skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Milestone ────────────────────────────────────────────────────────────
+
+const MilestoneCard: React.FC<{
+  milestone: CoachMilestone;
+  index: number;
+  busy: boolean;
+  onLearn: (milestone: CoachMilestone) => void;
+  onEvidence: (phase: CoachPhase, milestone: CoachMilestone) => void;
+  onReopen: (phase: CoachPhase) => void;
+}> = ({ milestone, index, busy, onLearn, onEvidence, onReopen }) => {
+  const done = milestone.phases.filter((phase) => phase.status === 'achieved').length;
+  return (
+    <article className={`cc-milestone cc-milestone--${milestone.status}`}>
+      <div className="cc-milestone__rail">
+        <span className="cc-milestone__dot">{milestone.met ? <Check size={14} /> : index + 1}</span>
+      </div>
+      <div className="cc-milestone__body">
+        <header className="cc-milestone__head">
+          <div>
+            <h3>{milestone.skill}</h3>
+            <p className="cc-muted">{milestone.why}</p>
+            {milestone.market_signal && <p className="cc-signal">“{milestone.market_signal}”</p>}
+          </div>
+          <div className="cc-milestone__meta">
+            <LevelBar start={milestone.start_level} current={milestone.current} required={milestone.required} />
+            <span className="cc-muted">
+              {milestone.met ? 'At the bar' : `${done} of 3 done · finish by ${fmtDate(milestone.due)}`}
+            </span>
+          </div>
+        </header>
+
+        <ol className="cc-phases">
+          {milestone.phases.map((phase) => {
+            const meta = PHASE_META[phase.phase];
+            const Icon = meta.icon;
+            return (
+              <li key={phase.id} className={`cc-phase cc-phase--${phase.status}`}>
+                <StatusIcon status={phase.status} />
+                <div className="cc-phase__main">
+                  <div className="cc-phase__title">
+                    <span className="cc-phase__tag">
+                      <Icon size={12} /> {meta.label}
+                    </span>
+                    <strong>{phase.title}</strong>
+                  </div>
+                  <p>{phase.detail}</p>
+                  {phase.phase === 'learn' && phase.status !== 'achieved' && <Resources items={phase.resources} />}
+                  {phase.phase === 'learn' && milestone.learning.plan_id && milestone.learning.courses.length > 0 && (
+                    <ul className="cc-courses">
+                      {milestone.learning.courses.map((course) => (
+                        <li key={course.id} className={course.status === 'Completed' ? 'is-done' : ''}>
+                          {course.status === 'Completed' ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+                          {course.title}
+                          <span>{course.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {phase.phase === 'learn' && !milestone.learning.plan_id && milestone.learning.suggested_courses.length > 0 && phase.status !== 'achieved' && (
+                    <ul className="cc-courses">
+                      {milestone.learning.suggested_courses.map((course) => (
+                        <li key={course.id}>
+                          <BookOpen size={13} />
+                          {course.title}
+                          <span>{fmtHours(course.hours)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {phase.phase === 'learn' && milestone.learning.plan_id && phase.status !== 'achieved' && (
+                    <div className="cc-progress">
+                      <div style={{ width: `${phase.progress_pct}%` }} />
+                    </div>
+                  )}
+                  {phase.evidence.length > 0 && (
+                    <p className="cc-evidence-note">
+                      <Upload size={12} /> {phase.evidence[0].description || 'Evidence attached'}
+                    </p>
+                  )}
+                  <div className="cc-phase__foot">
+                    <span className="cc-muted">
+                      {phase.status === 'achieved'
+                        ? `Done${phase.completed_at ? ` ${fmtDate(phase.completed_at)}` : ''}`
+                        : `${fmtHours(phase.hours_remaining)} left · ${fmtDate(phase.starts)} → ${fmtDate(phase.due)}`}
+                    </span>
+                    {!milestone.met && (
+                      <div className="cc-phase__actions">
+                        {phase.phase === 'learn' && phase.status !== 'achieved' && (
+                          <>
+                            <Button size="sm" onClick={() => onLearn(milestone)}>
+                              {milestone.learning.plan_id ? 'Continue learning' : 'Choose courses'}
+                              <ArrowRight size={13} className="ml-1" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => onEvidence(phase, milestone)} disabled={busy}>
+                              Learned elsewhere
+                            </Button>
+                          </>
+                        )}
+                        {phase.phase === 'apply' && phase.status !== 'achieved' && (
+                          <Button size="sm" onClick={() => onEvidence(phase, milestone)} disabled={busy}>
+                            <Upload size={13} className="mr-1" /> Add what you did
+                          </Button>
+                        )}
+                        {phase.phase === 'prove' && (
+                          <Button size="sm" variant="secondary" onClick={() => onLearn(milestone)}>
+                            Take the assessment <ArrowRight size={13} className="ml-1" />
+                          </Button>
+                        )}
+                        {phase.phase !== 'prove' && phase.status === 'achieved' && (
+                          <Button size="sm" variant="ghost" onClick={() => onReopen(phase)} disabled={busy}>
+                            <RotateCcw size={13} className="mr-1" /> Reopen
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </article>
+  );
+};
+
+// ── Page ─────────────────────────────────────────────────────────────────
+
+export const CareerCoach: React.FC = () => {
+  const navigate = useNavigate();
+  const { currentEmployee, loading: employeeLoading } = useEmployee();
+  const employeeId = currentEmployee?.id;
+
+  const [plan, setPlan] = useState<CoachPlan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('plan');
+
+  const [goalOpen, setGoalOpen] = useState(false);
+  const [evidenceFor, setEvidenceFor] = useState<{ phase: CoachPhase; milestone: CoachMilestone } | null>(null);
+  const [evidenceText, setEvidenceText] = useState('');
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [checkinOpen, setCheckinOpen] = useState(false);
+  const [checkinHours, setCheckinHours] = useState(2);
+  const [checkinSkill, setCheckinSkill] = useState('');
+  const [checkinNote, setCheckinNote] = useState('');
+
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [question, setQuestion] = useState('');
+  const [asking, setAsking] = useState(false);
+  const chatEnd = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async () => {
+    if (!employeeId) return;
     setLoading(true);
     setError(null);
     try {
-      const analysisData = await careerAPI.getAnalysis(currentEmployee.id, refresh);
-      setAnalysis(analysisData);
-      const nextGoal = analysisData.goal
-        ? {
-            target_role: analysisData.goal.target_role,
-            timeline: analysisData.goal.timeline || GOAL_DEFAULTS.timeline,
-            focus_area: analysisData.goal.focus_area || GOAL_DEFAULTS.focus_area,
-            target_industry: analysisData.goal.target_industry || GOAL_DEFAULTS.target_industry,
-            visible_to_manager: analysisData.goal.visible_to_manager,
-          }
-        : GOAL_DEFAULTS;
-      setGoalForm(nextGoal);
-      setChatHistory([
-        {
-          role: 'assistant',
-          content: `You're **${analysisData.readiness_score}%** ready for **${nextGoal.target_role}**. This week, focus on **${analysisData.next_action?.title || 'your highest-priority roadmap step'}**.`,
-          grounding: [
-            `Readiness ${analysisData.readiness_score}%`,
-            ...(analysisData.blockers || []).slice(0, 2),
-          ],
-        },
-      ]);
+      setPlan(await careerCoachAPI.getPlan(employeeId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load career analysis');
+      setError(err instanceof Error ? err.message : 'Could not load your career plan.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [employeeId]);
 
   useEffect(() => {
-    if (employeeLoading) return;
-    if (!currentEmployee) {
-      setLoading(false);
-      setError('No employee selected yet.');
-      return;
-    }
-    loadAnalysis();
-  }, [currentEmployee, employeeLoading]);
+    load();
+  }, [load]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory]);
+    chatEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [chat, asking]);
 
-  const radarData = useMemo(
-    () =>
-      (analysis?.skill_gaps || []).slice(0, 6).map((gap) => ({
-        skill: gap.skill,
-        Current: gap.current_level,
-        Target: gap.target_level,
-        fullMark: 10,
-      })),
-    [analysis?.skill_gaps]
-  );
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
-  const highestGap = useMemo(
-    () => [...(analysis?.skill_gaps || [])].sort((a, b) => b.gap - a.gap)[0],
-    [analysis?.skill_gaps]
-  );
-
-  const handleGoalSave = async () => {
-    if (!currentEmployee) return;
-    setSavingGoal(true);
+  const run = async (action: () => Promise<CoachPlan>, message?: string) => {
+    setBusy(true);
+    setError(null);
     try {
-      await careerAPI.setGoal(currentEmployee.id, goalForm);
-      setGoalModalOpen(false);
-      await loadAnalysis(true);
-      showToast('success', 'Career goal updated — AI analysis regenerated.');
+      setPlan(await action());
+      if (message) setNotice(message);
+      return true;
     } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to save goal');
+      setError(err instanceof Error ? err.message : 'That did not save. Try again.');
+      return false;
     } finally {
-      setSavingGoal(false);
+      setBusy(false);
     }
   };
 
-  const handleVisibilityToggle = async () => {
-    if (!currentEmployee || !goal) return;
-    try {
-      const updated = await careerAPI.updateVisibility(currentEmployee.id, !goal.visible_to_manager);
-      setAnalysis((prev) => (prev ? { ...prev, goal: { ...prev.goal!, ...updated } } : prev));
-      setGoalForm((prev) => ({ ...prev, visible_to_manager: updated.visible_to_manager }));
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to update visibility');
+  const [researching, setResearching] = useState(false);
+  const refreshMarket = async () => {
+    if (!employeeId) return;
+    setResearching(true);
+    await run(() => careerCoachAPI.refreshMarket(employeeId), 'Requirements refreshed from current postings.');
+    setResearching(false);
+  };
+
+  const openLearning = (milestone: CoachMilestone) => navigate(gapLink(milestone.gap_id, milestone.skill));
+
+  const openEvidence = (phase: CoachPhase, milestone: CoachMilestone) => {
+    setEvidenceFor({ phase, milestone });
+    setEvidenceText('');
+    setEvidenceFile(null);
+  };
+
+  const openCheckin = (skill?: string) => {
+    setCheckinSkill(skill || plan?.milestones?.find((m) => !m.met)?.skill || '');
+    setCheckinHours(Math.min(plan?.settings?.hours_per_week || 2, 8));
+    setCheckinNote('');
+    setCheckinOpen(true);
+  };
+
+  const doAction = (action: CoachAction) => {
+    if (!plan || !employeeId) return;
+    const milestone = plan.milestones?.find((m) => m.gap_id === action.gap_id);
+    if (action.kind === 'learning' || action.kind === 'assessment') {
+      navigate(gapLink(action.gap_id, milestone?.skill));
+    } else if (action.kind === 'evidence' && milestone) {
+      const phase = milestone.phases.find((p) => p.id === action.step_id);
+      if (phase) openEvidence(phase, milestone);
+    } else if (action.kind === 'mentor' && action.mentor_id) {
+      run(() => careerCoachAPI.requestIntro(employeeId, action.mentor_id!, action.skill || ''), 'Introduction requested.');
+    } else if (action.kind === 'checkin') {
+      openCheckin();
     }
   };
 
-  const handleMentorRequest = async (mentorId: string) => {
-    if (!currentEmployee) return;
-    setMentorLoadingId(mentorId);
+  const ask = async (text: string) => {
+    const message = text.trim();
+    if (!message || !employeeId || asking) return;
+    const history = chat.map(({ role, content }) => ({ role, content }));
+    setChat((rows) => [...rows, { role: 'user', content: message }]);
+    setQuestion('');
+    setAsking(true);
     try {
-      const response = await careerAPI.requestMentorIntro(currentEmployee.id, mentorId);
-      setAnalysis((prev) =>
-        prev
-          ? {
-              ...prev,
-              mentors: prev.mentors.map((mentor) =>
-                mentor.mentor_employee_id === mentorId ? response.mentor_match : mentor
-              ),
-            }
-          : prev
-      );
-      showToast('success', 'Intro request sent.');
+      const res = await careerCoachAPI.ask(employeeId, message, history);
+      setChat((rows) => [...rows, { role: 'assistant', content: res.answer, grounding: res.grounding }]);
     } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to request intro');
+      setChat((rows) => [...rows, { role: 'assistant', content: err instanceof Error ? err.message : 'The coach is unavailable right now.' }]);
     } finally {
-      setMentorLoadingId(null);
+      setAsking(false);
     }
   };
 
-  const handleEvidenceSubmit = async () => {
-    if (!currentEmployee || !evidenceModal) return;
-    const skillGap = evidenceModal.skillGap;
-    const step = evidenceModal.step;
-    if (!evidenceDescription.trim() && !evidenceFile) {
-      showToast('error', 'Add a description or a file before submitting evidence.');
-      return;
-    }
-    setEvidenceSubmitting(true);
-    try {
-      const evidence = await careerAPI.submitEvidence(currentEmployee.id, {
-        skill_gap_id: skillGap?.id,
-        roadmap_step_id: step?.id,
-        evidence_type: step ? evidenceTypeForStep(step) : 'certificate',
-        description: evidenceDescription,
-        file: evidenceFile,
-      });
-      if (step) {
-        setStepUpdatingId(step.id);
-        const updated = await careerAPI.updateRoadmapStep(step.id, 'achieved', evidence.id);
-        setAnalysis(updated.analysis);
-        setStepUpdatingId(null);
-      } else {
-        await loadAnalysis();
-      }
-      setEvidenceModal(null);
-      setEvidenceDescription('');
-      setEvidenceFile(null);
-      showToast(
-        'success',
-        evidence.status === 'pending_approval'
-          ? 'Evidence submitted and waiting for manager sign-off.'
-          : `Evidence accepted. ${evidence.xp_awarded} XP credited.`
-      );
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to submit evidence');
-    } finally {
-      setEvidenceSubmitting(false);
-      setStepUpdatingId(null);
-    }
-  };
+  const openMilestones = useMemo(() => (plan?.milestones || []).filter((m) => !m.met), [plan]);
+  const doneMilestones = useMemo(() => (plan?.milestones || []).filter((m) => m.met), [plan]);
 
-  const handleQuickStepComplete = async (step: CareerRoadmapStep) => {
-    if (step.requires_evidence) {
-      setEvidenceModal({ step });
-      return;
-    }
-    setStepUpdatingId(step.id);
-    try {
-      const updated = await careerAPI.updateRoadmapStep(step.id, 'achieved');
-      setAnalysis(updated.analysis);
-      showToast('success', `${step.title} marked complete.`);
-    } catch (err) {
-      showToast('error', err instanceof Error ? err.message : 'Failed to update step');
-    } finally {
-      setStepUpdatingId(null);
-    }
-  };
-
-  const handleSendMessage = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!currentEmployee || !chatInput.trim()) return;
-    const userMessage = chatInput.trim();
-    const nextHistory: ChatMessage[] = [...chatHistory, { role: 'user', content: userMessage }];
-    setChatHistory(nextHistory);
-    setChatInput('');
-    setChatting(true);
-    try {
-      const response = await careerAPI.chat(currentEmployee.id, userMessage, nextHistory.slice(0, -1));
-      setChatHistory([
-        ...nextHistory,
-        { role: 'assistant', content: response.response, grounding: response.grounding_points || [] },
-      ]);
-    } catch (err) {
-      setChatHistory([
-        ...nextHistory,
-        { role: 'assistant', content: 'I hit a problem retrieving your grounded career context. Please try again.' },
-      ]);
-    } finally {
-      setChatting(false);
-    }
-  };
-
-  if (loading) {
+  if (employeeLoading || (loading && !plan)) {
     return (
-      <div className="career-loading">
-        <Loader2 className="animate-spin text-primary" size={36} />
-        <p className="text-sm font-semibold text-secondary">Running AI career analysis for this employee…</p>
+      <div className="career-coach cc-center">
+        <Loader2 className="animate-spin" size={28} />
+        <p className="cc-muted">Building your career plan…</p>
+        <p className="cc-muted">The first plan for a role includes live market research and can take about a minute.</p>
       </div>
     );
   }
 
-  if (error || !analysis) {
+  if (!employeeId) {
     return (
-      <div className="career-error">
-        <div className="career-error-box">
-          <AlertCircle className="mx-auto mb-3 text-danger" size={32} />
-          <p className="text-sm font-semibold text-secondary">{error || 'Unable to load Career Coach.'}</p>
+      <div className="career-coach cc-center">
+        <AlertCircle size={28} />
+        <p>Sign in to see your career plan.</p>
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div className="career-coach cc-center">
+        <AlertCircle size={28} />
+        <p>{error || 'Could not load your career plan.'}</p>
+        <Button onClick={load}>Try again</Button>
+      </div>
+    );
+  }
+
+  const header = (
+    <header className="cc-head">
+      <div>
+        <p className="cc-eyebrow">Career Coach</p>
+        <h1>{plan.goal ? `Your path to ${plan.goal.target_role}` : 'Where do you want to go next?'}</h1>
+        <p className="cc-muted">
+          {plan.goal
+            ? `From ${plan.employee.role || 'your current role'} · started ${fmtDate(plan.settings?.started_at)} · target ${fmtDate(plan.settings?.target_date)}`
+            : 'Choose a role. Your coach compares it with your profile and turns the difference into a dated, weekly plan.'}
+        </p>
+      </div>
+      {plan.goal && (
+        <div className="cc-head__actions">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => run(() => careerCoachAPI.setVisibility(employeeId, !plan.goal!.visible_to_manager), plan.goal!.visible_to_manager ? 'Goal is now private.' : 'Your manager can now see this goal.')}
+          >
+            {plan.goal.visible_to_manager ? <Eye size={14} className="mr-1" /> : <EyeOff size={14} className="mr-1" />}
+            {plan.goal.visible_to_manager ? 'Shared with manager' : 'Private'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setGoalOpen(true)}>
+            <Target size={14} className="mr-1" /> Change goal
+          </Button>
         </div>
+      )}
+    </header>
+  );
+
+  if (!plan.goal) {
+    return (
+      <div className="career-coach">
+        {header}
+        {error && <div className="cc-alert">{error}</div>}
+        <section className="cc-card">
+          <GoalSetup
+            employeeId={employeeId}
+            roles={plan.role_options}
+            busy={busy}
+            onSubmit={(data) => run(() => careerCoachAPI.setGoal(employeeId, data), 'Your plan is ready.')}
+          />
+        </section>
       </div>
     );
   }
+
+  const readiness = plan.readiness!;
+  const timeline = plan.timeline!;
+  const settings = plan.settings!;
+  const momentum = plan.momentum!;
+  const pace = PACE_META[timeline.pace];
+  const fourWeekPct = momentum.planned_last_4_weeks ? Math.min(100, Math.round((100 * momentum.hours_last_4_weeks) / momentum.planned_last_4_weeks)) : 0;
 
   return (
     <div className="career-coach">
-      {toast && createPortal(
-        <div className={`career-toast career-toast--${toast.type}`}>{toast.message}</div>,
-        document.body
+      {header}
+      {error && (
+        <div className="cc-alert">
+          <AlertCircle size={16} /> {error}
+        </div>
+      )}
+      {notice && (
+        <div className="cc-toast">
+          <CheckCircle2 size={16} /> {notice}
+        </div>
       )}
 
-      <div className="career-header">
-        <div>
-          <div className="career-kicker">
-            <Sparkles size={12} className="text-primary" />
-            Career Coach
-          </div>
-          <h1 className="career-title">{goal?.target_role || goalForm.target_role}</h1>
-        </div>
-        <div className="career-header__actions">
-          <Button variant="ghost" onClick={handleVisibilityToggle} className="border border-[var(--border-subtle)] bg-white/80">
-            {goal?.visible_to_manager ? <Eye size={16} className="mr-2" /> : <EyeOff size={16} className="mr-2" />}
-            {goal?.visible_to_manager ? 'Visible to manager' : 'Private to you'}
-          </Button>
-          <Button onClick={() => setGoalModalOpen(true)}>
-            <Target size={16} className="mr-2" />
-            Edit goal
-          </Button>
-        </div>
-      </div>
-
-      {analysis.stall_flag && (
-        <div className="career-stall">
-          <AlertCircle className="shrink-0 text-amber-600" size={20} />
+      <section className="cc-hero">
+        <div className="cc-card cc-stat">
+          <Ring pct={readiness.pct} />
           <div>
-            <p className="career-stall__title">Momentum check</p>
-            <p className="career-stall__text">{analysis.stall_flag.message}</p>
+            <h4>Readiness</h4>
+            <strong>
+              {readiness.met} of {readiness.total} skills at the bar
+            </strong>
+            <p className="cc-muted">
+              {readiness.pct > readiness.start_pct ? `Up from ${readiness.start_pct}% when you started.` : `${readiness.total - readiness.met} skill${readiness.total - readiness.met === 1 ? '' : 's'} left to build.`}
+            </p>
           </div>
         </div>
+
+        <div className="cc-card cc-stat cc-stat--col">
+          <div className="cc-stat__row">
+            <h4>Timeline</h4>
+            <span className={`cc-pill cc-pill--${pace.tone}`}>{pace.label}</span>
+          </div>
+          <div className="cc-dates">
+            <div>
+              <span className="cc-muted">Projected</span>
+              <strong>{fmtDate(timeline.projected_finish)}</strong>
+            </div>
+            <div>
+              <span className="cc-muted">Your target</span>
+              <strong>{fmtDate(timeline.target_date)}</strong>
+            </div>
+          </div>
+          <div className="cc-stat__row">
+            <Stepper
+              value={settings.hours_per_week}
+              min={1}
+              max={20}
+              suffix="h / week"
+              disabled={busy}
+              onChange={(value) => run(() => careerCoachAPI.updateSettings(employeeId, { hours_per_week: value }))}
+            />
+            <span className="cc-muted" title="Hours of milestone work still open. Milestones close on finished courses, evidence, and confirmed levels.">
+              {fmtHours(timeline.remaining_hours)} of milestones open
+            </span>
+          </div>
+          {timeline.pace === 'at_risk' && timeline.hours_per_week_needed && (
+            <p className="cc-hint">
+              {timeline.hours_per_week_needed <= 20 ? (
+                <>
+                  Give it <strong>{timeline.hours_per_week_needed}h a week</strong> to land on your target date.{' '}
+                  <button type="button" disabled={busy} onClick={() => run(() => careerCoachAPI.updateSettings(employeeId, { hours_per_week: timeline.hours_per_week_needed! }), 'Weekly hours updated.')}>
+                    Use {timeline.hours_per_week_needed}h
+                  </button>
+                </>
+              ) : (
+                <>Your target needs more than 20h a week. Move the date for a realistic plan.</>
+              )}
+            </p>
+          )}
+        </div>
+
+        <div className="cc-card cc-stat cc-stat--col">
+          <div className="cc-stat__row">
+            <h4>Momentum</h4>
+            {momentum.streak_weeks > 0 && (
+              <span className="cc-pill cc-pill--good">
+                <Flame size={12} /> {momentum.streak_weeks}-week streak
+              </span>
+            )}
+            {momentum.stalled && momentum.streak_weeks === 0 && (
+              <span className="cc-pill cc-pill--warn">{momentum.last_activity ? `Quiet for ${momentum.days_since_activity} days` : 'Not started'}</span>
+            )}
+          </div>
+          <div className="cc-dates">
+            <div>
+              <span className="cc-muted">This week</span>
+              <strong>
+                {fmtHours(momentum.hours_this_week)} <small>of {settings.hours_per_week}h</small>
+              </strong>
+            </div>
+            <div>
+              <span className="cc-muted">Last 4 weeks</span>
+              <strong>{fourWeekPct}% <small>of plan</small></strong>
+            </div>
+          </div>
+          <div className="cc-stat__row">
+            <span className="cc-muted">{daysAgo(momentum.days_since_activity)}</span>
+            <Button size="sm" onClick={() => openCheckin()}>
+              <Plus size={13} className="mr-1" /> Log hours
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {plan.this_week && plan.this_week.length > 0 && (
+        <section className="cc-week">
+          <h2>This week</h2>
+          <div className="cc-week__grid">
+            {plan.this_week.map((action) => (
+              <button key={action.id} type="button" className={`cc-action cc-action--${action.kind}`} onClick={() => doAction(action)} disabled={busy}>
+                <span className="cc-action__icon">
+                  {action.kind === 'learning' && <BookOpen size={18} />}
+                  {action.kind === 'evidence' && <Hammer size={18} />}
+                  {action.kind === 'assessment' && <ClipboardCheck size={18} />}
+                  {action.kind === 'mentor' && <UserPlus size={18} />}
+                  {action.kind === 'checkin' && <Timer size={18} />}
+                </span>
+                <span className="cc-action__text">
+                  <strong>{action.title}</strong>
+                  <span>{action.detail}</span>
+                </span>
+                <ArrowRight size={16} className="cc-action__go" />
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
-      <div className="career-hero">
-        <div className="career-hero__glow career-hero__glow--tr" />
-        <div className="career-hero__glow career-hero__glow--bl" />
-        <div className="career-hero__inner">
-          <div className="career-hero__main">
-            <p className="career-summary">{analysis.summary}</p>
-            <div className="career-pills">
-              <span className="career-pill">
-                <Briefcase size={13} />
-                {goal?.focus_area || goalForm.focus_area}
-              </span>
-              <span className="career-pill">
-                <Flag size={13} />
-                {goal?.timeline || goalForm.timeline}
-              </span>
-              <span className="career-pill career-pill--band">
-                <TrendingUp size={13} />
-                {analysis.readiness_band}
-              </span>
-            </div>
-            <div className="career-next-action">
-              <p className="career-next-action__label">Next action this week</p>
-              <h2 className="career-next-action__title">{analysis.next_action?.title || 'No action queued'}</h2>
-              <p className="career-next-action__desc">{analysis.next_action?.description}</p>
-              <div className="career-next-action__meta">
-                <span className="career-meta-chip">
-                  <Zap size={12} />
-                  {analysis.next_action?.xp_reward || 0} XP
-                </span>
-                <span className="career-meta-chip">
-                  {analysis.next_action?.estimated_hours || 0} hrs estimated
-                </span>
-                <Button
-                  variant="ghost"
-                  className="border border-[var(--border-subtle)] bg-white/80"
-                  onClick={() => navigate('/learning-hub')}
-                >
-                  <Brain size={14} className="mr-2" />
-                  Close gaps in Learning
-                </Button>
-              </div>
-            </div>
-          </div>
-          <div className="career-hero__aside">
-            <ReadinessRing score={analysis.readiness_score} />
-            <button type="button" onClick={() => setShowBreakdown((prev) => !prev)} className="career-breakdown-toggle">
-              {showBreakdown ? 'Hide score breakdown' : 'See score breakdown'}
-            </button>
-            <p className="career-readiness-note">{analysis.readiness_explanation}</p>
-          </div>
-        </div>
-      </div>
+      <nav className="cc-tabs" role="tablist">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className={`cc-tab ${tab === id ? 'cc-tab--on' : ''}`} onClick={() => setTab(id)}>
+            <Icon size={15} /> {label}
+          </button>
+        ))}
+      </nav>
 
-      {showBreakdown && (
-        <Card glass={false} className="glass-panel career-section">
-          <SectionHead
-            icon={<Target size={18} />}
-            title="Readiness breakdown"
-            subtitle="Weighted score from real components — not a vanity percentage."
-          />
-          <div className="career-breakdown-grid">
-            {analysis.readiness_components.map((component) => (
-              <div key={component.id} className="career-breakdown-card">
-                <div className="career-breakdown-card__top">
-                  <p className="career-breakdown-card__name">{component.name.replace('_', ' ')}</p>
-                  <span className="career-breakdown-card__score">{component.score}%</span>
+      {tab === 'plan' && (
+        <section className="cc-card">
+          <MarketPanel market={plan.market} role={plan.goal.target_role} busy={researching} onRefresh={refreshMarket} />
+          {openMilestones.length === 0 ? (
+            <div className="cc-empty">
+              <CheckCircle2 size={28} />
+              <h3>Every required skill is at the bar</h3>
+              <p className="cc-muted">Share your plan with your manager and look at the open roles under People & roles.</p>
+            </div>
+          ) : (
+            <p className="cc-muted cc-plan-intro">
+              Built from what employers ask of {plan.goal.target_role} today and the skills already in your Skill DNA. One skill at a time, biggest gap first. Each skill closes in three steps: learn it, use it in real work, then get the new level confirmed.
+            </p>
+          )}
+          <div className="cc-milestones">
+            {[...openMilestones, ...doneMilestones].map((milestone, index) => (
+              <MilestoneCard
+                key={milestone.gap_id}
+                milestone={milestone}
+                index={index}
+                busy={busy}
+                onLearn={openLearning}
+                onEvidence={openEvidence}
+                onReopen={(phase) => run(() => careerCoachAPI.reopenStep(employeeId, phase.id), 'Step reopened.')}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === 'skills' && (
+        <section className="cc-card">
+          <MarketPanel market={plan.market} role={plan.goal.target_role} busy={researching} onRefresh={refreshMarket} />
+          <p className="cc-muted cc-plan-intro">
+            What {plan.goal.target_role} asks for, measured against your Skill DNA on a 0–10 scale.
+            {plan.unused_profile_skills ? ` ${plan.unused_profile_skills} other profile skill${plan.unused_profile_skills === 1 ? ' is' : 's are'} outside this role's bar.` : ''}
+          </p>
+          <div className="cc-bar-list">
+            {(plan.requirements || []).map((row) => (
+              <div key={row.requirement} className={`cc-bar-row ${row.gap === 0 ? 'is-met' : ''}`}>
+                <div className="cc-bar-row__name">
+                  {row.gap === 0 ? <CheckCircle2 size={16} className="cc-status--done" /> : <Circle size={16} className="cc-status" />}
+                  <div>
+                    <strong>{row.skill}</strong>
+                    <span className="cc-muted">
+                      {row.category}
+                      {row.recorded_as && row.recorded_as !== row.skill ? ` · from your ${row.recorded_as}` : ''}
+                    </span>
+                  </div>
                 </div>
-                <p className="career-breakdown-card__weight">Weight {Math.round(component.weight * 100)}%</p>
-                <div className="career-breakdown-card__bar">
-                  <div className="career-breakdown-card__bar-fill" style={{ width: `${component.score}%` }} />
+                <LevelBar current={row.current} required={row.required} />
+                <div className="cc-bar-row__why">
+                  <p className="cc-muted">{row.why}</p>
+                  {row.market_signal && <p className="cc-signal">“{row.market_signal}”</p>}
+                  {row.gap > 0 && row.related && row.related.length > 0 && (
+                    <p className="cc-muted">Related in your Skill DNA: {row.related.join(', ')}. These help; the role asks for {row.skill} directly.</p>
+                  )}
+                  {row.gap > 0 && row.proof && (
+                    <p className="cc-muted">
+                      <strong>Accepted proof:</strong> {row.proof}
+                    </p>
+                  )}
+                  {row.gap > 0 && <Resources items={row.resources} />}
                 </div>
-                <p className="career-breakdown-card__text">{component.explanation}</p>
+                <div className="cc-bar-row__cta">
+                  {row.gap > 0 ? (
+                    <Button size="sm" variant="ghost" onClick={() => navigate(gapLink(row.gap_id, row.skill))}>
+                      Close in Learning <ArrowRight size={13} className="ml-1" />
+                    </Button>
+                  ) : (
+                    <span className="cc-pill cc-pill--good">At the bar</span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-        </Card>
+        </section>
       )}
 
-      <div className="career-grid-main">
-        <div className="career-col">
-          <Card glass={false} className="glass-panel career-section">
-            <SectionHead
-              icon={<Milestone size={18} />}
-              title="Roadmap with proof points"
-              subtitle="Every step is tied to evidence and XP so progress is actually usable."
-            />
-            <div className="career-roadmap">
-              {analysis.roadmap_steps.map((step) => (
-                <div
-                  key={step.id}
-                  className={`career-roadmap-step ${step.status === 'achieved' ? 'career-roadmap-step--achieved' : ''}`}
-                >
-                  <div className="career-roadmap-step__marker">
-                    {step.status === 'achieved' ? (
-                      <CheckCircle2 size={18} className="text-emerald-600" />
-                    ) : (
-                      <Milestone size={18} className="text-secondary" />
-                    )}
-                  </div>
-                  <div className="career-roadmap-step__body">
-                    <div className="career-roadmap-step__header">
-                      <h3 className="career-roadmap-step__title">{step.title}</h3>
-                      <span className="career-tag career-tag--status">{step.status.replace('_', ' ')}</span>
-                      <span className="career-tag career-tag--type">{step.step_type}</span>
-                      {step.requires_evidence && (
-                        <span className="career-tag career-tag--evidence">
-                          Needs {step.evidence_type?.replace('_', ' ') || 'evidence'}
-                        </span>
-                      )}
-                    </div>
-                    <p className="career-roadmap-step__desc">{step.description}</p>
-                    <div className="career-roadmap-step__footer">
-                      <div className="career-roadmap-step__chips">
-                        <span className="career-chip">{step.estimated_hours} hrs</span>
-                        <span className="career-chip">{step.xp_reward} XP</span>
-                      </div>
-                      {step.status !== 'achieved' && (
-                        <div className="career-roadmap-step__actions">
-                          {step.requires_evidence && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="border border-[var(--border-subtle)] bg-white/80"
-                              onClick={() => setEvidenceModal({ step })}
-                            >
-                              <Upload size={14} className="mr-1.5" />
-                              Add evidence
-                            </Button>
-                          )}
-                          <Button size="sm" onClick={() => handleQuickStepComplete(step)} disabled={stepUpdatingId === step.id}>
-                            {stepUpdatingId === step.id ? (
-                              <Loader2 size={14} className="mr-1.5 animate-spin" />
-                            ) : (
-                              <CheckCircle2 size={14} className="mr-1.5" />
-                            )}
-                            Mark achieved
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card glass={false} className="glass-panel career-section">
-            <SectionHead
-              icon={<TrendingUp size={18} />}
-              title="Skill gaps with a closing path"
-              subtitle="Each gap includes the work to do, how long it should take, and how to prove it."
-              action={
-                highestGap ? (
-                  <div className="career-gap-highlight">
-                    <p className="career-gap-highlight__label">Biggest gap</p>
-                    <p className="career-gap-highlight__skill">{highestGap.skill}</p>
-                  </div>
-                ) : undefined
-              }
-            />
-            <div className="space-y-4">
-              {analysis.skill_gaps.map((gap) => (
-                <div key={gap.id} className="career-gap-card">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-bold text-primary">{gap.skill}</h3>
-                        <span className={`career-tag ${priorityClass(gap.priority)}`}>{gap.priority}</span>
-                        <span className="career-tag career-tag--status">{gap.path_type}</span>
-                      </div>
-                      <div className="career-gap-card__levels">
-                        <div className="career-level-bar">
-                          <span className="career-level-bar__label">Current</span>
-                          <div className="career-level-bar__track">
-                            <div
-                              className="career-level-bar__fill career-level-bar__fill--current"
-                              style={{ width: `${(gap.current_level / 10) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-bold text-secondary">{gap.current_level}/10</span>
-                        </div>
-                        <div className="career-level-bar">
-                          <span className="career-level-bar__label">Target</span>
-                          <div className="career-level-bar__track">
-                            <div
-                              className="career-level-bar__fill career-level-bar__fill--target"
-                              style={{ width: `${(gap.target_level / 10) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-bold text-secondary">{gap.target_level}/10</span>
-                        </div>
-                      </div>
-                      <p className="career-gap-card__path">{gap.recommended_path}</p>
-                      <div className="flex flex-wrap gap-2 mt-3">
-                        <span className="career-chip">{gap.estimated_hours} hrs</span>
-                        <span className="career-chip">{gap.evidence_count} evidence item(s)</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="border border-[var(--border-subtle)] bg-white/80"
-                        onClick={() => setEvidenceModal({ skillGap: gap })}
-                      >
-                        <Upload size={14} className="mr-1.5" />
-                        Upload evidence
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="border border-[var(--border-subtle)] bg-white/80"
-                        onClick={() => navigate('/learning-hub')}
-                      >
-                        <Brain size={14} className="mr-1.5" />
-                        Learn this skill
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card glass={false} className="glass-panel career-section">
-            <SectionHead
-              icon={<Briefcase size={18} />}
-              title="Internal opportunities"
-              subtitle="Live roles with the exact gaps currently blocking eligibility."
-            />
-            <div className="career-roles-grid">
-              {analysis.internal_roles.map((role) => (
-                <div key={role.role_id} className="career-role-card">
-                  <div className="flex items-start justify-between gap-3">
+      {tab === 'people' && (
+        <div className="cc-two">
+          <section className="cc-card">
+            <h3 className="cc-card__title">
+              <UserPlus size={16} /> Colleagues already at the bar
+            </h3>
+            {(plan.mentors || []).length === 0 ? (
+              <p className="cc-muted">
+                Nobody in the directory has {openMilestones.map((m) => m.skill).join(' or ') || 'these skills'} recorded at the required level yet. Ask your manager who
+                owns this work today; they are the best first conversation.
+              </p>
+            ) : (
+              <div className="cc-people">
+                {plan.mentors!.map((mentor) => (
+                  <div key={`${mentor.employee_id}-${mentor.skill}`} className="cc-person">
+                    <span className="cc-avatar">{mentor.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}</span>
                     <div>
-                      <h3 className="text-base font-bold text-primary">{role.title}</h3>
-                      <p className="text-sm text-secondary">{role.department}</p>
+                      <strong>{mentor.name}</strong>
+                      <span className="cc-muted">{[mentor.role, mentor.department].filter(Boolean).join(' · ')}</span>
+                      <span className="cc-pill">
+                        {mentor.recorded_as} {mentor.level}/10
+                      </span>
                     </div>
-                    <div className="career-role-card__fit">
-                      <p className="career-role-card__fit-label">Fit</p>
-                      <p className="career-role-card__fit-value">{role.overall_fit_pct}%</p>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant={mentor.intro_requested ? 'ghost' : 'primary'}
+                      disabled={busy || mentor.intro_requested}
+                      onClick={() => run(() => careerCoachAPI.requestIntro(employeeId, mentor.employee_id, mentor.skill), `Introduction to ${mentor.name} requested.`)}
+                    >
+                      {mentor.intro_requested ? 'Requested' : 'Ask for intro'}
+                    </Button>
                   </div>
-                  <p className="mt-3 text-sm font-semibold text-secondary">{role.eligibility_summary}</p>
-                  <div className="mt-4 space-y-2">
-                    {role.missing_requirements.length ? (
-                      role.missing_requirements.map((item, index) => (
-                        <div key={index} className="career-role-req career-role-req--missing">{item}</div>
-                      ))
-                    ) : (
-                      <div className="career-role-req career-role-req--ok">
-                        You are eligible based on the currently tracked requirements.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        <div className="career-col">
-          <Card glass={false} className="glass-panel career-section career-section--compact">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-tertiary">What is holding you back</p>
-            <div className="career-insight-list mt-4">
-              {analysis.blockers.length ? (
-                analysis.blockers.map((blocker, index) => (
-                  <div key={index} className="career-insight-item">{blocker}</div>
-                ))
-              ) : (
-                <p className="text-sm text-secondary">No major blockers detected right now.</p>
-              )}
-            </div>
-            <div className="mt-6 pt-4 border-t border-[var(--border-subtle)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-tertiary">Strongest signals</p>
-              <div className="career-insight-list mt-3">
-                {analysis.strengths.map((strength, index) => (
-                  <div key={index} className="career-insight-item career-insight-item--strength">{strength}</div>
                 ))}
               </div>
-              <div className="career-xp-block">
-                <p className="career-xp-block__label">Career XP earned</p>
-                <p className="career-xp-block__value">{analysis.xp_total.toLocaleString()}</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card glass={false} className="glass-panel career-section">
-            <SectionHead icon={<TrendingUp size={18} />} title="Gap map" subtitle="Current vs target skill levels" />
-            <div className="career-chart-wrap">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="72%">
-                  <PolarGrid stroke="rgba(148,163,184,0.35)" />
-                  <PolarAngleAxis dataKey="skill" tick={{ fill: '#64748b', fontSize: 11, fontWeight: 700 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
-                  <Radar name="Target" dataKey="Target" stroke="#94a3b8" fill="#cbd5e1" fillOpacity={0.3} />
-                  <Radar name="Current" dataKey="Current" stroke="#3b82f6" fill="#6366f1" fillOpacity={0.25} />
-                  <Tooltip />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
-          <Card glass={false} className="glass-panel career-section">
-            <SectionHead icon={<UserPlus size={18} />} title="Suggested mentors" subtitle="Matched to your gaps and target role" />
-            {analysis.mentors.map((mentor) => (
-              <div key={mentor.id} className="career-mentor-card">
-                <div className="career-mentor-card__top">
-                  <div className="career-mentor-card__identity">
-                    <div className="career-mentor-card__avatar">
-                      {mentor.mentor_name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+            )}
+          </section>
+          <section className="cc-card">
+            <h3 className="cc-card__title">
+              <Briefcase size={16} /> Open roles and your fit
+            </h3>
+            {(plan.opportunities || []).length === 0 ? (
+              <p className="cc-muted">
+                No internal roles are open right now. Openings appear here with your fit as soon as HR lists them.
+              </p>
+            ) : (
+              <div className="cc-roles">
+                {plan.opportunities!.map((role) => (
+                  <div key={role.role_id} className="cc-role">
+                    <div className="cc-role__head">
+                      <div>
+                        <strong>{role.title}</strong>
+                        <span className="cc-muted">
+                          {role.department}
+                          {role.same_track ? ' · same track as your goal' : ''}
+                        </span>
+                      </div>
+                      <span className={`cc-fit ${role.overall_fit_pct >= 80 ? 'cc-fit--high' : ''}`}>{role.overall_fit_pct}%</span>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-bold text-primary">{mentor.mentor_name}</h3>
-                      <p className="text-xs text-tertiary">
-                        {mentor.mentor_role} · {mentor.mentor_department}
-                      </p>
+                    <div className="cc-progress">
+                      <div style={{ width: `${role.overall_fit_pct}%` }} />
                     </div>
+                    <p className="cc-muted">
+                      {role.missing_requirements.length ? `Missing: ${role.missing_requirements.slice(0, 3).join(', ')}` : 'You meet every listed requirement.'}
+                    </p>
                   </div>
-                  <Button
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => handleMentorRequest(mentor.mentor_employee_id)}
-                    disabled={mentor.intro_requested || mentorLoadingId === mentor.mentor_employee_id}
-                  >
-                    {mentorLoadingId === mentor.mentor_employee_id ? (
-                      <Loader2 size={14} className="mr-1 animate-spin" />
-                    ) : (
-                      <UserPlus size={14} className="mr-1" />
-                    )}
-                    {mentor.intro_requested ? 'Requested' : 'Request intro'}
-                  </Button>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-secondary">{mentor.match_reason}</p>
+                ))}
               </div>
-            ))}
-          </Card>
+            )}
+          </section>
+        </div>
+      )}
 
-          <Card glass={false} className="glass-panel career-section career-chat">
-            <div className="career-chat__head">
-              <div className="flex items-center gap-3">
-                <div className="career-section__icon">
-                  <MessageSquare size={16} />
-                </div>
-                <div>
-                  <h2 className="career-section__title">Grounded AI chat</h2>
-                  <p className="career-section__sub">Answers reference your real readiness, gaps, and role matches.</p>
-                </div>
-              </div>
+      {tab === 'manager' && (
+        <section className="cc-card cc-manager">
+          <div className="cc-manager__head">
+            <div>
+              <h3 className="cc-card__title">
+                <Briefcase size={16} /> Talking points for your next one-to-one
+              </h3>
+              <p className="cc-muted">
+                {plan.manager ? `For ${plan.manager.name}${plan.manager.role ? `, ${plan.manager.role}` : ''}.` : 'No manager is recorded on your profile.'}{' '}
+                {plan.goal.visible_to_manager ? 'Your manager can see this goal.' : 'This goal is private until you share it.'}
+              </p>
             </div>
-            <div className="career-chat__messages">
-              {chatHistory.map((message, index) => (
-                <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`career-chat__bubble career-chat__bubble--${message.role}`}>
-                    {message.role === 'assistant' ? (
-                      <>
-                        <div className="prose prose-sm max-w-none prose-p:my-2">
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </div>
-                        {message.grounding?.length ? (
-                          <div className="career-chat__grounding">
-                            {message.grounding.map((item, i) => (
-                              <span key={i} className="career-chat__ground-chip">{item}</span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p>{message.content}</p>
-                    )}
-                  </div>
+            <div className="cc-head__actions">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  navigator.clipboard?.writeText(plan.manager_brief || '');
+                  setNotice('Copied to clipboard.');
+                }}
+              >
+                <Copy size={13} className="mr-1" /> Copy
+              </Button>
+              <Button
+                size="sm"
+                variant={plan.goal.visible_to_manager ? 'ghost' : 'primary'}
+                disabled={busy}
+                onClick={() => run(() => careerCoachAPI.setVisibility(employeeId, !plan.goal!.visible_to_manager), plan.goal!.visible_to_manager ? 'Goal is now private.' : 'Your manager can now see this goal.')}
+              >
+                {plan.goal.visible_to_manager ? 'Make private' : 'Share with manager'}
+              </Button>
+            </div>
+          </div>
+          <blockquote className="cc-brief">{plan.manager_brief}</blockquote>
+          {(plan.checkins || []).length > 0 && (
+            <div className="cc-log">
+              <h4>Recent check-ins</h4>
+              {plan.checkins!.map((row) => (
+                <div key={row.id} className="cc-log__row">
+                  <span>{fmtDate(row.created_at)}</span>
+                  <strong>{fmtHours(row.hours)}</strong>
+                  <span>{row.skill || 'General'}</span>
+                  <span className="cc-muted">{row.note}</span>
                 </div>
               ))}
-              {chatting && (
-                <div className="flex justify-start">
-                  <div className="career-chat__bubble career-chat__bubble--assistant">
-                    <Loader2 size={16} className="animate-spin text-tertiary" />
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
             </div>
-            <form onSubmit={handleSendMessage} className="career-chat__input-row">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask how to close the gap to your target role…"
-                className="input-field h-11 flex-1"
-                disabled={chatting}
-              />
-              <Button type="submit" disabled={!chatInput.trim() || chatting}>
-                <Send size={15} />
-              </Button>
-            </form>
-          </Card>
-        </div>
-      </div>
+          )}
+        </section>
+      )}
 
-      <Card glass={false} className="glass-panel career-section">
-        <SectionHead icon={<Sparkles size={18} />} title="Market context" subtitle="Trends affecting your target path" />
-        <div className="career-trends-row">
-          {analysis.market_trends.map((trend, index) => (
-            <div key={index} className="career-trend-card">
-              <div className="career-trend-card__top">
-                <div>
-                  <p className="career-trend-card__skill">{trend.skill}</p>
-                  <p className="career-trend-card__category">{trend.category}</p>
+      {tab === 'ask' && (
+        <section className="cc-card cc-chat">
+          <div className="cc-chat__log">
+            {chat.length === 0 && (
+              <div className="cc-chat__start">
+                <p className="cc-muted">Answers use your plan, your skills, courses in the catalogue, and colleagues in the directory.</p>
+                <div className="cc-chips">
+                  {[
+                    'What should I focus on this week?',
+                    `How do I get to ${plan.goal.target_role} faster?`,
+                    openMilestones[0] ? `How do I show ${openMilestones[0].skill} in my current work?` : 'What should I ask my manager for?',
+                    'What should I ask my manager for?',
+                  ]
+                    .filter((value, index, all) => all.indexOf(value) === index)
+                    .map((prompt) => (
+                      <button key={prompt} type="button" className="cc-chip" onClick={() => ask(prompt)}>
+                        {prompt}
+                      </button>
+                    ))}
                 </div>
-                <span className="career-trend-card__trend">{trend.trend}</span>
               </div>
-              <p className="career-trend-card__implication">{trend.implication}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
+            )}
+            {chat.map((message, index) => (
+              <div key={index} className={`cc-msg cc-msg--${message.role}`}>
+                <div className="cc-msg__bubble">
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                </div>
+                {message.grounding && message.grounding.length > 0 && (
+                  <div className="cc-msg__ground">
+                    {message.grounding.map((item) => (
+                      <span key={item}>{item}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {asking && (
+              <div className="cc-msg cc-msg--assistant">
+                <div className="cc-msg__bubble">
+                  <Loader2 size={14} className="animate-spin" />
+                </div>
+              </div>
+            )}
+            <div ref={chatEnd} />
+          </div>
+          <form
+            className="cc-chat__input"
+            onSubmit={(event) => {
+              event.preventDefault();
+              ask(question);
+            }}
+          >
+            <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask about your plan…" maxLength={1000} />
+            <Button type="submit" disabled={asking || !question.trim()}>
+              <Send size={15} />
+            </Button>
+          </form>
+        </section>
+      )}
 
-      <Modal isOpen={goalModalOpen} onClose={() => setGoalModalOpen(false)} title="Update career goal">
-        <div className="space-y-4 p-1">
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-700">Target role</label>
-            <input
-              className="input-field"
-              value={goalForm.target_role}
-              onChange={(e) => setGoalForm((prev) => ({ ...prev, target_role: e.target.value }))}
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-700">Timeline</label>
-              <input
-                className="input-field"
-                value={goalForm.timeline}
-                onChange={(e) => setGoalForm((prev) => ({ ...prev, timeline: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-700">Focus area</label>
-              <input
-                className="input-field"
-                value={goalForm.focus_area}
-                onChange={(e) => setGoalForm((prev) => ({ ...prev, focus_area: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-700">Industry or domain</label>
-            <input
-              className="input-field"
-              value={goalForm.target_industry}
-              onChange={(e) => setGoalForm((prev) => ({ ...prev, target_industry: e.target.value }))}
-            />
-          </div>
-          <label className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-sm font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={goalForm.visible_to_manager}
-              onChange={(e) => setGoalForm((prev) => ({ ...prev, visible_to_manager: e.target.checked }))}
-            />
-            Allow manager visibility for this goal
-          </label>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-            <Button variant="ghost" className="border border-slate-200 bg-white text-slate-700" onClick={() => setGoalModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleGoalSave} disabled={savingGoal}>
-              {savingGoal ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
-              Save and recompute
-            </Button>
-          </div>
+      <Modal isOpen={goalOpen} onClose={() => setGoalOpen(false)} title="Change your goal" maxWidthClass="max-w-4xl">
+        <div className="career-coach cc-modal">
+          <p className="cc-muted cc-plan-intro">
+            A new goal starts a fresh plan. Your evidence, check-ins, and learning plans stay on your profile.
+          </p>
+          <GoalSetup
+            employeeId={employeeId}
+            roles={plan.role_options}
+            initialRole={plan.goal.target_role}
+            initialMonths={settings.target_months}
+            initialHours={settings.hours_per_week}
+            initialVisible={plan.goal.visible_to_manager}
+            busy={busy}
+            onSubmit={async (data) => {
+              if (await run(() => careerCoachAPI.setGoal(employeeId, data), 'Your new plan is ready.')) {
+                setGoalOpen(false);
+                setTab('plan');
+              }
+            }}
+          />
         </div>
       </Modal>
 
-      <Modal
-        isOpen={!!evidenceModal}
-        onClose={() => {
-          setEvidenceModal(null);
-          setEvidenceDescription('');
-          setEvidenceFile(null);
-        }}
-        title={evidenceModal?.step ? `Submit evidence for ${evidenceModal.step.title}` : `Submit evidence for ${evidenceModal?.skillGap?.skill}`}
-      >
-        <div className="space-y-4 p-1">
-          <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-            {(evidenceModal?.step?.description || evidenceModal?.skillGap?.recommended_path) ?? ''}
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-700">Evidence notes</label>
+      <Modal isOpen={!!evidenceFor} onClose={() => setEvidenceFor(null)} title={evidenceFor ? evidenceFor.phase.title : 'Add evidence'}>
+        {evidenceFor && (
+          <form
+            className="career-coach cc-modal cc-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (await run(() => careerCoachAPI.addEvidence(employeeId, evidenceFor.phase.id, evidenceText, evidenceFile), 'Milestone completed.')) {
+                setEvidenceFor(null);
+              }
+            }}
+          >
+            <p className="cc-muted">
+              {evidenceFor.phase.phase === 'learn'
+                ? `Tell us which ${evidenceFor.milestone.skill} course or programme you finished outside the catalogue. Attach the certificate if you have one.`
+                : `Describe the ${evidenceFor.milestone.skill} work you did: what you owned, what changed, and who reviewed it.`}
+            </p>
             <textarea
               rows={5}
-              className="input-field resize-y"
-              value={evidenceDescription}
-              onChange={(e) => setEvidenceDescription(e.target.value)}
-              placeholder="Describe what you completed, what changed, and why this proves progress."
+              value={evidenceText}
+              onChange={(e) => setEvidenceText(e.target.value)}
+              placeholder={evidenceFor.phase.phase === 'learn' ? 'e.g. Completed the FinOps Practitioner course, 16 hours.' : 'e.g. Ran a cost review of the payments workload and cut spend 18%.'}
             />
+            <label className="cc-file">
+              <Upload size={14} />
+              {evidenceFile ? evidenceFile.name : 'Attach a file (optional, up to 10 MB)'}
+              <input type="file" onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)} />
+            </label>
+            <div className="cc-form__foot">
+              <Button type="button" variant="ghost" onClick={() => setEvidenceFor(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy || (evidenceText.trim().length < 20 && !evidenceFile)}>
+                {busy && <Loader2 size={14} className="animate-spin mr-2" />}
+                Save and complete
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal isOpen={checkinOpen} onClose={() => setCheckinOpen(false)} title="Log this week's hours">
+        <form
+          className="career-coach cc-modal cc-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (await run(() => careerCoachAPI.checkin(employeeId, { hours: checkinHours, skill: checkinSkill || undefined, note: checkinNote || undefined }), 'Check-in saved.')) {
+              setCheckinOpen(false);
+            }
+          }}
+        >
+          <div className="cc-field">
+            <span>Hours spent</span>
+            <Stepper value={checkinHours} min={1} max={40} suffix="hours" onChange={setCheckinHours} />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-700">Optional file</label>
-            <input
-              type="file"
-              className="input-field"
-              onChange={(e) => setEvidenceFile(e.target.files?.[0] || null)}
-            />
-            <p className="mt-2 text-xs text-slate-500">
-              Use manager sign-off evidence when the step requires approval. Otherwise files are auto-approved and award XP immediately.
-            </p>
-          </div>
-          <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-            <Button
-              variant="ghost"
-              className="border border-slate-200 bg-white text-slate-700"
-              onClick={() => {
-                setEvidenceModal(null);
-                setEvidenceDescription('');
-                setEvidenceFile(null);
-              }}
-            >
+          <label className="cc-field">
+            <span>Skill</span>
+            <select value={checkinSkill} onChange={(e) => setCheckinSkill(e.target.value)}>
+              <option value="">General</option>
+              {(plan.milestones || []).map((m) => (
+                <option key={m.gap_id} value={m.skill}>
+                  {m.skill}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="cc-field">
+            <span>What did you do? (optional)</span>
+            <textarea rows={3} value={checkinNote} onChange={(e) => setCheckinNote(e.target.value)} placeholder="e.g. Finished module 2 and reviewed our tagging policy." />
+          </label>
+          <div className="cc-form__foot">
+            <Button type="button" variant="ghost" onClick={() => setCheckinOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEvidenceSubmit} disabled={evidenceSubmitting}>
-              {evidenceSubmitting ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Upload size={16} className="mr-2" />}
-              Submit evidence
+            <Button type="submit" disabled={busy}>
+              {busy && <Loader2 size={14} className="animate-spin mr-2" />}
+              Save check-in
             </Button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );
 };
+
+export default CareerCoach;

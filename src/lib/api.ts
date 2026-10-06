@@ -769,6 +769,266 @@ export const learningAPI = {
     fetchAPI<LearningChatMessage[]>(`/api/learning/${employeeId}/ai/chat/history`),
 };
 
+export interface LearningSkillGap {
+  skill: string;
+  current_level: number;
+  required_level: number;
+  display_current?: number;
+  display_required?: number;
+  display_scale?: number;
+  gap_levels: number;
+  gap_score: number;
+  priority_score: number;
+  priority_label: string;
+  source_gap_reference: string;
+  source_type: string;
+  strategic: boolean;
+  mandatory: boolean;
+  learning_plan_id?: string | null;
+  matching_courses: number;
+  matched_course_ids?: string[];
+  why: string;
+}
+
+export interface LearningCourseSkill {
+  skill_name: string;
+  level_delivered: number;
+}
+
+export interface LearningCourse {
+  id: string;
+  course_title: string;
+  provider?: string;
+  modality: string;
+  duration_hours: number;
+  cost_lkr: number;
+  difficulty_level: string;
+  is_mandatory: boolean;
+  strategic_priority_flag: boolean;
+  has_assessment: boolean;
+  catalogue_status: string;
+  skills: LearningCourseSkill[];
+}
+
+export interface LearningPlanItem {
+  id: string;
+  course_id: string;
+  course_title?: string;
+  sequence_order: number;
+  skill_gap_score: number;
+  expected_proficiency_gain: number;
+  status: string;
+  duration_hours?: number;
+  difficulty_level?: string;
+  has_assessment?: boolean;
+}
+
+export interface LearningPlan {
+  id: string;
+  employee_id: string;
+  title: string;
+  source_gap_reference: string;
+  target_skill_ids: string[];
+  plan_status: string;
+  target_completion_date: string;
+  total_estimated_hours: number;
+  priority_score: number;
+  progress_pct: number;
+  estimated_weeks: number;
+  abandonment_reason?: string | null;
+  items: LearningPlanItem[];
+}
+
+export interface LearningAssessment {
+  id: string;
+  learning_plan_item_id?: string;
+  skill_name: string;
+  proficiency_before: number;
+  proficiency_after?: number | null;
+  assessment_score_pct: number;
+  passed: boolean;
+  sfa_sync_status: string;
+  proficiency_verified_flag: boolean;
+  assessment_date?: string;
+}
+
+export interface LearningClosure {
+  skill_name: string;
+  before_level: number;
+  after_level: number;
+  required_level: number;
+  closure_status: string;
+  source_gap_reference: string;
+}
+
+const learningTimeout = { timeoutMs: 90000 };
+
+export interface LearningNextStep {
+  answer: string;
+  source_gap_reference?: string;
+  hours?: number;
+  weeks?: number;
+  gap?: LearningSkillGap;
+  sequence?: Array<{
+    course_id: string;
+    course_title: string;
+    duration_hours: number;
+    difficulty_level: string;
+    has_assessment: boolean;
+    modality?: string;
+    provider?: string;
+  }>;
+}
+
+export interface ComplianceMetric {
+  assigned: number;
+  verified_completed: number;
+  ratio: number | null;
+  state: string;
+}
+
+export interface TeamGapRow {
+  employee_id: string;
+  employee: string;
+  skill: string;
+  current_level: number;
+  required_level: number;
+  gap_levels: number;
+  strategic: boolean;
+  learning_plan_status: string;
+}
+
+export interface OrgDepartment {
+  department: string;
+  plans: number;
+  active: number;
+  abandoned: number;
+  hours: number;
+}
+
+export interface OrgOverview {
+  mandatory_compliance: ComplianceMetric;
+  strategic_coverage: ComplianceMetric;
+  verified_skill_gains: number;
+  unverified_passes: number;
+  abandoned_plans: number;
+  learning_hours: number;
+  catalogue_cost_lkr: number;
+  unused_active_courses: string[];
+  plans_by_department?: OrgDepartment[];
+  assessment_outcomes?: {
+    passed: number;
+    failed: number;
+    pending_sync: number;
+    synced: number;
+    failed_sync: number;
+  };
+}
+
+export const learningRecommendationAPI = {
+  gaps: (employeeId: string) =>
+    fetchAPI<{ gaps: LearningSkillGap[] }>(`/api/learning/recommendation/${employeeId}/skill-gaps`, learningTimeout),
+  plans: (employeeId: string) =>
+    fetchAPI<{ plans: LearningPlan[] }>(`/api/learning/recommendation/${employeeId}/plans`, learningTimeout),
+  createPlan: (employeeId: string, sourceGapReference: string, courseIds?: string[]) =>
+    fetchAPI<LearningPlan>(`/api/learning/recommendation/${employeeId}/plans`, {
+      method: 'POST',
+      body: JSON.stringify({ source_gap_reference: sourceGapReference, course_ids: courseIds ?? [] }),
+      ...learningTimeout,
+    }),
+  abandonPlan: (planId: string, reason: string) =>
+    fetchAPI<LearningPlan>(`/api/learning/recommendation/plans/${planId}/abandon`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+      ...learningTimeout,
+    }),
+  enroll: (itemId: string) =>
+    fetchAPI<LearningPlan>(`/api/learning/recommendation/items/${itemId}/enroll`, { method: 'POST', ...learningTimeout }),
+  setItemStatus: (itemId: string, status: string) =>
+    fetchAPI<LearningPlan>(`/api/learning/recommendation/items/${itemId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+      ...learningTimeout,
+    }),
+  courses: (params: Record<string, string> = {}) => {
+    const query = new URLSearchParams(params).toString();
+    return fetchAPI<{ courses: LearningCourse[] }>(`/api/learning/recommendation/courses${query ? `?${query}` : ''}`, learningTimeout);
+  },
+  skillNames: () =>
+    fetchAPI<{ skills: string[] }>('/api/learning/recommendation/skill-names', learningTimeout),
+  createCourse: (body: {
+    course_title: string;
+    provider: string;
+    modality: string;
+    duration_hours: number;
+    cost_lkr: number;
+    difficulty_level: string;
+    is_mandatory: boolean;
+    mandatory_for_role_ids: string[];
+    strategic_priority_flag: boolean;
+    has_assessment: boolean;
+    skill_maps: Array<{ skill_name: string; level_delivered: number }>;
+  }) =>
+    fetchAPI<LearningCourse>('/api/learning/recommendation/courses', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      ...learningTimeout,
+    }),
+  addCourseToPlan: (planId: string, courseId: string) =>
+    fetchAPI<LearningPlan>(`/api/learning/recommendation/plans/${planId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ course_id: courseId }),
+      ...learningTimeout,
+    }),
+  assessments: (employeeId: string) =>
+    fetchAPI<{ assessments: LearningAssessment[] }>(`/api/learning/recommendation/${employeeId}/assessments`, learningTimeout),
+  submitAssessment: (itemId: string, answers: number[]) =>
+    fetchAPI<LearningAssessment>(`/api/learning/recommendation/assessments`, {
+      method: 'POST',
+      body: JSON.stringify({ learning_plan_item_id: itemId, answers }),
+      ...learningTimeout,
+    }),
+  questions: (courseId: string) =>
+    fetchAPI<{ questions: Array<{ id: string; prompt: string; options: string[] }> }>(
+      `/api/learning/recommendation/courses/${courseId}/questions`,
+      learningTimeout,
+    ),
+  syncAssessment: (assessmentId: string, forceFail = false) =>
+    fetchAPI<LearningAssessment>(`/api/learning/recommendation/assessments/${assessmentId}/sync`, {
+      method: 'POST',
+      body: JSON.stringify({ force_fail: forceFail }),
+      ...learningTimeout,
+    }),
+  retrySync: (assessmentId: string) =>
+    fetchAPI<LearningAssessment>(`/api/learning/recommendation/assessments/${assessmentId}/retry-sync`, { method: 'POST', ...learningTimeout }),
+  closures: (employeeId: string) =>
+    fetchAPI<{ closures: LearningClosure[] }>(`/api/learning/recommendation/gap-closure?employee_id=${employeeId}`, learningTimeout),
+  next: (employeeId: string) =>
+    fetchAPI<LearningNextStep>(`/api/learning/recommendation/${employeeId}/next`, learningTimeout),
+  mandatory: (employeeId?: string) =>
+    fetchAPI<ComplianceMetric>(
+      `/api/learning/recommendation/compliance/mandatory${employeeId ? `?employee_id=${employeeId}` : ''}`,
+      learningTimeout,
+    ),
+  strategic: (employeeId?: string) =>
+    fetchAPI<ComplianceMetric>(
+      `/api/learning/recommendation/compliance/strategic${employeeId ? `?employee_id=${employeeId}` : ''}`,
+      learningTimeout,
+    ),
+  manager: (managerId: string) =>
+    fetchAPI<{
+      team_size: number;
+      strategic_gaps: TeamGapRow[];
+      strategic_gaps_without_plan: TeamGapRow[];
+      active_plans: Array<{ id: string; employee: string; title: string; plan_status: string; priority_score: number; total_estimated_hours: number }>;
+      unverified_completions: Array<{ employee: string; skill: string; score: number; sfa_sync_status: string }>;
+      mandatory_compliance: ComplianceMetric;
+      strategic_coverage: ComplianceMetric;
+      scope?: string;
+    }>(`/api/learning/recommendation/manager/${managerId}/overview`, learningTimeout),
+  employer: () => fetchAPI<OrgOverview>(`/api/learning/recommendation/employer/overview`, learningTimeout),
+};
+
 // ==================== CAREER ====================
 
 export interface CareerGoal {
@@ -795,6 +1055,7 @@ export interface CareerRoadmapStep {
   description?: string;
   step_type: string;
   related_skill_gap_id?: string | null;
+  skill?: string | null;
   requires_evidence: boolean;
   evidence_type?: string | null;
   estimated_hours: number;
@@ -894,6 +1155,16 @@ export interface CareerEvidenceSubmission {
   created_at?: string | null;
 }
 
+export interface CareerRoadmapOption {
+  id: string;
+  title: string;
+  summary: string;
+  readiness_pct: number;
+  months: number;
+  step_count: number;
+  steps: CareerRoadmapStep[];
+}
+
 export interface CareerAnalysis {
   goal?: CareerGoal | null;
   readiness_score: number;
@@ -902,6 +1173,8 @@ export interface CareerAnalysis {
   readiness_components: ReadinessComponent[];
   skill_gaps: CareerSkillGap[];
   roadmap_steps: CareerRoadmapStep[];
+  roadmap_options?: CareerRoadmapOption[];
+  selected_roadmap_id?: string | null;
   internal_roles: CareerInternalRole[];
   mentors: CareerMentorMatch[];
   market_trends: CareerMarketTrend[];
@@ -910,6 +1183,11 @@ export interface CareerAnalysis {
   summary: string;
   strengths: string[];
   blockers: string[];
+  timeline_note?: string;
+  manager_brief?: string;
+  evidence_items?: { title: string; detail: string }[];
+  steps_completed?: number;
+  steps_total?: number;
   xp_total: number;
 }
 
@@ -990,6 +1268,257 @@ export const careerAPI = {
   scanStallFlags: (days = 14) =>
     fetchAPI<{ scanned_goals: number; flagged_goals: number; resolved_goals: number; flags: CareerStallFlag[] }>(`/api/career/stall-flags/scan?days=${days}`, {
       method: 'POST',
+    }),
+};
+
+// ==================== CAREER COACH PLAN ====================
+
+export type CoachPhaseKind = 'learn' | 'apply' | 'prove';
+export type CoachStepStatus = 'upcoming' | 'in_progress' | 'achieved';
+
+export interface CoachPhase {
+  id: string;
+  phase: CoachPhaseKind;
+  title: string;
+  detail: string;
+  status: CoachStepStatus;
+  progress_pct: number;
+  hours: number;
+  hours_remaining: number;
+  starts?: string;
+  due?: string | null;
+  completed_at?: string | null;
+  project?: string | null;
+  evidence: { id: string; type?: string; status?: string; description?: string; created_at?: string }[];
+  resources?: CoachResource[];
+}
+
+export interface CoachResource {
+  name: string;
+  provider?: string | null;
+  type?: string;
+}
+
+export interface CoachMarket {
+  source: 'market' | 'library';
+  generated_at?: string | null;
+  summary?: string | null;
+  sources: { title: string; uri: string }[];
+  queries: string[];
+}
+
+export interface CoachLearningLink {
+  plan_id: string | null;
+  plan_status: string | null;
+  progress_pct: number;
+  courses: { id: string; title: string; status: string; hours: number }[];
+  suggested_courses: { id: string; title: string; hours: number; level: number }[];
+  course_count: number;
+  learning_target: number;
+}
+
+export interface CoachMilestone {
+  skill: string;
+  requirement: string;
+  gap_id: string;
+  category: string;
+  why: string;
+  market_signal?: string | null;
+  practice_task?: string | null;
+  recorded_as?: string | null;
+  start_level: number;
+  current: number;
+  required: number;
+  met: boolean;
+  status: 'done' | 'in_progress' | 'upcoming';
+  due: string | null;
+  phases: CoachPhase[];
+  learning: CoachLearningLink;
+}
+
+export interface CoachRequirement {
+  skill: string;
+  requirement: string;
+  recorded_as: string | null;
+  current: number;
+  required: number;
+  gap: number;
+  category: string;
+  why: string;
+  market_signal?: string | null;
+  related?: string[];
+  proof?: string | null;
+  resources?: CoachResource[];
+  gap_id: string | null;
+}
+
+export interface CoachAction {
+  id: string;
+  kind: 'learning' | 'evidence' | 'assessment' | 'mentor' | 'checkin';
+  title: string;
+  detail: string;
+  gap_id?: string;
+  step_id?: string;
+  mentor_id?: string;
+  skill?: string;
+  hours: number;
+}
+
+export interface CoachMentor {
+  employee_id: string;
+  name: string;
+  role?: string;
+  department?: string;
+  skill: string;
+  recorded_as: string;
+  level: number;
+  intro_requested: boolean;
+}
+
+export interface CoachOpportunity {
+  role_id: string;
+  title: string;
+  department?: string;
+  overall_fit_pct: number;
+  missing_requirements: string[];
+  matched_skills: string[];
+  eligibility_summary: string;
+  same_track: boolean;
+}
+
+export interface CoachPlan {
+  employee: { id: string; name?: string; role?: string; department?: string };
+  role_options: string[];
+  goal: null | {
+    id: string;
+    target_role: string;
+    family: string;
+    timeline?: string;
+    visible_to_manager: boolean;
+    created_at?: string;
+  };
+  settings?: { hours_per_week: number; target_date: string; target_months: number; started_at: string };
+  readiness?: { pct: number; start_pct: number; met: number; total: number };
+  timeline?: {
+    pace: 'on_track' | 'at_risk' | 'complete';
+    total_hours: number;
+    done_hours: number;
+    remaining_hours: number;
+    projected_finish: string;
+    target_date: string;
+    weeks_left: number;
+    hours_per_week_needed: number | null;
+    behind_hours: number;
+  };
+  requirements?: CoachRequirement[];
+  unused_profile_skills?: number;
+  market?: CoachMarket;
+  milestones?: CoachMilestone[];
+  this_week?: CoachAction[];
+  momentum?: {
+    hours_this_week: number;
+    hours_last_4_weeks: number;
+    planned_last_4_weeks: number;
+    streak_weeks: number;
+    last_activity: string | null;
+    days_since_activity: number | null;
+    stalled: boolean;
+  };
+  checkins?: { id: string; skill?: string; hours: number; note?: string; created_at: string }[];
+  mentors?: CoachMentor[];
+  opportunities?: CoachOpportunity[];
+  manager?: { id: string; name?: string; role?: string } | null;
+  manager_brief?: string;
+}
+
+export interface CoachRolePreview {
+  target_role: string;
+  market?: CoachMarket;
+  readiness_pct: number;
+  met: { skill: string; current: number; required: number }[];
+  to_build: { skill: string; current: number; required: number }[];
+  total_hours: number;
+}
+
+const COACH_TIMEOUT_MS = 45000;
+// Market research is a grounded Gemini search; the first run for a role takes up to two minutes.
+const COACH_RESEARCH_TIMEOUT_MS = 150000;
+
+export const careerCoachAPI = {
+  getPlan: (employeeId: string) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}`, { timeoutMs: COACH_RESEARCH_TIMEOUT_MS }),
+
+  roles: (employeeId?: string, role?: string) =>
+    fetchAPI<{ roles: string[]; preview?: CoachRolePreview }>(
+      `/api/career-coach/roles${buildQueryString({ employee_id: employeeId, role })}`,
+      { timeoutMs: COACH_RESEARCH_TIMEOUT_MS },
+    ),
+
+  setGoal: (employeeId: string, data: { target_role: string; target_months: number; hours_per_week: number; visible_to_manager: boolean }) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/goal`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: COACH_RESEARCH_TIMEOUT_MS,
+    }),
+
+  refreshMarket: (employeeId: string) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/market/refresh`, {
+      method: 'POST',
+      timeoutMs: COACH_RESEARCH_TIMEOUT_MS,
+    }),
+
+  updateSettings: (employeeId: string, data: { hours_per_week?: number; target_months?: number }) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/settings`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      timeoutMs: COACH_TIMEOUT_MS,
+    }),
+
+  reopenStep: (employeeId: string, stepId: string) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/steps/${stepId}`, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'reopen' }),
+      timeoutMs: COACH_TIMEOUT_MS,
+    }),
+
+  addEvidence: (employeeId: string, stepId: string, description: string, file?: File | null) => {
+    const form = new FormData();
+    form.append('step_id', stepId);
+    form.append('description', description);
+    if (file) form.append('file', file);
+    return fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/evidence`, {
+      method: 'POST',
+      body: form,
+      timeoutMs: 60000,
+    });
+  },
+
+  checkin: (employeeId: string, data: { hours: number; skill?: string; note?: string }) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/checkins`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: COACH_TIMEOUT_MS,
+    }),
+
+  requestIntro: (employeeId: string, mentorId: string, skill: string) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/mentors/${mentorId}/intro`, {
+      method: 'POST',
+      body: JSON.stringify({ skill }),
+      timeoutMs: COACH_TIMEOUT_MS,
+    }),
+
+  setVisibility: (employeeId: string, visible_to_manager: boolean) =>
+    fetchAPI<CoachPlan>(`/api/career-coach/${employeeId}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visible_to_manager }),
+      timeoutMs: COACH_TIMEOUT_MS,
+    }),
+
+  ask: (employeeId: string, message: string, history: { role: string; content: string }[] = []) =>
+    fetchAPI<{ answer: string; grounding: string[] }>(`/api/career-coach/${employeeId}/ask`, {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+      timeoutMs: 60000,
     }),
 };
 

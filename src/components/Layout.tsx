@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Briefcase, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Briefcase, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog, ShieldCheck } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
 import { GlobalAIChatbot } from './chat/GlobalAIChatbot';
@@ -18,13 +18,14 @@ export const Layout: React.FC = () => {
     { name: 'Scenario Simulator', path: '/simulator', icon: <Activity size={20} /> },
     { name: 'Internal Talent Marketplace', path: '/talent-marketplace', icon: <Briefcase size={20} /> },
     { name: 'Team Builder Engine', path: '/team-builder', icon: <Users2 size={20} /> },
+    { name: 'Succession & Knowledge Transfer', path: '/succession', icon: <ShieldCheck size={20} /> },
   ];
 
   const empNavItems = [
     { name: 'Personal Dashboard', path: '/employee-twin', icon: <Users size={20} /> },
     { name: 'Career Coach', path: '/career-coach', icon: <Crosshair size={20} /> },
     { name: 'Gamification Hub', path: '/gamification-hub', icon: <Trophy size={20} /> },
-    { name: 'Learning Hub', path: '/learning-hub', icon: <Brain size={20} /> },
+    { name: 'Learning Recommendation', path: '/learning-hub', icon: <Brain size={20} /> },
   ];
 
 

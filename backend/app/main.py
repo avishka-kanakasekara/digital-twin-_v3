@@ -6,6 +6,7 @@ Digital Twin v3 — FastAPI Application Entry Point
 from contextlib import asynccontextmanager
 import os
 import re
+import threading
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -42,6 +43,20 @@ def _clear_broken_local_proxies() -> None:
 _clear_broken_local_proxies()
 
 
+def _warm_learning_and_career_schema() -> None:
+    try:
+        from app.services import career_market, career_plan, learning_recommendation, succession as succession_service
+
+        db = get_db()
+        learning_recommendation.ensure_schema(db)
+        career_plan.ensure_schema(db)
+        career_market.ensure_schema(db)
+        succession_service.ensure_schema(db)
+        print("[SUCCESS] Learning, Career Coach, and Succession tables ready")
+    except Exception as exc:
+        print(f"[WARNING] Learning, Career Coach, and Succession warm-up skipped: {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
@@ -52,6 +67,7 @@ async def lifespan(app: FastAPI):
         print(f"[SUCCESS] Database connection verified ({health['database']})")
     except Exception as e:
         print(f"[WARNING] Database connection warning: {e}")
+    threading.Thread(target=_warm_learning_and_career_schema, daemon=True).start()
     print("[SUCCESS] Digital Twin v3 API starting up")
     yield
     print("[STOP] Shutting down Digital Twin v3 API")
@@ -112,7 +128,9 @@ app.include_router(auth.router)
 app.include_router(employees.router)
 app.include_router(gamification.router)
 app.include_router(learning.router)
+app.include_router(learning_recommendation.router)
 app.include_router(career.router)
+app.include_router(career_coach_plan.router)
 app.include_router(organization.router)
 app.include_router(departments.router)
 app.include_router(workforce_intelligence.router)
@@ -151,9 +169,11 @@ _EMPLOYEE_PATHS = (
     re.compile(r"^/api/gamification/(?P<id>[^/]+)"),
     re.compile(r"^/api/learning/(?P<id>[^/]+)"),
     re.compile(r"^/api/career/(?P<id>[^/]+)"),
+    re.compile(r"^/api/career-coach/(?P<id>[^/]+)"),
+    re.compile(r"^/api/succession/employee/(?P<id>[^/]+)"),
 )
 _NOT_EMPLOYEE_IDS = {
-    "leaderboard", "rewards", "admin", "courses", "stall-flags", "roadmap",
+    "leaderboard", "rewards", "admin", "courses", "stall-flags", "roadmap", "roles",
 }
 
 

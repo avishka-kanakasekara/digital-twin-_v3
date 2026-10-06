@@ -4,6 +4,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.db.errors import FabricDataError
@@ -24,6 +25,9 @@ from app.schemas.career import (
     StallScanResponse,
 )
 from app.services.career_coach import (
+    _ROADMAP_DB_KEYS,
+    _db_payload,
+    _load_ai_cache,
     analysis_response_from_state,
     award_career_xp,
     build_grounded_chat_response,
@@ -139,8 +143,7 @@ def get_analysis(employee_id: str, refresh: bool = Query(default=False)):
         goal = goal_rows[0]
         refresh_ai = refresh or not goal_has_ai_plan(sb, goal["id"])
         state = compute_career_state(employee_id, sb, refresh_ai=refresh_ai)
-        if state.get("ai_cache"):
-            _persist_state(sb, employee_id, state)
+        _persist_state(sb, employee_id, state)
         return analysis_response_from_state(employee_id, sb, state)
     except FabricDataError:
         # One more attempt after pool reset — long Gemini calls often leave stale Fabric sockets.
@@ -154,9 +157,49 @@ def get_analysis(employee_id: str, refresh: bool = Query(default=False)):
         goal = goal_rows[0]
         # Prefer cached AI plan on retry to avoid another long Gemini wait on a flaky link.
         state = compute_career_state(employee_id, sb, refresh_ai=False)
-        if state.get("ai_cache"):
-            _persist_state(sb, employee_id, state)
+        _persist_state(sb, employee_id, state)
         return analysis_response_from_state(employee_id, sb, state)
+
+
+class RoadmapSelectRequest(BaseModel):
+    roadmap_id: str = Field(min_length=1)
+
+
+@router.post("/{employee_id}/roadmap/select", response_model=CareerAnalysisResponse)
+def select_skill_roadmap(employee_id: str, data: RoadmapSelectRequest):
+    sb = get_db()
+    state = compute_career_state(employee_id, sb, refresh_ai=False)
+    option = next((item for item in state.get("roadmap_options") or [] if item["id"] == data.roadmap_id), None)
+    if not option:
+        raise HTTPException(status_code=404, detail="Roadmap not found for this goal")
+    goal_rows = sb.table("career_goals").select("*").eq("id", state["goal_id"]).limit(1).execute().data or []
+    if not goal_rows:
+        raise HTTPException(status_code=404, detail="Career goal not found")
+    cache = _load_ai_cache(goal_rows[0])
+    cache["selected_roadmap_id"] = option["id"]
+    cache["selected_for_role"] = state["target_role"]
+    sb.table("career_goals").update({"ai_analysis_json": cache}).eq("id", state["goal_id"]).execute()
+    sb.table("career_roadmap_steps").delete().eq("career_goal_id", state["goal_id"]).execute()
+    rows = _db_payload(option["steps"], _ROADMAP_DB_KEYS)
+    if rows:
+        sb.table("career_roadmap_steps").insert(rows).execute()
+    state = compute_career_state(employee_id, sb, refresh_ai=False)
+    return analysis_response_from_state(employee_id, sb, state)
+
+
+@router.post("/{employee_id}/roadmap/clear", response_model=CareerAnalysisResponse)
+def clear_skill_roadmap(employee_id: str):
+    sb = get_db()
+    state = compute_career_state(employee_id, sb, refresh_ai=False)
+    goal_rows = sb.table("career_goals").select("*").eq("id", state["goal_id"]).limit(1).execute().data or []
+    if not goal_rows:
+        raise HTTPException(status_code=404, detail="Career goal not found")
+    cache = _load_ai_cache(goal_rows[0])
+    cache.pop("selected_roadmap_id", None)
+    cache.pop("selected_for_role", None)
+    sb.table("career_goals").update({"ai_analysis_json": cache}).eq("id", state["goal_id"]).execute()
+    state = compute_career_state(employee_id, sb, refresh_ai=False)
+    return analysis_response_from_state(employee_id, sb, state)
 
 
 @router.patch("/roadmap/{step_id}")

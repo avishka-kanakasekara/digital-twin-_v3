@@ -10,6 +10,7 @@ import { WorkforcePlanning } from './views/organization/WorkforcePlanning';
 import { TeamBuilder } from './views/organization/TeamBuilder';
 import { TalentMarketplace } from './views/organization/TalentMarketplace';
 import { StrategyRoleArchitect } from './views/organization/StrategyRoleArchitect';
+import { SuccessionKnowledgeTransfer } from './views/organization/SuccessionKnowledgeTransfer';
 import { AdminSettings } from './views/admin/AdminSettings';
 import { SettingsProvider } from './context/SettingsContext';
 
@@ -30,6 +31,7 @@ function App() {
             <Route path="team-builder" element={<TeamBuilder />} />
             <Route path="talent-marketplace" element={<TalentMarketplace />} />
             <Route path="strategy-architect" element={<StrategyRoleArchitect />} />
+            <Route path="succession" element={<SuccessionKnowledgeTransfer />} />
             <Route path="admin/settings" element={<AdminSettings />} />
           </Route>
         </Routes>

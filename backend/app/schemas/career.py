@@ -49,6 +49,7 @@ class CareerRoadmapStepResponse(BaseModel):
     status: str = "upcoming"
     step_type: str = "learning"
     related_skill_gap_id: str | None = None
+    skill: str | None = None
     requires_evidence: bool = False
     evidence_type: str | None = None
     estimated_hours: int = 0
@@ -148,6 +149,21 @@ class CareerGoalResponse(BaseModel):
     roadmap_steps: list[CareerRoadmapStepResponse] = Field(default_factory=list)
 
 
+class SkillRoadmapOption(BaseModel):
+    id: str
+    title: str
+    summary: str
+    readiness_pct: int
+    months: int
+    step_count: int
+    steps: list[CareerRoadmapStepResponse] = Field(default_factory=list)
+
+
+class CareerEvidenceItem(BaseModel):
+    title: str
+    detail: str
+
+
 class CareerAnalysisResponse(BaseModel):
     goal: CareerGoalResponse | None = None
     readiness_score: int
@@ -156,6 +172,8 @@ class CareerAnalysisResponse(BaseModel):
     readiness_components: list[ReadinessComponentResponse] = Field(default_factory=list)
     skill_gaps: list[SkillGapResponse] = Field(default_factory=list)
     roadmap_steps: list[CareerRoadmapStepResponse] = Field(default_factory=list)
+    roadmap_options: list[SkillRoadmapOption] = Field(default_factory=list)
+    selected_roadmap_id: str | None = None
     internal_roles: list[InternalRoleMatchResponse] = Field(default_factory=list)
     mentors: list[MentorMatchResponse] = Field(default_factory=list)
     market_trends: list[MarketTrendResponse] = Field(default_factory=list)
@@ -164,6 +182,11 @@ class CareerAnalysisResponse(BaseModel):
     summary: str = ""
     strengths: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
+    timeline_note: str = ""
+    manager_brief: str = ""
+    evidence_items: list[CareerEvidenceItem] = Field(default_factory=list)
+    steps_completed: int = 0
+    steps_total: int = 0
     xp_total: int = 0
 
 
