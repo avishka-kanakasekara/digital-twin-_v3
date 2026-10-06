@@ -33,12 +33,13 @@ BIT_COLUMNS = {
     "verified", "is_active", "connected", "available", "completed",
     "is_ai_recommended", "visible_to_manager", "requires_evidence",
     "intro_requested", "resolved", "requires_approval", "patent_pending",
-    "joined", "pass",
+    "joined", "pass", "is_business_critical", "approved_by_hr", "shared_with_candidates",
 }
 
 PRIMARY_KEYS: dict[str, list[str]] = {
     "learning_feed_cache": ["employee_id"],
     "internal_roles": ["role_id"],
+    "lr_id_counters": ["prefix"],
 }
 
 # Embedded resource used by the leaderboard: gamification_profiles -> employees.
