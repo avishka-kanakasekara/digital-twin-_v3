@@ -384,10 +384,10 @@ export const useDigitalTwin = () => {
     }
     // Fallback for offline mode
     setProjects((prev: any) => {
-      const updatedCurrent = (prev.current || []).map((p: any) => 
+      const updatedCurrent = (prev.current || []).map((p: any) =>
         p.id === projectId ? { ...p, status, ...(progress !== undefined ? { progress } : {}) } : p
       );
-      const updatedCompleted = (prev.completed || []).map((p: any) => 
+      const updatedCompleted = (prev.completed || []).map((p: any) =>
         p.id === projectId ? { ...p, status, ...(progress !== undefined ? { progress } : {}) } : p
       );
       // If status is Completed, move to completed array
@@ -502,7 +502,7 @@ export const useDigitalTwin = () => {
   return {
     profile,
     updateProfile,
-    
+
     projects,
     addProject,
     updateProjectProgress,
@@ -511,7 +511,7 @@ export const useDigitalTwin = () => {
     addTask,
     updateTask,
     deleteTask,
-    
+
     knowledge,
     uploadKnowledgeSource,
     refreshKnowledge,
@@ -520,18 +520,18 @@ export const useDigitalTwin = () => {
     gamification,
     completeMission,
     updateGamificationXP,
-    
+
     skills,
     updateSkill,
     deleteSkill,
-    
+
     skillsData,
     twinSummary,
     personalAnalyticsAI,
-    
+
     loading,
     useAPI,
-    
+
     // Dynamic data from backend
     certifications,
     twinMemory,

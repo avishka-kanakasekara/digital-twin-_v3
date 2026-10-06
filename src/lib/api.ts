@@ -85,18 +85,18 @@ export interface AuthResponse {
 }
 
 export const authAPI = {
-  login: (data: LoginRequest) => 
+  login: (data: LoginRequest) =>
     fetchAPI<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   register: (data: RegisterRequest) =>
     fetchAPI<AuthResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   getCurrentUser: () =>
     fetchAPI<any>('/api/auth/me'),
 };
@@ -257,16 +257,16 @@ export const employeeAPI = {
     fetchAPI<{ employees: Employee[]; total: number }>(
       `/api/employees${buildQueryString(params)}`
     ),
-  
+
   get: (id: string) =>
     fetchAPI<Employee>(`/api/employees/${id}`),
-  
+
   update: (id: string, data: Partial<Employee>) =>
     fetchAPI<Employee>(`/api/employees/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }),
-  
+
   getTwinSummary: (id: string) =>
     fetchAPI<TwinSummary>(`/api/employees/${id}/twin-summary`),
 
@@ -278,67 +278,67 @@ export const employeeAPI = {
       `/api/employees/${id}/daily-checkin`,
       { method: 'POST' },
     ),
-  
+
   getSkills: (id: string) =>
     fetchAPI<Skill[]>(`/api/employees/${id}/skills`),
-  
+
   addSkill: (id: string, data: Omit<Skill, 'id' | 'employee_id' | 'last_updated'>) =>
     fetchAPI<Skill>(`/api/employees/${id}/skills`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   updateSkill: (employeeId: string, skillId: string, data: Partial<Skill>) =>
     fetchAPI<Skill>(`/api/employees/${employeeId}/skills/${skillId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  
+
   deleteSkill: (employeeId: string, skillId: string) =>
     fetchAPI<void>(`/api/employees/${employeeId}/skills/${skillId}`, {
       method: 'DELETE',
     }),
-  
+
   getProjects: (id: string) =>
     fetchAPI<{ current: any[]; completed: any[] }>(`/api/employees/${id}/projects`),
-  
+
   createProject: (id: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   updateProject: (id: string, projectId: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects/${projectId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  
+
   deleteProject: (id: string, projectId: string) =>
     fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}`, {
       method: 'DELETE',
     }),
-  
+
   getTasks: (id: string, projectId: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/projects/${projectId}/tasks`),
-  
+
   createTask: (id: string, projectId: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  
+
   updateTask: (id: string, projectId: string, taskId: string, data: any) =>
     fetchAPI<any>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  
+
   deleteTask: (id: string, projectId: string, taskId: string) =>
     fetchAPI<{ message: string }>(`/api/employees/${id}/projects/${projectId}/tasks/${taskId}`, {
       method: 'DELETE',
     }),
-  
+
   getAIReadiness: (id: string) =>
     fetchAPI<{
       overallScore: number;
@@ -346,13 +346,13 @@ export const employeeAPI = {
       recommendation: { action: string; message: string; impact: string };
       analysisSummary: string;
     }>(`/api/employees/${id}/ai-readiness`),
-  
+
   sendAIChatMessage: (id: string, message: string, history: Array<{ role: string; content: string }>) =>
     fetchAPI<{ response: string; sources: string[] }>(`/api/employees/${id}/ai-chat`, {
       method: 'POST',
       body: JSON.stringify({ message, history }),
     }),
-  
+
   getPersonalAnalytics: (id: string) =>
     fetchAPI<{
       insights: Array<{ category: string; title: string; description: string; impact: string; actionable: boolean }>;
@@ -360,11 +360,11 @@ export const employeeAPI = {
       skill_growth: Array<{ skill_name: string; current_level: number; target_level: number; growth_rate: number; trajectory: string; category: string; recent_projects: string[] }>;
       recommendations: string[];
       overall_score: number;
-    }>(`/api/employees/${id}/personal-analytics`),
-  
+    }>(`/api/employees/${id}/personal-analytics`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
+
   getKnowledgeSources: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/knowledge-sources`),
-  
+
   getRecognitions: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/recognitions`),
 
@@ -396,25 +396,25 @@ export const employeeAPI = {
     fetchAPI<void>(`/api/employees/${fromEmployeeId}/peer-recommendations/${recommendationId}`, {
       method: 'DELETE',
     }),
-  
+
   getCertifications: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/certifications`),
-  
+
   getAnalytics: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/analytics`),
-  
+
   getSkillsGrouped: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/skills-grouped`),
-  
+
   getTwinMemory: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/twin-memory`),
-  
+
   getCollaboration: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/collaboration`),
-  
+
   getProjectPrediction: (id: string) =>
     fetchAPI<any>(`/api/employees/${id}/project-prediction`),
-  
+
   getAIRecommendations: (id: string) =>
     fetchAPI<any[]>(`/api/employees/${id}/ai-recommendations`),
 };
@@ -480,31 +480,31 @@ export interface Achievement {
 export const gamificationAPI = {
   getProfile: (employeeId: string) =>
     fetchAPI<GamificationProfile>(`/api/gamification/${employeeId}/profile`),
-  
+
   getLeaderboard: (params?: { department?: string; limit?: number; current_employee_id?: string }) =>
     fetchAPI<any[]>(`/api/gamification/leaderboard${buildQueryString(params)}`),
-  
+
   getChallenges: (employeeId: string) =>
     fetchAPI<Challenge[]>(`/api/gamification/${employeeId}/challenges`, { timeoutMs: 45000 }),
-  
+
   updateChallengeProgress: (employeeId: string, challengeId: string, progress: number) =>
     fetchAPI<ChallengeProgress>(`/api/gamification/${employeeId}/challenges/${challengeId}/progress`, {
       method: 'POST',
       body: JSON.stringify({ progress }),
     }),
-  
+
   getAchievements: (employeeId: string) =>
     fetchAPI<Achievement[]>(`/api/gamification/${employeeId}/achievements`),
-  
+
   getXPHistory: (employeeId: string) =>
     fetchAPI<any[]>(`/api/gamification/${employeeId}/xp-history`),
-  
+
   getActivity: (employeeId: string) =>
     fetchAPI<any[]>(`/api/gamification/${employeeId}/activity`),
-  
+
   getStreak: (employeeId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/streak`),
-  
+
   getRewards: () =>
     fetchAPI<any[]>(`/api/gamification/rewards`),
 
@@ -513,19 +513,19 @@ export const gamificationAPI = {
 
   getMissions: (employeeId: string) =>
     fetchAPI<any[]>(`/api/gamification/${employeeId}/missions`),
-  
+
   claimReward: (employeeId: string, rewardId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/rewards/${rewardId}/claim`, {
       method: 'POST',
     }),
-    
+
   createChallenge: (data: any) =>
     fetchAPI<any>(`/api/gamification/admin/challenges`, {
       method: 'POST',
       body: JSON.stringify(data),
       timeoutMs: 45000,
     }),
-    
+
   getChallengeDetail: (employeeId: string, challengeId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/challenges/${challengeId}/detail`),
 
@@ -544,7 +544,7 @@ export const gamificationAPI = {
       body: JSON.stringify({ content, storage_path: storagePath || null }),
       timeoutMs: 90000,
     }),
-    
+
   getPendingVerifications: () =>
     fetchAPI<any[]>(`/api/gamification/admin/pending-verifications`),
 
@@ -556,7 +556,7 @@ export const gamificationAPI = {
       method: 'POST',
       body: JSON.stringify({ submission_id: submissionId, approve, score, feedback }),
     }),
-    
+
   verifyChallenge: (employeeId: string, challengeId: string, approve: boolean) =>
     fetchAPI<any>(`/api/gamification/admin/verify-challenge`, {
       method: 'POST',
@@ -1194,7 +1194,7 @@ export interface CareerAnalysis {
 export const careerAPI = {
   getGoal: (employeeId: string) =>
     fetchAPI<CareerGoal>(`/api/career/${employeeId}/goal`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
-  
+
   setGoal: (employeeId: string, data: {
     target_role: string;
     timeline?: string;
@@ -1207,25 +1207,12 @@ export const careerAPI = {
       body: JSON.stringify(data),
       timeoutMs: CAREER_AI_TIMEOUT_MS,
     }),
-    
+
   getAnalysis: (employeeId: string, refresh = false) =>
     fetchAPI<CareerAnalysis>(`/api/career/${employeeId}/analysis${refresh ? '?refresh=true' : ''}`, { timeoutMs: CAREER_AI_TIMEOUT_MS }),
 
-  selectRoadmap: (employeeId: string, roadmapId: string) =>
-    fetchAPI<CareerAnalysis>(`/api/career/${employeeId}/roadmap/select`, {
-      method: 'POST',
-      body: JSON.stringify({ roadmap_id: roadmapId }),
-      timeoutMs: CAREER_AI_TIMEOUT_MS,
-    }),
-
-  clearRoadmap: (employeeId: string) =>
-    fetchAPI<CareerAnalysis>(`/api/career/${employeeId}/roadmap/clear`, {
-      method: 'POST',
-      timeoutMs: CAREER_AI_TIMEOUT_MS,
-    }),
-    
   chat: (employeeId: string, message: string, history: any[] = []) =>
-    fetchAPI<{response: string; grounding_points: string[]}>(`/api/career/${employeeId}/chat`, {
+    fetchAPI<{ response: string; grounding_points: string[] }>(`/api/career/${employeeId}/chat`, {
       method: 'POST',
       body: JSON.stringify({ message, history }),
       timeoutMs: CAREER_AI_TIMEOUT_MS,
@@ -1637,20 +1624,20 @@ export interface TalentMatch {
 export const organizationAPI = {
   getHistory: (params?: { limit?: number }) =>
     fetchAPI<OrganizationMetric[]>(`/api/organization/history${buildQueryString(params)}`),
-    
+
   getScenarios: (params?: { limit?: number }) =>
     fetchAPI<OrganizationScenario[]>(`/api/organization/scenarios${buildQueryString(params)}`),
-    
+
   getAnomalies: () =>
     fetchAPI<any[]>('/api/organization/anomalies'),
-    
+
   // Innovation Hub Endpoints
   getIdeas: () => fetchAPI<InnovationIdea[]>('/api/organization/innovation/ideas'),
   scoreIdea: (data: { title: string, description: string }) => fetchAPI<{ impact: string, impact_score: number, feasibility: string, similar: number }>('/api/organization/innovation/score', { method: 'POST', body: JSON.stringify(data) }),
   submitIdea: (data: Partial<InnovationIdea>) => fetchAPI<InnovationIdea>('/api/organization/innovation/ideas', { method: 'POST', body: JSON.stringify(data) }),
   approveIdea: (id: string) => fetchAPI<InnovationIdea>(`/api/organization/innovation/ideas/${id}`, { method: 'PUT', body: JSON.stringify({ status: 'Approved' }) }),
   getCommunities: () => fetchAPI<InnovationCommunity[]>('/api/organization/innovation/communities'),
-  
+
   // Risk & Talent Endpoints
   getSkillShortages: () => fetchAPI<any[]>('/api/organization/talent/skill-shortages'),
   getRiskProfiles: () => fetchAPI<RiskProfile[]>('/api/organization/talent/risks'),
@@ -1725,15 +1712,7 @@ export const departmentsAPI = {
   getSummary: () => fetchAPI<any>('/api/departments/summary'),
 };
 
-export default {
-  auth: authAPI,
-  employee: employeeAPI,
-  gamification: gamificationAPI,
-  learning: learningAPI,
-  career: careerAPI,
-  organization: organizationAPI,
-  departments: departmentsAPI,
-};
+
 
 // ==================== KNOWLEDGE INTELLIGENCE ====================
 
@@ -1841,274 +1820,60 @@ export const knowledgeAPI = {
     fetchAPI<KnowledgeChangeEvent[]>(`/api/employees/${employeeId}/knowledge/change-history`),
 };
 
-// ==================== SUCCESSION & KNOWLEDGE TRANSFER ====================
+// ==================== WORKFORCE INTELLIGENCE (MODULE 2) ====================
 
-const SUCCESSION_AI_TIMEOUT_MS = 150000;
+export const workforceAPI = {
+  getCapabilityGaps: () =>
+    fetchAPI<any>(`/api/workforce/capability-gaps`),
 
-export interface SxPerson {
-  id: string;
-  full_name: string;
-  initials: string;
-  role: string | null;
-  department: string | null;
-  avatar_url?: string | null;
-}
+  getCriticalRolesAtRisk: () =>
+    fetchAPI<any>(`/api/workforce/critical-roles-at-risk`),
 
-export interface SxRequirement {
-  skill: string;
-  level: number;
-  category?: string | null;
-  why?: string | null;
-}
+  getThresholds: () =>
+    fetchAPI<any>(`/api/workforce/thresholds`),
 
-export interface SxGap {
-  skill: string;
-  current: number;
-  required: number;
-  gap: number;
-  matched_as: string | null;
-  hours_to_close?: number;
-}
+  updateThresholds: (data: any) =>
+    fetchAPI<any>(`/api/workforce/thresholds`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 
-export interface SxCandidate {
-  id: string;
-  employee: SxPerson;
-  employee_id: string;
-  rank_position: number;
-  candidate_readiness_score: number;
-  candidate_skill_gap_pct: number;
-  readiness_band: string;
-  components: {
-    skills: number;
-    verified: number;
-    experience: number;
-    context: number;
-    coverage_pct: number;
-    years_experience: number | null;
-    same_department: boolean;
-    same_role_family: boolean;
-  };
-  gaps: SxGap[];
-  strengths: SxGap[];
-}
-
-export type SxTaskType = 'Shadowing Session' | 'Documentation Task' | 'Mentor Meeting' | 'Handover Checklist Item';
-export type SxTaskStatus = 'Not Started' | 'In Progress' | 'Blocked' | 'Complete';
-
-export interface SxTask {
-  id: string;
-  plan_id: string;
-  task_type: SxTaskType;
-  title: string;
-  description: string | null;
-  knowledge_area: string | null;
-  owner: SxPerson | null;
-  due_date: string;
-  status: SxTaskStatus;
-  completed_at: string | null;
-  notes: string | null;
-  overdue_flag: boolean;
-  days_overdue: number;
-  days_left: number | null;
-  role_title?: string;
-}
-
-export interface SxPlan {
-  id: string;
-  succession_record_id: string;
-  role_id: string;
-  incumbent: SxPerson | null;
-  successor: SxPerson | null;
-  opened_reason: 'Pairing Confirmed' | 'HR Discretion';
-  status: 'Open' | 'In Progress' | 'Complete';
-  overall_progress_pct: number;
-  completed_tasks: number;
-  total_tasks: number;
-  overdue_tasks: number;
-  overdue_flags: { task_id: string; title: string; due_date: string; days_overdue: number; owner: SxPerson | null }[];
-  target_handover_date: string;
-  days_to_handover: number | null;
-  drafted_by: string | null;
-  created_by: string | null;
-  created_at: string | null;
-  by_type: Record<SxTaskType, number>;
-  tasks: SxTask[];
-}
-
-export type SxPairingStatus = 'Slate Generated' | 'Candidate Nominated' | 'Confirmed' | 'Withdrawn';
-
-export interface SxRecord {
-  succession_record_id: string;
-  role_id: string;
-  trigger_reason: 'Business-Critical Flag' | 'HR Request';
-  trigger_note: string | null;
-  requested_by: string | null;
-  pairing_status: SxPairingStatus;
-  approved_by_hr: boolean;
-  approved_by: string | null;
-  approved_at: string | null;
-  decision_note: string | null;
-  shared_with_candidates: boolean;
-  generated_at: string | null;
-  nominee: SxCandidate | null;
-  candidates: SxCandidate[];
-  has_ready_successor: boolean;
-  audit?: { action: string; actor: string | null; detail: string | null; created_at: string; entity_type: string }[];
-  plan?: SxPlan | null;
-  role?: SxRole;
-}
-
-export interface SxExposure {
-  score: number;
-  level: 'Critical' | 'High' | 'Moderate' | 'Low';
-  succession_cover: number;
-  knowledge_captured: number;
-  departure_risk: 'Low' | 'Medium' | 'High';
-  explanation: string;
-}
-
-export interface SxRole {
-  id: string;
-  role_title: string;
-  department: string | null;
-  incumbent: SxPerson | null;
-  owner: SxPerson | null;
-  is_business_critical: boolean;
-  criticality_reason: string | null;
-  departure_risk: 'Low' | 'Medium' | 'High';
-  expected_departure_date: string | null;
-  flagged_by: string | null;
-  flagged_at: string | null;
-  requirements: SxRequirement[];
-  requirements_source: 'incumbent' | 'market' | 'library' | 'hr';
-  requirements_summary: string | null;
-  requirements_sources: { title: string; uri: string }[];
-  can_generate_slate: boolean;
-  record?: SxRecord | null;
-  plan?: SxPlan | null;
-  exposure?: SxExposure;
-  has_ready_successor?: boolean;
-}
-
-export interface SxOverview {
-  generated_at: string;
-  scope: { manager_id: string | null };
-  totals: {
-    roles: number;
-    business_critical: number;
-    critical_without_ready_successor: number;
-    critical_without_slate: number;
-    pending_hr_approval: number;
-    confirmed_pairings: number;
-    plans_open: number;
-    avg_kt_progress_pct: number;
-    overdue_tasks: number;
-    exposure_by_level: Record<SxExposure['level'], number>;
-  };
-  roles: SxRole[];
-  role_owners: SxPerson[];
-}
-
-export interface SxEmployeeView {
-  employee: SxPerson;
-  considered: {
-    succession_record_id: string;
-    role_title: string;
-    department: string | null;
-    incumbent: SxPerson | null;
-    status: 'Confirmed successor' | 'On the successor slate';
-    rank_position: number;
-    slate_size: number;
-    candidate_readiness_score: number;
-    candidate_skill_gap_pct: number;
-    readiness_band: string;
-    components: SxCandidate['components'];
-    gaps: SxGap[];
-    strengths: SxGap[];
-    hours_to_close: number;
-    plan: SxPlan | null;
-  }[];
-  my_tasks: SxTask[];
-  incumbent_roles: { id: string; role_title: string; is_business_critical: boolean }[];
-}
-
-export interface SxRoleInput {
-  role_title: string;
-  incumbent_employee_id: string;
-  department?: string | null;
-  owner_manager_id?: string | null;
-  is_business_critical: boolean;
-  criticality_reason?: string | null;
-  departure_risk: 'Low' | 'Medium' | 'High';
-  expected_departure_date?: string | null;
-  requirements_source?: 'incumbent' | 'market';
-}
-
-export interface SxTaskInput {
-  task_type: SxTaskType;
-  title: string;
-  due_date: string;
-  description?: string | null;
-  knowledge_area?: string | null;
-  owner_employee_id?: string | null;
-  status?: SxTaskStatus;
-}
-
-export const successionAPI = {
-  overview: (managerId?: string) =>
-    fetchAPI<SxOverview>(`/api/succession/overview${buildQueryString({ manager_id: managerId })}`),
-  createRole: (data: SxRoleInput) =>
-    fetchAPI<SxRole>('/api/succession/roles', {
+  recordCertification: (data: any) =>
+    fetchAPI<any>(`/api/workforce/certifications/record`, {
       method: 'POST',
       body: JSON.stringify(data),
-      timeoutMs: data.requirements_source === 'market' ? SUCCESSION_AI_TIMEOUT_MS : 30000,
     }),
-  updateRole: (roleId: string, data: Partial<SxRoleInput> & { requirements?: SxRequirement[] }) =>
-    fetchAPI<SxRole>(`/api/succession/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deriveRequirements: (roleId: string, source: 'incumbent' | 'market') =>
-    fetchAPI<SxRole>(`/api/succession/roles/${roleId}/requirements/derive`, {
-      method: 'POST',
-      body: JSON.stringify({ source }),
-      timeoutMs: source === 'market' ? SUCCESSION_AI_TIMEOUT_MS : 30000,
-    }),
-  generateSlate: (roleId: string, trigger: 'business_critical' | 'hr_request', note = '') =>
-    fetchAPI<SxRecord>(`/api/succession/roles/${roleId}/slate`, {
-      method: 'POST',
-      body: JSON.stringify({ trigger, note }),
-      timeoutMs: 30000,
-    }),
-  record: (recordId: string) => fetchAPI<SxRecord>(`/api/succession/records/${recordId}`),
-  nominate: (recordId: string, employeeId: string, note = '') =>
-    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/nominate`, {
-      method: 'POST',
-      body: JSON.stringify({ employee_id: employeeId, note }),
-    }),
-  decide: (recordId: string, approve: boolean, note = '') =>
-    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/decision`, {
-      method: 'POST',
-      body: JSON.stringify({ approve, note }),
-      timeoutMs: 60000,
-    }),
-  withdraw: (recordId: string, note: string) =>
-    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/withdraw`, { method: 'POST', body: JSON.stringify({ note }) }),
-  share: (recordId: string, shared: boolean) =>
-    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/share`, { method: 'POST', body: JSON.stringify({ shared }) }),
-  openPlan: (recordId: string, data: { hr_discretion: boolean; target_handover_date?: string | null; use_ai?: boolean }) =>
-    fetchAPI<SxPlan>(`/api/succession/records/${recordId}/plan`, {
+
+  getCertificationExpiry: (employeeId?: string) =>
+    fetchAPI<any[]>(`/api/workforce/certifications/expiry${buildQueryString({ employee_id: employeeId })}`),
+
+  getEmployees: () =>
+    fetchAPI<any[]>(`/api/workforce/employees`),
+
+  createEmployee: (data: any) =>
+    fetchAPI<any>(`/api/workforce/employees`, {
       method: 'POST',
       body: JSON.stringify(data),
-      timeoutMs: 60000,
     }),
-  addTask: (planId: string, data: SxTaskInput) =>
-    fetchAPI<SxPlan>(`/api/succession/plans/${planId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
-  updateTask: (taskId: string, data: Partial<SxTaskInput> & { notes?: string | null }) =>
-    fetchAPI<SxPlan>(`/api/succession/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteTask: (taskId: string) => fetchAPI<SxPlan>(`/api/succession/tasks/${taskId}`, { method: 'DELETE' }),
-  employee: (employeeId: string) => fetchAPI<SxEmployeeView>(`/api/succession/employee/${employeeId}`),
-  ask: (data: { persona: 'hr' | 'manager' | 'employer' | 'employee'; question: string; employee_id?: string; manager_id?: string }) =>
-    fetchAPI<{ answer: string; source: 'gemini' | 'rules' }>('/api/succession/ask', {
+
+  getSkills: (employeeId?: string) =>
+    fetchAPI<any[]>(`/api/workforce/skills${buildQueryString({ employee_id: employeeId })}`),
+
+  createSkill: (data: any) =>
+    fetchAPI<any>(`/api/workforce/skills`, {
       method: 'POST',
       body: JSON.stringify(data),
-      timeoutMs: 45000,
     }),
+};
+
+export default {
+  auth: authAPI,
+  employee: employeeAPI,
+  gamification: gamificationAPI,
+  learning: learningAPI,
+  career: careerAPI,
+  organization: organizationAPI,
+  departments: departmentsAPI,
+  workforce: workforceAPI,
+  knowledge: knowledgeAPI,
 };

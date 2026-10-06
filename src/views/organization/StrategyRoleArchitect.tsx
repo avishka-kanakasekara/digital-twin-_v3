@@ -9,8 +9,32 @@ import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area,
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
-
 import api from '../../lib/api';
+
+const DEFAULT_SPECS = [
+  { rank: 1, role: "Senior Cloud Architect", skill: "AWS / Azure & Terraform", dept: "Engineering", level: "L5 Staff", gap: "+14", urgency: "HIGH", status: "In Strategy Plan" },
+  { rank: 2, role: "AI / MLOps Specialist", skill: "LLM Fine-tuning & PyTorch", dept: "Engineering", level: "L4 Senior", gap: "+10", urgency: "HIGH", status: "In Strategy Plan" },
+  { rank: 3, role: "Lead Data Governance Officer", skill: "GDPR & Data Architecture", dept: "Corporate", level: "L5 Lead", gap: "+6", urgency: "HIGH", status: "In Strategy Plan" },
+  { rank: 4, role: "DevSecOps Engineer", skill: "CI/CD & Container Security", dept: "Operations", level: "L4 Senior", gap: "+8", urgency: "MEDIUM", status: "In Strategy Plan" },
+  { rank: 5, role: "Product Growth Strategist", skill: "SaaS Metrics & A/B Testing", dept: "Product", level: "L4 Senior", gap: "+5", urgency: "MEDIUM", status: "In Strategy Plan" }
+];
+
+const DEFAULT_FORECAST = [
+  { year: "2025", headcount: 6055, target: 6180 },
+  { year: "2026", headcount: 6180, target: 6320 },
+  { year: "2027", headcount: 6320, target: 6480 },
+  { year: "2028", headcount: 6480, target: 6600 },
+  { year: "2029", headcount: 6600, target: 6700 },
+  { year: "2030", headcount: 6700, target: 6782 }
+];
+
+const DEFAULT_RADAR = [
+  { subject: "Cloud Architecture", A: 135, fullMark: 150 },
+  { subject: "AI & Automation", A: 142, fullMark: 150 },
+  { subject: "Data Governance", A: 110, fullMark: 150 },
+  { subject: "DevSecOps", A: 125, fullMark: 150 },
+  { subject: "Agile Leadership", A: 118, fullMark: 150 }
+];
 
 export const StrategyRoleArchitect: React.FC = () => {
   const [cycle, setCycle] = useState('2025 – 2030 (Active)');
@@ -27,11 +51,11 @@ export const StrategyRoleArchitect: React.FC = () => {
   const [isKgSearching, setIsKgSearching] = useState(false);
 
   // Dynamic state loaded from Backend API
-  const [futureRoleSpecs, setFutureRoleSpecs] = useState<any[]>([]);
-  const [forecastTimeline, setForecastTimeline] = useState<any[]>([]);
+  const [futureRoleSpecs, setFutureRoleSpecs] = useState<any[]>(DEFAULT_SPECS);
+  const [forecastTimeline, setForecastTimeline] = useState<any[]>(DEFAULT_FORECAST);
   const [primaryInputs, setPrimaryInputs] = useState<any[]>([]);
   const [knowledgeAssets, setKnowledgeAssets] = useState<any[]>([]);
-  const [competencyRadar, setCompetencyRadar] = useState<any[]>([]);
+  const [competencyRadar, setCompetencyRadar] = useState<any[]>(DEFAULT_RADAR);
   const [summaryData, setSummaryData] = useState<any>({
     current_headcount: 6055,
     planned_growth: 727,
@@ -53,14 +77,34 @@ export const StrategyRoleArchitect: React.FC = () => {
       .then((res: any) => {
         if (res) {
           if (res.summary) setSummaryData(res.summary);
-          if (res.role_specs) setFutureRoleSpecs(res.role_specs);
-          if (res.forecast_timeline) setForecastTimeline(res.forecast_timeline);
+          if (res.role_specs && res.role_specs.length > 0) {
+            setFutureRoleSpecs(res.role_specs);
+          } else if (department && department !== 'All Departments') {
+            const filtered = DEFAULT_SPECS.filter(s => s.dept === department);
+            setFutureRoleSpecs(filtered.length > 0 ? filtered : DEFAULT_SPECS);
+          } else {
+            setFutureRoleSpecs(DEFAULT_SPECS);
+          }
+          if (res.forecast_timeline && res.forecast_timeline.length > 0) {
+            setForecastTimeline(res.forecast_timeline);
+          } else {
+            setForecastTimeline(DEFAULT_FORECAST);
+          }
           if (res.primary_inputs) setPrimaryInputs(res.primary_inputs);
           if (res.knowledge_assets) setKnowledgeAssets(res.knowledge_assets);
-          if (res.competency_radar) setCompetencyRadar(res.competency_radar);
+          if (res.competency_radar && res.competency_radar.length > 0) {
+            setCompetencyRadar(res.competency_radar);
+          } else {
+            setCompetencyRadar(DEFAULT_RADAR);
+          }
         }
       })
-      .catch((err) => console.error('Error fetching Strategy Role Architect backend data:', err));
+      .catch((err) => {
+        console.error('Error fetching Strategy Role Architect backend data:', err);
+        setFutureRoleSpecs(DEFAULT_SPECS);
+        setForecastTimeline(DEFAULT_FORECAST);
+        setCompetencyRadar(DEFAULT_RADAR);
+      });
   };
 
   useEffect(() => {
@@ -104,6 +148,85 @@ export const StrategyRoleArchitect: React.FC = () => {
       .finally(() => {
         setIsSynthesizing(false);
       });
+  };
+
+  const handleExportCSV = () => {
+    const dataToExport = futureRoleSpecs.length > 0 ? futureRoleSpecs : [
+      { rank: 1, role: "Senior Cloud Architect", level: "L5 Staff", skill: "AWS / Azure & Terraform", dept: "Engineering", gap: "+14", urgency: "HIGH", status: "In Strategy Plan" },
+      { rank: 2, role: "AI / MLOps Specialist", level: "L4 Senior", skill: "LLM Fine-tuning & PyTorch", dept: "Engineering", gap: "+10", urgency: "HIGH", status: "In Strategy Plan" },
+      { rank: 3, role: "Lead Data Governance Officer", level: "L5 Lead", skill: "GDPR & Data Architecture", dept: "Corporate", gap: "+6", urgency: "HIGH", status: "In Strategy Plan" },
+      { rank: 4, role: "DevSecOps Engineer", level: "L4 Senior", skill: "CI/CD & Container Security", dept: "Operations", gap: "+8", urgency: "MEDIUM", status: "In Strategy Plan" },
+      { rank: 5, role: "Product Growth Strategist", level: "L4 Senior", skill: "SaaS Metrics & A/B Testing", dept: "Product", gap: "+5", urgency: "MEDIUM", status: "In Strategy Plan" }
+    ];
+
+    const headers = ["Rank", "Role Title", "Seniority Level", "Required Skill", "Department", "Target Growth (Gap)", "Priority Urgency", "Status"];
+
+    const csvRows = [
+      headers.join(','),
+      ...dataToExport.map(item => [
+        item.rank || '',
+        `"${(item.role || '').replace(/"/g, '""')}"`,
+        `"${(item.level || '').replace(/"/g, '""')}"`,
+        `"${(item.skill || '').replace(/"/g, '""')}"`,
+        `"${(item.dept || '').replace(/"/g, '""')}"`,
+        `"${(item.gap || '').replace(/"/g, '""')}"`,
+        `"${(item.urgency || '').replace(/"/g, '""')}"`,
+        `"${(item.status || 'In Strategy Plan').replace(/"/g, '""')}"`
+      ].join(','))
+    ];
+
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `Strategy_Role_Specifications_${department.replace(/\s+/g, '_')}_2025-2030.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    triggerToast(`Exported ${dataToExport.length} Future Role Specifications to CSV file successfully!`);
+  };
+
+  const handleAddToRecruitingPlan = (spec: any) => {
+    if (!spec) return;
+
+    // 1. Update status in state
+    setFutureRoleSpecs(prevSpecs =>
+      prevSpecs.map(s =>
+        (s.role === spec.role || s.rank === spec.rank)
+          ? { ...s, status: 'Recruiting Active', inPlan: true }
+          : s
+      )
+    );
+
+    // 2. Add to localStorage for Workforce Intelligence & Talent Marketplace
+    try {
+      const existingReqs = JSON.parse(localStorage.getItem('active_recruitment_requisitions') || '[]');
+      const newReq = {
+        id: `req-${Date.now()}`,
+        role: spec.role,
+        skill: spec.skill,
+        dept: spec.dept,
+        level: spec.level,
+        urgency: spec.urgency,
+        gap: spec.gap,
+        addedAt: new Date().toLocaleDateString(),
+        status: 'Open Requisition'
+      };
+      if (!existingReqs.some((r: any) => r.role === spec.role)) {
+        existingReqs.unshift(newReq);
+        localStorage.setItem('active_recruitment_requisitions', JSON.stringify(existingReqs));
+      }
+    } catch (e) {
+      console.error('Error saving recruitment requisition:', e);
+    }
+
+    // 3. Close modal & trigger toast
+    setSelectedRoleSpec(null);
+    triggerToast(`✓ Added ${spec.role} (${spec.gap} positions) to Q4 Recruiting Plan & Workday Requisitions!`);
   };
 
   return (
@@ -249,7 +372,7 @@ export const StrategyRoleArchitect: React.FC = () => {
             </div>
 
             {/* 3. Target Headcount Output Highlight */}
-            <div 
+            <div
               className="flex items-center justify-center gap-3.5 px-5 py-3.5 rounded-2xl transition-all flex-1 min-w-[160px] min-h-[64px]"
               style={{
                 background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
@@ -294,107 +417,130 @@ export const StrategyRoleArchitect: React.FC = () => {
           </div>
         </Card>
 
-        {/* Main Grid: Left 2 Columns (Outputs & Forecasts) + Right 1 Column (Inputs & Knowledge Graph Assets) */}
-        <div className="grid grid-cols-3 gap-6">
+        {/* Main Content Layout */}
+        <div className="flex flex-col gap-6">
 
-          {/* Left 2 Columns: Primary Outputs & Strategic Forecast */}
-          <div className="col-span-2 flex flex-col gap-6">
-
-            {/* Card 1: Translated Future Role Specifications (Primary Output) */}
-            <Card className="glass-panel p-6 flex flex-col gap-5 border border-slate-200/80 transition-all duration-300 hover:shadow-md">
-              <div className="flex justify-between items-center border-b border-slate-200 pb-4 flex-wrap gap-2">
-                <div>
-                  <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 shadow-2xs"><FileText size={20} /></div>
-                    Future Role Specifications & Requirements
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium mt-1">Primary Output: Translated from corporate strategy & operating model.</p>
-                </div>
-                <button
-                  onClick={() => triggerToast(`Exporting ${futureRoleSpecs.length || 62} Future Role Specifications to CSV/PDF...`)}
-                  className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer px-3.5 py-2 bg-blue-50 hover:bg-blue-100 rounded-xl border border-blue-200 flex items-center gap-1.5 shrink-0 shadow-2xs"
-                >
-                  <Download size={14} /> Export Role Specs
-                </button>
+          {/* Card 1: Translated Future Role Specifications (Full Width) */}
+          <Card className="glass-panel p-6 flex flex-col gap-5 border border-slate-200/80 transition-all duration-300 hover:shadow-md">
+            <div className="flex justify-between items-center border-b border-slate-200 pb-4 flex-wrap gap-2">
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 shadow-2xs"><FileText size={20} /></div>
+                  Future Role Specifications & Requirements
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">Primary Output: Translated from corporate strategy & operating model.</p>
               </div>
+              <button
+                onClick={handleExportCSV}
+                style={{
+                  backgroundColor: '#eff6ff',
+                  color: '#2563eb',
+                  borderColor: '#bfdbfe',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.04)'
+                }}
+                className="text-xs font-extrabold hover:bg-blue-100 hover:text-blue-700 transition-all cursor-pointer px-4 py-2 rounded-xl border flex items-center gap-2 shrink-0 whitespace-nowrap active:scale-95 shadow-2xs"
+              >
+                <Download size={14} style={{ color: '#2563eb' }} />
+                <span>Export Role Specs</span>
+              </button>
+            </div>
 
-              <div className="flex flex-col gap-3.5">
-                {futureRoleSpecs.map((item, index) => (
+            <div className="flex flex-col gap-3.5">
+              {futureRoleSpecs.map((item, index) => {
+                const rankNum = item.rank || index + 1;
+                const isFirst = rankNum === 1;
+
+                return (
                   <div
                     key={item.id || item.rank || index}
-                    className="p-4 bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400 shadow-2xs transition-all duration-200 hover:shadow-md group"
+                    className={`p-4 sm:p-4.5 bg-white/95 backdrop-blur-md rounded-2xl border transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 flex items-center justify-between gap-4 group ${isFirst
+                        ? 'border-blue-400/80 shadow-sm ring-1 ring-blue-400/20'
+                        : 'border-slate-200/90 hover:border-blue-400/60 shadow-2xs'
+                      }`}
                   >
-                    <div className="grid grid-cols-12 items-center gap-2">
-                      {/* Rank (Col 1) */}
-                      <div className="col-span-1 flex items-center justify-center">
-                        <span className="w-8.5 h-8.5 rounded-xl bg-blue-50 text-blue-600 font-black text-xs flex items-center justify-center shrink-0 border border-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors shadow-2xs">
-                          #{item.rank || index + 1}
-                        </span>
+                    {/* Left Side: Rank + Role Details */}
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                      {/* Rank Badge */}
+                      <div
+                        className={`w-10 h-10 rounded-xl font-black text-sm flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform ${isFirst
+                            ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}
+                      >
+                        #{rankNum}
                       </div>
 
-                      {/* Role & Skill / Dept Details (Col 6) */}
-                      <div className="col-span-6 flex flex-col justify-center min-w-0 pr-2">
+                      {/* Role Title & Badges */}
+                      <div className="flex flex-col min-w-0 gap-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-blue-600 transition-colors">
+                          <h4 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-blue-600 transition-colors tracking-tight">
                             {item.role}
                           </h4>
-                          <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-0.5 rounded-full shrink-0 shadow-2xs">
+                          <span className="text-[11px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2.5 py-0.5 rounded-full shrink-0 shadow-2xs">
                             {item.level}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="text-[10.5px] font-semibold text-blue-700 bg-blue-50 border border-blue-200/70 px-2.5 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
-                            <Sparkles size={10} className="text-blue-500" />
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 shadow-2xs">
+                            <Sparkles size={11} className="text-blue-500" />
                             {item.skill}
                           </span>
-                          <span className="text-[10.5px] font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full shrink-0 shadow-2xs">
+                          <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-lg shrink-0 shadow-2xs">
                             {item.dept}
                           </span>
+                          {(item.status === 'Recruiting Active' || item.inPlan) && (
+                            <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1 shrink-0 shadow-2xs">
+                              <CheckCircle2 size={11} className="text-emerald-500" />
+                              Recruiting Active
+                            </span>
+                          )}
                         </div>
                       </div>
+                    </div>
 
-                      {/* Target Headcount (Col 2) */}
-                      <div className="col-span-2 flex flex-col items-center justify-center border-l border-slate-100 px-2">
+                    {/* Right Side: Target + Urgency + Specs Button */}
+                    <div className="flex items-center gap-4 sm:gap-6 shrink-0 border-l border-slate-100 pl-4">
+                      {/* Target Headcount Box */}
+                      <div className="flex flex-col items-center justify-center px-3.5 py-1 bg-slate-50 rounded-xl border border-slate-200/80 min-w-[70px]">
                         <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-0.5">TARGET</span>
-                        <span className="text-base font-black text-emerald-600 leading-tight">{item.gap}</span>
+                        <span className="text-base font-black text-emerald-600 leading-none">{item.gap}</span>
                       </div>
 
-                      {/* Priority Badge (Col 1) */}
-                      <div className="col-span-1 flex items-center justify-center border-l border-slate-100 px-1">
-                        <span className={`text-[9.5px] font-black px-2.5 py-1 rounded-full border tracking-wider uppercase shadow-2xs ${
-                          item.urgency === 'HIGH' 
-                            ? 'bg-rose-50 text-rose-600 border-rose-200' 
+                      {/* Priority / Urgency Badge */}
+                      <div className="flex flex-col items-center min-w-[65px]">
+                        <span className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">URGENCY</span>
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border tracking-wider uppercase shadow-2xs ${item.urgency === 'HIGH'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
                             : item.urgency === 'MEDIUM'
-                            ? 'bg-amber-50 text-amber-600 border-amber-200'
-                            : 'bg-slate-50 text-slate-600 border-slate-200'
-                        }`}>
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
                           {item.urgency}
                         </span>
                       </div>
 
-                      {/* Action Button (Col 2) */}
-                      <div className="col-span-2 flex items-center justify-end">
-                        <button
-                          onClick={() => setSelectedRoleSpec(item)}
-                          style={{
-                            backgroundColor: '#2563eb',
-                            color: '#ffffff',
-                            boxShadow: '0 2px 8px rgba(37, 99, 235, 0.35)'
-                          }}
-                          className="flex items-center justify-center gap-1.5 hover:bg-blue-700 active:scale-95 text-xs font-extrabold px-3.5 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 border-none"
-                        >
-                          <span style={{ color: '#ffffff' }}>Specs</span>
-                          <ArrowUpRight size={13} style={{ color: '#ffffff' }} />
-                        </button>
-                      </div>
+                      {/* Action Button: Specs */}
+                      <button
+                        onClick={() => setSelectedRoleSpec(item)}
+                        style={{ backgroundColor: '#2563eb', color: '#ffffff', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)' }}
+                        className="flex items-center justify-center gap-1.5 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition-all cursor-pointer shrink-0 border-none"
+                      >
+                        <FileText size={13} style={{ color: '#ffffff' }} />
+                        <span style={{ color: '#ffffff' }}>Specs</span>
+                        <ArrowUpRight size={13} style={{ color: '#ffffff' }} />
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-            </Card>
+                );
+              })}
+            </div>
+          </Card>
 
-            {/* Card 2: Strategic Headcount Forecast Trends (2025–2030) */}
-            <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md h-[320px] border border-slate-200/80">
+          {/* Bottom Grid: Strategic Headcount Forecast (2/3) + Competency Radar (1/3) */}
+          <div className="grid grid-cols-3 gap-6">
+
+            {/* Strategic Headcount Forecast Trends (2025–2030) */}
+            <Card className="col-span-2 glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md h-[340px] border border-slate-200/80">
               <div className="flex justify-between items-center mb-4 z-10">
                 <div>
                   <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
@@ -408,7 +554,7 @@ export const StrategyRoleArchitect: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex-1 w-full z-10">
+              <div className="w-full relative z-10" style={{ height: '230px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={forecastTimeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
@@ -432,90 +578,13 @@ export const StrategyRoleArchitect: React.FC = () => {
               </div>
             </Card>
 
-          </div>
-
-          {/* Right 1 Column: Primary Inputs & Stored Knowledge Assets */}
-          <div className="col-span-1 flex flex-col gap-6">
-
-            {/* Primary Strategy Inputs */}
-            <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md border border-slate-200/80">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <div className="p-1.5 bg-purple-50 text-purple-600 rounded-lg border border-purple-100 shadow-2xs"><FileText size={16} /></div>
-                  Primary Strategy Inputs
-                </h3>
-                <span className="text-[10px] font-black text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">{primaryInputs.length} Sources</span>
-              </div>
-              <p className="text-xs text-slate-500 mb-4 font-medium">Corporate documents & business scenarios parsed by AI.</p>
-
-              <div className="flex flex-col gap-3">
-                {primaryInputs.map((input, idx) => (
-                  <div 
-                    key={input.id || idx} 
-                    onClick={() => setSelectedPrimaryInput(input)}
-                    className="p-3.5 bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-purple-300 hover:shadow-sm transition-all flex items-center justify-between cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                        <FileText size={15} />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-black text-slate-800 leading-tight group-hover:text-purple-600 transition-colors truncate">{input.title}</h4>
-                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">{input.type} • {input.date}</p>
-                      </div>
-                    </div>
-                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[9.5px] font-black rounded-full border border-emerald-200/80 shrink-0 ml-2 shadow-2xs">
-                      {input.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            {/* Stored Assets & Knowledge Graph */}
-            <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md border border-slate-200/80">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-100 shadow-2xs"><Database size={16} /></div>
-                  Stored Assets & Knowledge Graph
-                </h3>
-                <button
-                  onClick={() => setIsKnowledgeModalOpen(true)}
-                  className="text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 shrink-0 shadow-2xs hover:-translate-y-0.5"
-                >
-                  <Search size={13} /> Query Graph
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mb-4 font-medium">Institutional wikis, project histories, and role-skill templates.</p>
-
-              <div className="flex flex-col gap-2.5">
-                {knowledgeAssets.map((asset, i) => (
-                  <div 
-                    key={asset.id || asset.name || i} 
-                    onClick={() => {
-                      const queryTerm = asset.name.split(' ')[0];
-                      setKgQuery(queryTerm);
-                      setIsKnowledgeModalOpen(true);
-                    }}
-                    className="flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-3 h-3 rounded-full shadow-2xs shrink-0" style={{ backgroundColor: asset.color }}></div>
-                      <span className="text-xs font-black text-slate-800 group-hover:text-blue-600 transition-colors">{asset.name}</span>
-                    </div>
-                    <span className="text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">{asset.count}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
             {/* Role-Skill Map Competency Matrix */}
-            <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md border border-slate-200/80">
+            <Card className="col-span-1 glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md h-[340px] border border-slate-200/80">
               <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2 mb-1">
                 <Activity size={18} className="text-indigo-600" /> Role-Skill Map Radar
               </h3>
               <p className="text-xs text-slate-500 mb-2 font-medium">Organizational competency requirements shift.</p>
-              <div className="w-full relative mt-1" style={{ height: '200px' }}>
+              <div className="w-full relative mt-1" style={{ height: '220px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart cx="50%" cy="50%" outerRadius="65%" data={competencyRadar}>
                     <PolarGrid stroke="#e2e8f0" />
@@ -529,6 +598,7 @@ export const StrategyRoleArchitect: React.FC = () => {
             </Card>
 
           </div>
+
         </div>
 
       </div>
@@ -574,15 +644,25 @@ export const StrategyRoleArchitect: React.FC = () => {
               >
                 Close Spec
               </button>
-              <button
-                onClick={() => {
-                  triggerToast(`Added ${selectedRoleSpec.role} (${selectedRoleSpec.gap} roles) to Q4 Recruiting Pipeline!`);
-                  setSelectedRoleSpec(null);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus size={14} /> Add to Recruiting Plan
-              </button>
+              {selectedRoleSpec.status === 'Recruiting Active' || selectedRoleSpec.inPlan ? (
+                <button
+                  disabled
+                  style={{ backgroundColor: '#059669', color: '#ffffff' }}
+                  className="px-4 py-2 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 opacity-90 border-none shrink-0"
+                >
+                  <CheckCircle2 size={14} style={{ color: '#ffffff' }} />
+                  <span style={{ color: '#ffffff' }}>Added to Recruiting Plan</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleAddToRecruitingPlan(selectedRoleSpec)}
+                  style={{ backgroundColor: '#2563eb', color: '#ffffff', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)' }}
+                  className="px-4 py-2 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shrink-0"
+                >
+                  <Plus size={14} style={{ color: '#ffffff' }} />
+                  <span style={{ color: '#ffffff' }}>Add to Recruiting Plan</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -659,8 +739,12 @@ export const StrategyRoleArchitect: React.FC = () => {
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-100">
-              <button onClick={() => setIsKnowledgeModalOpen(false)} className="px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer">
-                Close Query Window
+              <button
+                onClick={() => setIsKnowledgeModalOpen(false)}
+                style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                className="px-4 py-2 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
+              >
+                <span style={{ color: '#ffffff' }}>Close Query Window</span>
               </button>
             </div>
           </div>
@@ -717,9 +801,11 @@ export const StrategyRoleArchitect: React.FC = () => {
                   triggerToast(`Re-indexing ${selectedPrimaryInput.title} with AI Translation Pipeline...`);
                   setSelectedPrimaryInput(null);
                 }}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                style={{ backgroundColor: '#9333ea', color: '#ffffff' }}
+                className="px-4 py-2 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border-none"
               >
-                <Sparkles size={14} /> Re-parse with AI
+                <Sparkles size={14} style={{ color: '#ffffff' }} />
+                <span style={{ color: '#ffffff' }}>Re-parse with AI</span>
               </button>
             </div>
           </div>

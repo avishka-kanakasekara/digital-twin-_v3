@@ -71,7 +71,13 @@ class Settings(BaseSettings):
 
     @property
     def use_local_sqlite(self) -> bool:
-        return self.ENVIRONMENT.strip().lower() == "development" and self.FABRIC_LOCAL_SQLITE
+        if self.ENVIRONMENT.strip().lower() != "development":
+            return False
+        if self.FABRIC_LOCAL_SQLITE:
+            return True
+        # Dev fallback: use seeded SQLite when Fabric SQL is not configured (no pyodbc needed).
+        fabric_configured = bool(self.FABRIC_SQL_SERVER.strip() and self.FABRIC_SQL_DATABASE.strip())
+        return not fabric_configured and self.local_sqlite_path.is_file()
 
     @property
     def local_sqlite_path(self) -> Path:

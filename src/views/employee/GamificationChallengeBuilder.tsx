@@ -15,7 +15,7 @@ export const GamificationChallengeBuilder: React.FC<GamificationChallengeBuilder
   const [difficulty, setDifficulty] = useState('Medium');
   const [duration, setDuration] = useState('30 min');
   const [style, setStyle] = useState('Practical task');
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +25,7 @@ export const GamificationChallengeBuilder: React.FC<GamificationChallengeBuilder
       setError('Please provide a goal or objective.');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -63,13 +63,13 @@ export const GamificationChallengeBuilder: React.FC<GamificationChallengeBuilder
 
         <div>
           <label className="block text-xs font-bold text-secondary mb-1">Learning Goal / Topic *</label>
-          <textarea 
-            required 
-            rows={2} 
-            className="w-full input-field resize-none" 
-            value={goal} 
-            onChange={e => setGoal(e.target.value)} 
-            placeholder="e.g. Master conflict resolution in cross-functional teams..." 
+          <textarea
+            required
+            rows={2}
+            className="w-full input-field resize-none"
+            value={goal}
+            onChange={e => setGoal(e.target.value)}
+            placeholder="e.g. Master conflict resolution in cross-functional teams..."
             autoFocus
           />
         </div>
@@ -77,12 +77,12 @@ export const GamificationChallengeBuilder: React.FC<GamificationChallengeBuilder
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-secondary mb-1">Target Skill (Optional)</label>
-            <input 
-              type="text" 
-              className="w-full input-field" 
-              value={targetSkill} 
-              onChange={e => setTargetSkill(e.target.value)} 
-              placeholder="e.g. Communication" 
+            <input
+              type="text"
+              className="w-full input-field"
+              value={targetSkill}
+              onChange={e => setTargetSkill(e.target.value)}
+              placeholder="e.g. Communication"
             />
           </div>
           <div>
