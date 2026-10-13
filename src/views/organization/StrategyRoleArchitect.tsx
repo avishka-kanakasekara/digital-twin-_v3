@@ -53,8 +53,8 @@ export const StrategyRoleArchitect: React.FC = () => {
   // Dynamic state loaded from Backend API
   const [futureRoleSpecs, setFutureRoleSpecs] = useState<any[]>(DEFAULT_SPECS);
   const [forecastTimeline, setForecastTimeline] = useState<any[]>(DEFAULT_FORECAST);
-  const [primaryInputs, setPrimaryInputs] = useState<any[]>([]);
-  const [knowledgeAssets, setKnowledgeAssets] = useState<any[]>([]);
+  const [, setPrimaryInputs] = useState<any[]>([]);
+  const [, setKnowledgeAssets] = useState<any[]>([]);
   const [competencyRadar, setCompetencyRadar] = useState<any[]>(DEFAULT_RADAR);
   const [summaryData, setSummaryData] = useState<any>({
     current_headcount: 6055,

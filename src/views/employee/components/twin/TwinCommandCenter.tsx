@@ -4,7 +4,7 @@ import {
   ArrowRight, Brain, CheckCircle2, Crosshair, Flame, HandHeart,
   Loader2, Sparkles, Target, Trophy, Zap,
 } from 'lucide-react';
-import { employeeAPI, type TwinCommandCenter, type TwinFocusItem } from '../../../../lib/api';
+import { employeeAPI, type TwinCommandCenter as TwinCommandCenterData, type TwinFocusItem } from '../../../../lib/api';
 import { useEmployee } from '../../../../contexts/EmployeeContext';
 
 const HUB_ICON: Record<string, React.ReactNode> = {
@@ -29,7 +29,7 @@ function timeAgo(iso?: string) {
 export const TwinCommandCenter: React.FC = () => {
   const { currentEmployee } = useEmployee();
   const navigate = useNavigate();
-  const [data, setData] = useState<TwinCommandCenter | null>(null);
+  const [data, setData] = useState<TwinCommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);

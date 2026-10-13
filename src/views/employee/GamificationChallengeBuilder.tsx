@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { gamificationAPI } from '../../lib/api';
 import { Button } from '../../components/Button';
-import { Loader2, Sparkles, AlertCircle, Wand2, ArrowRight } from 'lucide-react';
+import { Loader2, Sparkles, AlertCircle, Wand2 } from 'lucide-react';
 import './GamificationHub.css';
 
 interface GamificationChallengeBuilderProps {
