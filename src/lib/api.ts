@@ -512,7 +512,7 @@ export const gamificationAPI = {
     fetchAPI<string[]>(`/api/gamification/${employeeId}/reward-claims`),
 
   getMissions: (employeeId: string) =>
-    fetchAPI<any[]>(`/api/gamification/${employeeId}/missions`),
+    fetchAPI<{ missions: any[]; today_xp: number }>(`/api/gamification/${employeeId}/missions`),
 
   claimReward: (employeeId: string, rewardId: string) =>
     fetchAPI<any>(`/api/gamification/${employeeId}/rewards/${rewardId}/claim`, {
@@ -1863,6 +1863,278 @@ export const workforceAPI = {
     fetchAPI<any>(`/api/workforce/skills`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+};
+
+// ==================== SUCCESSION & KNOWLEDGE TRANSFER ====================
+
+const SUCCESSION_AI_TIMEOUT_MS = 150000;
+
+export interface SxPerson {
+  id: string;
+  full_name: string;
+  initials: string;
+  role: string | null;
+  department: string | null;
+  avatar_url?: string | null;
+}
+
+export interface SxRequirement {
+  skill: string;
+  level: number;
+  category?: string | null;
+  why?: string | null;
+}
+
+export interface SxGap {
+  skill: string;
+  current: number;
+  required: number;
+  gap: number;
+  matched_as: string | null;
+  hours_to_close?: number;
+}
+
+export interface SxCandidate {
+  id: string;
+  employee: SxPerson;
+  employee_id: string;
+  rank_position: number;
+  candidate_readiness_score: number;
+  candidate_skill_gap_pct: number;
+  readiness_band: string;
+  components: {
+    skills: number;
+    verified: number;
+    experience: number;
+    context: number;
+    coverage_pct: number;
+    years_experience: number | null;
+    same_department: boolean;
+    same_role_family: boolean;
+  };
+  gaps: SxGap[];
+  strengths: SxGap[];
+}
+
+export type SxTaskType = 'Shadowing Session' | 'Documentation Task' | 'Mentor Meeting' | 'Handover Checklist Item';
+export type SxTaskStatus = 'Not Started' | 'In Progress' | 'Blocked' | 'Complete';
+
+export interface SxTask {
+  id: string;
+  plan_id: string;
+  task_type: SxTaskType;
+  title: string;
+  description: string | null;
+  knowledge_area: string | null;
+  owner: SxPerson | null;
+  due_date: string;
+  status: SxTaskStatus;
+  completed_at: string | null;
+  notes: string | null;
+  overdue_flag: boolean;
+  days_overdue: number;
+  days_left: number | null;
+  role_title?: string;
+}
+
+export interface SxPlan {
+  id: string;
+  succession_record_id: string;
+  role_id: string;
+  incumbent: SxPerson | null;
+  successor: SxPerson | null;
+  opened_reason: 'Pairing Confirmed' | 'HR Discretion';
+  status: 'Open' | 'In Progress' | 'Complete';
+  overall_progress_pct: number;
+  completed_tasks: number;
+  total_tasks: number;
+  overdue_tasks: number;
+  overdue_flags: { task_id: string; title: string; due_date: string; days_overdue: number; owner: SxPerson | null }[];
+  target_handover_date: string;
+  days_to_handover: number | null;
+  drafted_by: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  by_type: Record<SxTaskType, number>;
+  tasks: SxTask[];
+}
+
+export type SxPairingStatus = 'Slate Generated' | 'Candidate Nominated' | 'Confirmed' | 'Withdrawn';
+
+export interface SxRecord {
+  succession_record_id: string;
+  role_id: string;
+  trigger_reason: 'Business-Critical Flag' | 'HR Request';
+  trigger_note: string | null;
+  requested_by: string | null;
+  pairing_status: SxPairingStatus;
+  approved_by_hr: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  decision_note: string | null;
+  shared_with_candidates: boolean;
+  generated_at: string | null;
+  nominee: SxCandidate | null;
+  candidates: SxCandidate[];
+  has_ready_successor: boolean;
+  audit?: { action: string; actor: string | null; detail: string | null; created_at: string; entity_type: string }[];
+  plan?: SxPlan | null;
+  role?: SxRole;
+}
+
+export interface SxExposure {
+  score: number;
+  level: 'Critical' | 'High' | 'Moderate' | 'Low';
+  succession_cover: number;
+  knowledge_captured: number;
+  departure_risk: 'Low' | 'Medium' | 'High';
+  explanation: string;
+}
+
+export interface SxRole {
+  id: string;
+  role_title: string;
+  department: string | null;
+  incumbent: SxPerson | null;
+  owner: SxPerson | null;
+  is_business_critical: boolean;
+  criticality_reason: string | null;
+  departure_risk: 'Low' | 'Medium' | 'High';
+  expected_departure_date: string | null;
+  flagged_by: string | null;
+  flagged_at: string | null;
+  requirements: SxRequirement[];
+  requirements_source: 'incumbent' | 'market' | 'library' | 'hr';
+  requirements_summary: string | null;
+  requirements_sources: { title: string; uri: string }[];
+  can_generate_slate: boolean;
+  record?: SxRecord | null;
+  plan?: SxPlan | null;
+  exposure?: SxExposure;
+  has_ready_successor?: boolean;
+}
+
+export interface SxOverview {
+  generated_at: string;
+  scope: { manager_id: string | null };
+  totals: {
+    roles: number;
+    business_critical: number;
+    critical_without_ready_successor: number;
+    critical_without_slate: number;
+    pending_hr_approval: number;
+    confirmed_pairings: number;
+    plans_open: number;
+    avg_kt_progress_pct: number;
+    overdue_tasks: number;
+    exposure_by_level: Record<SxExposure['level'], number>;
+  };
+  roles: SxRole[];
+  role_owners: SxPerson[];
+}
+
+export interface SxEmployeeView {
+  employee: SxPerson;
+  considered: {
+    succession_record_id: string;
+    role_title: string;
+    department: string | null;
+    incumbent: SxPerson | null;
+    status: 'Confirmed successor' | 'On the successor slate';
+    rank_position: number;
+    slate_size: number;
+    candidate_readiness_score: number;
+    candidate_skill_gap_pct: number;
+    readiness_band: string;
+    components: SxCandidate['components'];
+    gaps: SxGap[];
+    strengths: SxGap[];
+    hours_to_close: number;
+    plan: SxPlan | null;
+  }[];
+  my_tasks: SxTask[];
+  incumbent_roles: { id: string; role_title: string; is_business_critical: boolean }[];
+}
+
+export interface SxRoleInput {
+  role_title: string;
+  incumbent_employee_id: string;
+  department?: string | null;
+  owner_manager_id?: string | null;
+  is_business_critical: boolean;
+  criticality_reason?: string | null;
+  departure_risk: 'Low' | 'Medium' | 'High';
+  expected_departure_date?: string | null;
+  requirements_source?: 'incumbent' | 'market';
+}
+
+export interface SxTaskInput {
+  task_type: SxTaskType;
+  title: string;
+  due_date: string;
+  description?: string | null;
+  knowledge_area?: string | null;
+  owner_employee_id?: string | null;
+  status?: SxTaskStatus;
+}
+
+export const successionAPI = {
+  overview: (managerId?: string) =>
+    fetchAPI<SxOverview>(`/api/succession/overview${buildQueryString({ manager_id: managerId })}`),
+  createRole: (data: SxRoleInput) =>
+    fetchAPI<SxRole>('/api/succession/roles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: data.requirements_source === 'market' ? SUCCESSION_AI_TIMEOUT_MS : 30000,
+    }),
+  updateRole: (roleId: string, data: Partial<SxRoleInput> & { requirements?: SxRequirement[] }) =>
+    fetchAPI<SxRole>(`/api/succession/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deriveRequirements: (roleId: string, source: 'incumbent' | 'market') =>
+    fetchAPI<SxRole>(`/api/succession/roles/${roleId}/requirements/derive`, {
+      method: 'POST',
+      body: JSON.stringify({ source }),
+      timeoutMs: source === 'market' ? SUCCESSION_AI_TIMEOUT_MS : 30000,
+    }),
+  generateSlate: (roleId: string, trigger: 'business_critical' | 'hr_request', note = '') =>
+    fetchAPI<SxRecord>(`/api/succession/roles/${roleId}/slate`, {
+      method: 'POST',
+      body: JSON.stringify({ trigger, note }),
+      timeoutMs: 30000,
+    }),
+  record: (recordId: string) => fetchAPI<SxRecord>(`/api/succession/records/${recordId}`),
+  nominate: (recordId: string, employeeId: string, note = '') =>
+    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/nominate`, {
+      method: 'POST',
+      body: JSON.stringify({ employee_id: employeeId, note }),
+    }),
+  decide: (recordId: string, approve: boolean, note = '') =>
+    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/decision`, {
+      method: 'POST',
+      body: JSON.stringify({ approve, note }),
+      timeoutMs: 60000,
+    }),
+  withdraw: (recordId: string, note: string) =>
+    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/withdraw`, { method: 'POST', body: JSON.stringify({ note }) }),
+  share: (recordId: string, shared: boolean) =>
+    fetchAPI<SxRecord>(`/api/succession/records/${recordId}/share`, { method: 'POST', body: JSON.stringify({ shared }) }),
+  openPlan: (recordId: string, data: { hr_discretion: boolean; target_handover_date?: string | null; use_ai?: boolean }) =>
+    fetchAPI<SxPlan>(`/api/succession/records/${recordId}/plan`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: 60000,
+    }),
+  addTask: (planId: string, data: SxTaskInput) =>
+    fetchAPI<SxPlan>(`/api/succession/plans/${planId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),
+  updateTask: (taskId: string, data: Partial<SxTaskInput> & { notes?: string | null }) =>
+    fetchAPI<SxPlan>(`/api/succession/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteTask: (taskId: string) => fetchAPI<SxPlan>(`/api/succession/tasks/${taskId}`, { method: 'DELETE' }),
+  employee: (employeeId: string) => fetchAPI<SxEmployeeView>(`/api/succession/employee/${employeeId}`),
+  ask: (data: { persona: 'hr' | 'manager' | 'employer' | 'employee'; question: string; employee_id?: string; manager_id?: string }) =>
+    fetchAPI<{ answer: string; source: 'gemini' | 'rules' }>('/api/succession/ask', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      timeoutMs: 45000,
     }),
 };
 
