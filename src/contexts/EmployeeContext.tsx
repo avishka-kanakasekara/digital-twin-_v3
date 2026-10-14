@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { employeeAPI, type Employee } from '../lib/api';
+import { useAuth } from './AuthContext';
 
 interface EmployeeContextType {
   currentEmployee: Employee | null;
@@ -19,42 +20,46 @@ export const useEmployee = () => {
 };
 
 export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, ready } = useAuth();
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadEmployees = async () => {
-      try {
-        const data = await employeeAPI.list();
-        setEmployees(data.employees);
-        
-        // Try to get saved employee ID from localStorage
-        const savedEmployeeId = localStorage.getItem('current_employee_id');
-        if (savedEmployeeId) {
-          const savedEmployee = data.employees.find(e => e.id === savedEmployeeId);
-          if (savedEmployee) {
-            setCurrentEmployee(savedEmployee);
-            return;
-          }
-        }
-        
-        // Default to Alex Carter (primary seeded demo user) or first employee
-        const demoUser = data.employees.find(e => e.email === 'alex.carter@company.com');
-        if (demoUser) {
-          setCurrentEmployee(demoUser);
-        } else if (data.employees.length > 0) {
-          setCurrentEmployee(data.employees[0]);
-        }
-      } catch (error) {
-        console.error('Failed to load employees:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!ready) return;
+    if (!user) {
+      setCurrentEmployee(null);
+      setEmployees([]);
+      setLoading(false);
+      return;
+    }
 
-    loadEmployees();
-  }, []);
+    let live = true;
+    setLoading(true);
+    employeeAPI
+      .list({ limit: 200 })
+      .then((data) => {
+        if (!live) return;
+        const list = data.employees.some((employee) => employee.id === user.id)
+          ? data.employees
+          : [user, ...data.employees];
+        setEmployees(list);
+        setCurrentEmployee(list.find((employee) => employee.id === user.id) || user);
+        localStorage.setItem('current_employee_id', user.id);
+      })
+      .catch(() => {
+        if (!live) return;
+        setEmployees([user]);
+        setCurrentEmployee(user);
+      })
+      .finally(() => {
+        if (live) setLoading(false);
+      });
+
+    return () => {
+      live = false;
+    };
+  }, [ready, user]);
 
   const handleSetCurrentEmployee = (employee: Employee) => {
     setCurrentEmployee(employee);

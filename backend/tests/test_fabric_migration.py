@@ -168,6 +168,34 @@ def test_manager_can_read_direct_report(client):
         settings.AUTH_ENFORCE = False
 
 
+def test_signup_without_employee_code_then_login(client):
+    email = f"signup.{uuid.uuid4().hex[:8]}@company.com"
+    short = client.post("/api/auth/register", json={"email": email, "password": "short", "full_name": "Short Pass"})
+    assert short.status_code == 400
+    created = client.post(
+        "/api/auth/register",
+        json={"email": email, "password": "correct-horse", "full_name": "New Colleague", "department": "Data", "role": "Analyst"},
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["full_name"] == "New Colleague"
+    assert body["access_token"]
+    duplicate = client.post(
+        "/api/auth/register",
+        json={"email": email.upper(), "password": "correct-horse", "full_name": "New Colleague"},
+    )
+    assert duplicate.status_code == 409
+    wrong = client.post("/api/auth/login", json={"email": email, "password": "wrong-password"})
+    assert wrong.status_code == 401
+    signed_in = client.post("/api/auth/login", json={"email": email, "password": "correct-horse"})
+    assert signed_in.status_code == 200
+    me = client.get("/api/auth/me", headers={"Authorization": f"Bearer {signed_in.json()['access_token']}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == email
+    assert me.json()["department"] == "Data"
+    assert "password_hash" not in me.json()
+
+
 def test_storage_rejects_unsafe_paths_and_roundtrips():
     with pytest.raises(StorageError):
         save_bytes("../secrets.txt", b"nope")
