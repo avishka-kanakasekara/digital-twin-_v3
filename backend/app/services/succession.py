@@ -187,12 +187,63 @@ _FABRIC_DDL = [
 ]
 
 
+# Added after the original tables shipped. CREATE IF NOT EXISTS does not alter an existing table.
+_COLUMN_PATCHES: dict[str, list[tuple[str, str, str]]] = {
+    "succession_roles": [
+        ("role_family", "TEXT", "NVARCHAR(200)"),
+        ("departure_scenario", "TEXT", "NVARCHAR(40)"),
+        ("interim_backup_employee_id", "TEXT", "NVARCHAR(400)"),
+        ("interim_backup_note", "TEXT", "NVARCHAR(MAX)"),
+        ("criticality_json", "TEXT", "NVARCHAR(MAX)"),
+        ("last_review_date", "TEXT", "NVARCHAR(40)"),
+        ("next_review_date", "TEXT", "NVARCHAR(40)"),
+        ("external_contingency", "INTEGER NOT NULL DEFAULT 0", "INT NOT NULL DEFAULT 0"),
+        ("position_status", "TEXT", "NVARCHAR(40)"),
+    ],
+    "succession_records": [
+        ("excluded_json", "TEXT", "NVARCHAR(MAX)"),
+    ],
+    "kt_plans": [
+        ("assurance_status", "TEXT", "NVARCHAR(40)"),
+        ("validated_by", "TEXT", "NVARCHAR(200)"),
+        ("validated_at", "TEXT", "NVARCHAR(40)"),
+        ("validation_note", "TEXT", "NVARCHAR(MAX)"),
+    ],
+    "kt_tasks": [
+        ("evidence_note", "TEXT", "NVARCHAR(MAX)"),
+        ("verification_status", "TEXT", "NVARCHAR(40)"),
+        ("verified_by", "TEXT", "NVARCHAR(200)"),
+        ("verified_at", "TEXT", "NVARCHAR(40)"),
+        ("cancelled_at", "TEXT", "NVARCHAR(40)"),
+        ("cancel_reason", "TEXT", "NVARCHAR(MAX)"),
+    ],
+}
+
+
+def _ensure_columns(db: Client) -> None:
+    dialect = db.db.dialect
+    for table, columns in _COLUMN_PATCHES.items():
+        for name, sqlite_type, fabric_type in columns:
+            if dialect == "sqlite":
+                sql = f"ALTER TABLE {table} ADD COLUMN {name} {sqlite_type}"
+            else:
+                sql = (
+                    f"IF COL_LENGTH(N'dbo.{table}', N'{name}') IS NULL "
+                    f"ALTER TABLE [dbo].[{table}] ADD [{name}] {fabric_type}"
+                )
+            try:
+                db.db.execute(sql)
+            except Exception:
+                continue
+
+
 def ensure_schema(db: Client) -> None:
     global _SCHEMA_READY
     if _SCHEMA_READY:
         return
     for statement in _SQLITE_DDL if db.db.dialect == "sqlite" else _FABRIC_DDL:
         db.db.execute(statement)
+    _ensure_columns(db)
     _SCHEMA_READY = True
 
 
@@ -280,8 +331,10 @@ def _plan_for_record(db: Client, record_id: str) -> dict[str, Any] | None:
     return rows[0] if rows else None
 
 
-def _tasks(db: Client, plan_id: str) -> list[dict[str, Any]]:
+def _tasks(db: Client, plan_id: str, include_cancelled: bool = False) -> list[dict[str, Any]]:
     rows = db.table("kt_tasks").select("*").eq("plan_id", plan_id).execute().data or []
+    if not include_cancelled:
+        rows = [row for row in rows if not row.get("cancelled_at")]
     rows.sort(key=lambda row: (str(row.get("due_date") or ""), int(row.get("sort_order") or 0)))
     return rows
 
@@ -313,11 +366,18 @@ def clean_requirement_items(items: list[Any]) -> list[dict[str, Any]]:
             level = int(round(float(item.get("level") or 7)))
         except (TypeError, ValueError):
             level = 7
+        hours = item.get("hours_estimate")
+        try:
+            hours_estimate = int(hours) if hours not in (None, "") else None
+        except (TypeError, ValueError):
+            hours_estimate = None
         cleaned.append({
             "skill": skill,
             "level": max(1, min(10, level)),
             "category": _clean(item.get("category"), 80) or None,
             "why": _clean(item.get("why"), 300) or None,
+            "mandatory": item.get("mandatory", True) is not False,
+            "hours_estimate": hours_estimate if hours_estimate and hours_estimate > 0 else None,
         })
     return cleaned[:12]
 
@@ -376,6 +436,47 @@ def _validate_role_fields(payload: dict[str, Any], employees: dict[str, dict[str
         raise HTTPException(status_code=400, detail="Record why the role is business-critical.")
 
 
+CRITICALITY_FACTORS = (
+    ("disruption", "Operational disruption if the position is vacant"),
+    ("customer_impact", "Customer, revenue, or regulatory impact"),
+    ("expertise_scarcity", "How scarce the required expertise is"),
+    ("single_person_knowledge", "How much critical knowledge sits with one person"),
+    ("documentation", "Documented procedures and alternative cover (5 = well covered)"),
+)
+DEPARTURE_SCENARIOS = ("none", "planned", "likely", "unexpected")
+
+
+def classify_criticality(factors: dict[str, Any]) -> dict[str, Any]:
+    """1–5 factor scores. Documentation is inverted: a 5 means the work is already written down."""
+    if not isinstance(factors, dict):
+        raise HTTPException(status_code=400, detail="Record each criticality factor from 1 to 5.")
+    scores: dict[str, int] = {}
+    for key, _label in CRITICALITY_FACTORS:
+        try:
+            value = int(factors.get(key))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Score {key.replace('_', ' ')} from 1 to 5.")
+        if value < 1 or value > 5:
+            raise HTTPException(status_code=400, detail=f"Score {key.replace('_', ' ')} from 1 to 5.")
+        scores[key] = value
+    pressure = (
+        scores["disruption"]
+        + scores["customer_impact"]
+        + scores["expertise_scarcity"]
+        + scores["single_person_knowledge"]
+        + (6 - scores["documentation"])
+    )
+    raw = pressure / 5
+    level = "Critical" if raw >= 4 else "High" if raw >= 3.2 else "Moderate" if raw >= 2.2 else "Low"
+    return {
+        "factors": scores,
+        "score": round(raw, 2),
+        "level": level,
+        "definitions": {key: label for key, label in CRITICALITY_FACTORS},
+        "rule": "Average of disruption, customer impact, scarcity, single-person knowledge, and (6 minus documentation). Critical at 4.0 or above.",
+    }
+
+
 def create_role(db: Client, payload: dict[str, Any], actor: str) -> dict[str, Any]:
     ensure_schema(db)
     employees = _employees(db)
@@ -421,8 +522,33 @@ def update_role(db: Client, role_id: str, payload: dict[str, Any], actor: str) -
     role = _role_row(db, role_id)
     employees = _employees(db)
     allowed = {"role_title", "department", "incumbent_employee_id", "owner_manager_id", "is_business_critical",
-               "criticality_reason", "departure_risk", "expected_departure_date"}
+               "criticality_reason", "departure_risk", "expected_departure_date", "role_family",
+               "departure_scenario", "interim_backup_employee_id", "interim_backup_note",
+               "next_review_date", "position_status"}
     changes = {key: value for key, value in payload.items() if key in allowed and value is not None}
+    for clearable in ("interim_backup_employee_id", "interim_backup_note", "role_family", "next_review_date"):
+        if clearable in payload and not payload[clearable]:
+            changes[clearable] = None
+    if "departure_scenario" in changes and changes["departure_scenario"] not in DEPARTURE_SCENARIOS:
+        raise HTTPException(status_code=400, detail=f"departure_scenario must be one of {', '.join(DEPARTURE_SCENARIOS)}.")
+    if "interim_backup_employee_id" in changes and changes["interim_backup_employee_id"]:
+        if changes["interim_backup_employee_id"] not in employees:
+            raise HTTPException(status_code=400, detail="The temporary backup is not an employee in this organisation.")
+        incumbent_id = str(changes.get("incumbent_employee_id") or role["incumbent_employee_id"])
+        if changes["interim_backup_employee_id"] == incumbent_id:
+            raise HTTPException(status_code=400, detail="The incumbent cannot be their own temporary backup.")
+    if payload.get("criticality_factors") is not None:
+        assessment = classify_criticality(payload["criticality_factors"])
+        changes["criticality_json"] = json.dumps(assessment)
+        changes["last_review_date"] = _today().isoformat()
+        marking_critical = bool(payload.get("is_business_critical", role.get("is_business_critical")))
+        reason = _clean(payload.get("criticality_reason") or role.get("criticality_reason"), 1000)
+        if marking_critical and len(reason) < 15:
+            raise HTTPException(status_code=400, detail="A business-critical flag needs a written reason of at least a sentence.")
+        if marking_critical and assessment["level"] == "Low":
+            raise HTTPException(status_code=409, detail="These factor scores do not support a business-critical flag. Record the evidence or leave the role unflagged.")
+    if "external_contingency" in payload and payload["external_contingency"] is not None:
+        changes["external_contingency"] = 1 if payload["external_contingency"] else 0
     for clearable in ("owner_manager_id", "expected_departure_date"):
         if clearable in payload and not payload[clearable]:
             changes[clearable] = None
@@ -504,9 +630,20 @@ def score_candidate(
         shortfall += missing
         if matched and any(str(s.get("name")) == matched and s.get("verified") for s in skills):
             verified_hits += 1
-        entry = {"skill": req["skill"], "current": level, "required": required, "gap": missing, "matched_as": matched}
+        mandatory = req.get("mandatory", True) is not False
+        entry = {
+            "skill": req["skill"],
+            "current": level,
+            "required": required,
+            "gap": missing,
+            "matched_as": matched,
+            "mandatory": mandatory,
+            "evidence": "verified" if matched and any(str(s.get("name")) == matched and s.get("verified") for s in skills) else "self_reported" if level else "missing",
+        }
         if missing:
-            entry["hours_to_close"] = missing * HOURS_PER_LEVEL
+            estimate = req.get("hours_estimate")
+            if estimate:
+                entry["hours_to_close"] = missing * int(estimate)
             gaps.append(entry)
         else:
             strengths.append(entry)
@@ -530,17 +667,28 @@ def score_candidate(
     readiness = int(round(sum(components.values())))
     gap_pct = round(100 * shortfall / total_required, 1)
     gaps.sort(key=lambda row: (-row["gap"], row["skill"].lower()))
+    unmet = [row["skill"] for row in gaps if row.get("mandatory", True)]
+    band = _band(readiness)
+    if unmet and band == "Ready now":
+        band = "Ready in 6–12 months"
+    evidence_counts = {"verified": 0, "self_reported": 0, "missing": 0}
+    for row in gaps + strengths:
+        kind = row.get("evidence") or "missing"
+        evidence_counts[kind] = evidence_counts.get(kind, 0) + 1
     return {
         "employee_id": str(candidate["id"]),
         "candidate_readiness_score": readiness,
         "candidate_skill_gap_pct": gap_pct,
-        "readiness_band": _band(readiness),
+        "readiness_band": band,
         "components": {
             **components,
             "coverage_pct": round(100 * coverage, 1),
             "years_experience": years,
             "same_department": same_department,
             "same_role_family": same_family,
+            "mandatory_unmet": unmet,
+            "evidence": evidence_counts,
+            "hours_policy": "Shown only when the requirement has a configured hours_estimate. A one-level gap is not assumed to be 20 hours.",
         },
         "gaps": gaps,
         "strengths": strengths,
@@ -560,24 +708,53 @@ def rank_candidates(scored: list[dict[str, Any]], names: dict[str, str] | None =
     return ordered
 
 
-def build_slate(db: Client, role: dict[str, Any]) -> list[dict[str, Any]]:
+def assess_pool(db: Client, role: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Ranked slate plus a short account of who was left off and why."""
     employees = _employees(db)
     skills = _skills_by_employee(db)
     requirements = _requirements(role)["items"]
     if not requirements:
         raise HTTPException(status_code=422, detail="Set the role's required skills before generating a slate.")
-    incumbent = employees.get(str(role["incumbent_employee_id"]))
-    scored = []
+    incumbent_id = str(role["incumbent_employee_id"])
+    incumbent = employees.get(incumbent_id)
+    names = {key: str(value.get("full_name") or "") for key, value in employees.items()}
+    scored: list[dict[str, Any]] = []
+    people: list[dict[str, str]] = []
+    inactive = 0
+    no_match = 0
     for employee_id, employee in employees.items():
-        if employee_id == str(role["incumbent_employee_id"]):
+        name = names.get(employee_id, "")
+        if employee_id == incumbent_id:
+            people.append({"employee_id": employee_id, "full_name": name, "reason": "Current incumbent"})
             continue
         if str(employee.get("employment_status") or "Active").lower() not in {"active", ""}:
+            inactive += 1
             continue
         result = score_candidate(requirements, employee, skills.get(employee_id, []), role, incumbent)
         if result["matched_requirements"] <= 0:
+            no_match += 1
             continue
         scored.append(result)
-    return rank_candidates(scored, {key: str(value.get("full_name") or "") for key, value in employees.items()})
+    ranked = rank_candidates(scored, names)
+    kept = {row["employee_id"] for row in ranked}
+    below = 0
+    for row in scored:
+        if row["employee_id"] in kept:
+            continue
+        below += 1
+        if len(people) < 25:
+            people.append({"employee_id": row["employee_id"], "full_name": names.get(row["employee_id"], ""), "reason": "Ranked below the published slate of five"})
+    return ranked, {
+        "people": people,
+        "inactive_excluded": inactive,
+        "no_matching_requirements": no_match,
+        "below_slate_cap": below,
+    }
+
+
+def build_slate(db: Client, role: dict[str, Any]) -> list[dict[str, Any]]:
+    ranked, _excluded = assess_pool(db, role)
+    return ranked
 
 
 # ── Succession records and the HR gate ────────────────────────────────────
@@ -601,8 +778,9 @@ def generate_slate(db: Client, role_id: str, trigger: str, note: str, actor: str
     record = _active_record(db, role_id)
     if record and record["pairing_status"] == STATUS_CONFIRMED:
         raise HTTPException(status_code=409, detail="This role already has a confirmed successor. Withdraw the pairing before generating a new slate.")
-    slate = build_slate(db, role)
+    slate, excluded = assess_pool(db, role)
     now = _now().isoformat()
+    excluded_json = json.dumps(excluded)
     if record:
         record_id = record["id"]
         for row in _candidates(db, record_id):
@@ -613,6 +791,7 @@ def generate_slate(db: Client, role_id: str, trigger: str, note: str, actor: str
             "requested_by": actor,
             "generated_at": now,
             "updated_at": now,
+            "excluded_json": excluded_json,
         }
         if record.get("nominee_employee_id") and record["nominee_employee_id"] not in {row["employee_id"] for row in slate}:
             changes.update({"nominee_employee_id": None, "pairing_status": STATUS_SLATE})
@@ -634,6 +813,7 @@ def generate_slate(db: Client, role_id: str, trigger: str, note: str, actor: str
             "generated_at": now,
             "created_at": now,
             "updated_at": now,
+            "excluded_json": excluded_json,
         }).execute()
         action = "slate_generated"
     for row in slate:
@@ -882,7 +1062,7 @@ def _successor_gaps(db: Client, record_id: str, successor_id: str | None) -> lis
     return []
 
 
-def open_plan(db: Client, record_id: str, actor: str, hr_discretion: bool, target_handover_date: Any = None, use_ai: bool = True) -> dict[str, Any]:
+def open_plan(db: Client, record_id: str, actor: str, hr_discretion: bool, target_handover_date: Any = None, use_ai: bool = True, opened_reason: str | None = None) -> dict[str, Any]:
     """A plan opens when the pairing is confirmed, or earlier at HR's discretion."""
     ensure_schema(db)
     record = _record_row(db, record_id)
@@ -916,7 +1096,7 @@ def open_plan(db: Client, record_id: str, actor: str, hr_discretion: bool, targe
         "role_id": role["id"],
         "incumbent_employee_id": record["incumbent_employee_id"],
         "successor_employee_id": successor_id,
-        "opened_reason": "Pairing Confirmed" if confirmed else "HR Discretion",
+        "opened_reason": opened_reason or ("Pairing Confirmed" if confirmed else "HR Discretion"),
         "status": "Open",
         "overall_progress_pct": 0,
         "target_handover_date": handover.isoformat(),
@@ -992,9 +1172,13 @@ def _validate_task(payload: dict[str, Any], partial: bool) -> dict[str, Any]:
         if payload["status"] not in TASK_STATUSES:
             raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(TASK_STATUSES)}.")
         out["status"] = payload["status"]
-    for key, limit in (("description", 800), ("knowledge_area", 200), ("notes", 2000)):
+    for key, limit in (("description", 800), ("knowledge_area", 200), ("notes", 2000), ("evidence_note", 2000)):
         if key in payload and payload[key] is not None:
             out[key] = _clean(payload[key], limit) or None
+    if payload.get("verification_status"):
+        if payload["verification_status"] not in {"Not Required", "Pending", "Verified", "Rejected"}:
+            raise HTTPException(status_code=400, detail="verification_status must be Not Required, Pending, Verified, or Rejected.")
+        out["verification_status"] = payload["verification_status"]
     if payload.get("owner_employee_id"):
         out["owner_employee_id"] = str(payload["owner_employee_id"])
     return out
@@ -1053,11 +1237,71 @@ def delete_task(db: Client, task_id: str, actor: str) -> dict[str, Any]:
     if not rows:
         raise HTTPException(status_code=404, detail="Task not found.")
     task = rows[0]
-    db.table("kt_tasks").delete().eq("id", task_id).execute()
+    if task.get("cancelled_at"):
+        return plan_detail(db, task["plan_id"])
+    now = _now().isoformat()
+    db.table("kt_tasks").update({
+        "cancelled_at": now,
+        "cancel_reason": "Removed from the active plan",
+        "updated_at": now,
+    }).eq("id", task_id).execute()
     plan = _plan_row(db, task["plan_id"])
     _audit(db, "task", task_id, "task_removed", actor, task["title"], plan["succession_record_id"])
     recompute_progress(db, task["plan_id"])
     return plan_detail(db, task["plan_id"])
+
+
+def validate_plan(db: Client, plan_id: str, actor: str, note: str) -> dict[str, Any]:
+    """Task completion is not the same as a verified handover."""
+    ensure_schema(db)
+    plan = _plan_row(db, plan_id)
+    summary = progress_of(_tasks(db, plan_id))
+    if summary["status"] != "Complete":
+        raise HTTPException(status_code=409, detail="Finish every active task before validating the handover.")
+    pending = [
+        task["title"]
+        for task in _tasks(db, plan_id)
+        if task.get("verification_status") in {"Pending", "Rejected"}
+    ]
+    if pending:
+        raise HTTPException(status_code=409, detail="Verification is still open on: " + ", ".join(pending[:5]))
+    note = _clean(note, 1000)
+    if len(note) < 5:
+        raise HTTPException(status_code=400, detail="Record what was checked before signing off the handover.")
+    now = _now().isoformat()
+    db.table("kt_plans").update({
+        "assurance_status": "Verified",
+        "validated_by": actor,
+        "validated_at": now,
+        "validation_note": note,
+        "updated_at": now,
+    }).eq("id", plan_id).execute()
+    _audit(db, "plan", plan_id, "handover_validated", actor, note, plan["succession_record_id"])
+    return plan_detail(db, plan_id)
+
+
+def open_emergency_cover(db: Client, role_id: str, actor: str, note: str) -> dict[str, Any]:
+    """Cover an unexpected absence even when no long-term successor is confirmed. Repeating the call does not open a second plan."""
+    ensure_schema(db)
+    note = _clean(note, 1000)
+    if len(note) < 5:
+        raise HTTPException(status_code=400, detail="Record why emergency cover is needed.")
+    role = _role_row(db, role_id)
+    db.table("succession_roles").update({
+        "departure_scenario": "unexpected",
+        "updated_at": _now().isoformat(),
+    }).eq("id", role_id).execute()
+    record = _active_record(db, role_id)
+    if record:
+        record_id = record["id"]
+    else:
+        trigger = "business_critical" if role.get("is_business_critical") else "hr_request"
+        detail = generate_slate(db, role_id, trigger, note, actor)
+        record_id = detail["succession_record_id"]
+    existing = _plan_for_record(db, record_id)
+    if existing:
+        return plan_detail(db, existing["id"])
+    return open_plan(db, record_id, actor, True, None, False, "Unexpected Absence")
 
 
 # ── Views ─────────────────────────────────────────────────────────────────
@@ -1078,6 +1322,8 @@ def _task_view(task: dict[str, Any], employees: dict[str, dict[str, Any]], today
         "status": task["status"],
         "completed_at": task.get("completed_at"),
         "notes": task.get("notes"),
+        "evidence_note": task.get("evidence_note"),
+        "verification_status": task.get("verification_status") or "Not Required",
         "overdue_flag": overdue,
         "days_overdue": (today - due).days if overdue and due else 0,
         "days_left": (due - today).days if due and not overdue and task["status"] != TASK_COMPLETE else None,
@@ -1108,6 +1354,10 @@ def plan_detail(db: Client, plan_id: str, employees: dict[str, dict[str, Any]] |
         "target_handover_date": plan["target_handover_date"],
         "days_to_handover": (handover - today).days if handover else None,
         "drafted_by": plan.get("drafted_by"),
+        "assurance_status": plan.get("assurance_status") or "Not verified",
+        "validated_by": plan.get("validated_by"),
+        "validated_at": plan.get("validated_at"),
+        "validation_note": plan.get("validation_note"),
         "created_by": plan.get("created_by"),
         "created_at": plan.get("created_at"),
         "by_type": {kind: sum(1 for t in views if t["task_type"] == kind) for kind in TASK_TYPES},
@@ -1148,7 +1398,11 @@ def _record_view(db: Client, record: dict[str, Any], employees: dict[str, dict[s
         "generated_at": record.get("generated_at"),
         "nominee": nominee,
         "candidates": candidates,
-        "has_ready_successor": any(c["candidate_readiness_score"] >= READY_NOW for c in candidates),
+        "excluded": _loads(record.get("excluded_json"), {}),
+        "has_ready_successor": any(
+            c["candidate_readiness_score"] >= READY_NOW and not (c.get("components") or {}).get("mandatory_unmet")
+            for c in candidates
+        ),
     }
     if include_audit:
         rows = db.table("succession_audit").select("*").eq("record_id", record["id"]).execute().data or []
@@ -1193,19 +1447,31 @@ def exposure(role: dict[str, Any], record: dict[str, Any] | None, plan: dict[str
     else:
         cover = 0.0
         cover_note = "No successor slate yet"
-    knowledge = float((plan or {}).get("overall_progress_pct") or 0)
+    task_pct = float((plan or {}).get("overall_progress_pct") or 0)
+    verified_handover = (plan or {}).get("assurance_status") == "Verified"
+    # Completing tasks is only partial mitigation until someone validates the handover.
+    knowledge = task_pct if verified_handover else task_pct * 0.5
     mitigation = 0.6 * cover + 0.4 * knowledge
     score = int(round((100 - mitigation) * RISK_WEIGHT.get(risk, 0.8)))
     if not role.get("is_business_critical"):
         score = int(round(score * 0.6))
     level = "Critical" if score >= 70 else "High" if score >= 45 else "Moderate" if score >= 25 else "Low"
+    interim = "A temporary backup is named, separate from the long-term successor." if role.get("interim_backup_employee_id") else "No temporary backup is named."
+    knowledge_note = (
+        f"{task_pct:.0f}% of tasks are complete and the handover is validated."
+        if verified_handover
+        else f"{task_pct:.0f}% of tasks are complete; unverified task completion counts at half weight."
+    )
     return {
         "score": score,
         "level": level,
         "succession_cover": round(cover, 1),
         "knowledge_captured": round(knowledge, 1),
+        "task_progress_pct": round(task_pct, 1),
+        "handover_validated": verified_handover,
         "departure_risk": risk,
-        "explanation": f"{cover_note}; {knowledge:.0f}% of knowledge transfer complete; departure risk {risk.lower()}.",
+        "weights": {"succession_cover": 0.6, "knowledge": 0.4, "unverified_knowledge_factor": 0.5, "departure_risk_weight": RISK_WEIGHT.get(risk, 0.8)},
+        "explanation": f"{cover_note}. {knowledge_note} {interim} Departure risk {risk.lower()}.",
     }
 
 
@@ -1221,6 +1487,15 @@ def role_view(db: Client, role: dict[str, Any], employees: dict[str, dict[str, A
         "criticality_reason": role.get("criticality_reason"),
         "departure_risk": role.get("departure_risk") or "Medium",
         "expected_departure_date": role.get("expected_departure_date"),
+        "departure_scenario": role.get("departure_scenario") or "none",
+        "role_family": role.get("role_family"),
+        "interim_backup": _person(employees, role.get("interim_backup_employee_id")),
+        "interim_backup_note": role.get("interim_backup_note"),
+        "criticality": _loads(role.get("criticality_json"), None),
+        "last_review_date": role.get("last_review_date"),
+        "next_review_date": role.get("next_review_date"),
+        "external_contingency": bool(role.get("external_contingency")),
+        "position_status": role.get("position_status") or "Active",
         "flagged_by": role.get("flagged_by"),
         "flagged_at": role.get("flagged_at"),
         "requirements": requirements["items"],
@@ -1250,6 +1525,31 @@ def _at_risk(db: Client) -> dict[str, str]:
     return {str(row["employee_id"]): str(row.get("risk_level") or "") for row in rows if row.get("employee_id")}
 
 
+def _next_actions(roles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    horizon = _today() + timedelta(days=90)
+    for role in roles:
+        owner = (role.get("owner") or {}).get("full_name")
+        title = role["role_title"]
+        role_id = role["id"]
+        record = role.get("record") or {}
+        plan = role.get("plan")
+        if role.get("is_business_critical") and not role.get("record"):
+            actions.append({"role_id": role_id, "role_title": title, "action": "Generate a successor slate", "owner": owner})
+        if role.get("is_business_critical") and not role.get("interim_backup"):
+            actions.append({"role_id": role_id, "role_title": title, "action": "Name a temporary backup. This is separate from the long-term successor.", "owner": owner})
+        if record.get("pairing_status") == STATUS_NOMINATED:
+            actions.append({"role_id": role_id, "role_title": title, "action": "A nomination is waiting for HR approval", "owner": owner})
+        due = _parse_date(role.get("expected_departure_date"))
+        if due and due <= horizon and record.get("pairing_status") != STATUS_CONFIRMED:
+            actions.append({"role_id": role_id, "role_title": title, "action": "Expected departure is inside 90 days and there is no confirmed successor", "owner": owner})
+        if plan and plan.get("overdue_tasks"):
+            actions.append({"role_id": role_id, "role_title": title, "action": f"{plan['overdue_tasks']} knowledge-transfer task(s) are overdue", "owner": owner})
+        if plan and plan.get("status") == "Complete" and plan.get("assurance_status") != "Verified":
+            actions.append({"role_id": role_id, "role_title": title, "action": "Tasks are complete. Validate the handover before treating the risk as closed.", "owner": owner})
+    return actions[:40]
+
+
 def overview(db: Client, manager_id: str | None = None) -> dict[str, Any]:
     ensure_schema(db)
     employees = _employees(db)
@@ -1276,7 +1576,10 @@ def overview(db: Client, manager_id: str | None = None) -> dict[str, Any]:
             "avg_kt_progress_pct": round(sum(p["overall_progress_pct"] for p in plans) / len(plans), 1) if plans else 0.0,
             "overdue_tasks": sum(p["overdue_tasks"] for p in plans),
             "exposure_by_level": {level: sum(1 for r in roles if r["exposure"]["level"] == level) for level in ("Critical", "High", "Moderate", "Low")},
+            "without_temporary_backup": sum(1 for r in critical if not r.get("interim_backup")),
+            "handover_unverified": sum(1 for r in roles if r.get("plan") and r["plan"].get("assurance_status") != "Verified" and r["plan"].get("status") == "Complete"),
         },
+        "next_actions": _next_actions(roles),
         "roles": roles,
         "role_owners": sorted(owners.values(), key=lambda p: p["full_name"]),
     }
@@ -1319,7 +1622,7 @@ def employee_view(db: Client, employee_id: str) -> dict[str, Any]:
     considered.sort(key=lambda row: (row["status"] != "Confirmed successor", -row["candidate_readiness_score"]))
     my_tasks = []
     for task in db.table("kt_tasks").select("*").eq("owner_employee_id", employee_id).execute().data or []:
-        if task.get("status") == TASK_COMPLETE:
+        if task.get("status") == TASK_COMPLETE or task.get("cancelled_at"):
             continue
         plan = _plan_row(db, task["plan_id"])
         role = _role_row(db, plan["role_id"])

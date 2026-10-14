@@ -257,7 +257,7 @@ const CandidateRow: React.FC<{
                   <div key={g.skill} className="sx-gap">
                     <span>{g.skill}</span>
                     <span className="sx-muted">
-                      {g.current} → {g.required} · ~{g.hours_to_close}h
+                      {g.current} → {g.required} · {g.hours_to_close ? `~${g.hours_to_close}h` : 'estimate unavailable'}
                     </span>
                   </div>
                 ))
@@ -384,6 +384,7 @@ const PlanPanel: React.FC<{
           <div className="sx-plan__meta">
             <Chip tone="info">{plan.status}</Chip>
             <Chip tone="muted">Opened: {plan.opened_reason}</Chip>
+            <Chip tone={plan.assurance_status === 'Verified' ? 'good' : 'warn'}>{plan.assurance_status === 'Verified' ? 'Handover validated' : 'Handover not validated'}</Chip>
             <Chip tone="muted">
               <CalendarClock size={11} /> Handover {fmtDate(plan.target_handover_date)}
               {plan.days_to_handover !== null && ` (${plan.days_to_handover}d)`}
@@ -582,7 +583,7 @@ const RoleDetail: React.FC<{
   busy: boolean;
   run: (fn: () => Promise<unknown>, message?: string) => void;
   onAddTask: (plan: SxPlan) => void;
-  onAsk: (kind: 'flag' | 'hr_request' | 'approve' | 'decline' | 'withdraw' | 'plan') => void;
+  onAsk: (kind: 'flag' | 'hr_request' | 'approve' | 'decline' | 'withdraw' | 'plan' | 'emergency') => void;
 }> = ({ role, record, canEdit, busy, run, onAddTask, onAsk }) => {
   const [showAudit, setShowAudit] = useState(false);
   const exposure = role.exposure;
@@ -607,6 +608,9 @@ const RoleDetail: React.FC<{
               <span>
                 <CalendarClock size={14} /> Expected departure: <strong>{fmtDate(role.expected_departure_date)}</strong>
               </span>
+              <span>
+                <ShieldCheck size={14} /> Temporary backup: <strong>{role.interim_backup?.full_name || 'None named'}</strong>
+              </span>
             </div>
           </div>
           <div className="sx-role-head__flags">
@@ -623,6 +627,11 @@ const RoleDetail: React.FC<{
             {canEdit && (
               <button type="button" className="sx-btn sx-btn--ghost" disabled={busy} onClick={() => onAsk('flag')}>
                 <Flag size={14} /> {role.is_business_critical ? 'Edit flag' : 'Flag as business-critical'}
+              </button>
+            )}
+            {canEdit && (
+              <button type="button" className="sx-btn sx-btn--ghost" disabled={busy} onClick={() => onAsk('emergency')}>
+                <AlertTriangle size={14} /> Unexpected absence
               </button>
             )}
           </div>
@@ -1032,7 +1041,7 @@ const EmployeePanel: React.FC<{ view: SxEmployeeView; busy: boolean; onStatus: (
                       <div>
                         <strong>{g.skill}</strong>
                         <span className="sx-muted">
-                          {g.current}/10 now → {g.required}/10 needed · about {g.hours_to_close}h
+                          {g.current}/10 now → {g.required}/10 needed · {g.hours_to_close ? `about ${g.hours_to_close}h` : 'no hour estimate on file'}
                         </span>
                         <Bar pct={(g.current / g.required) * 100} tone="warn" />
                       </div>
@@ -1145,7 +1154,7 @@ const AskPanel: React.FC<{ persona: Persona; employeeId?: string; managerId?: st
 
 // ── Page ─────────────────────────────────────────────────────────────────
 
-type Prompt = null | 'role' | 'flag' | 'hr_request' | 'approve' | 'decline' | 'withdraw' | 'plan' | 'task';
+type Prompt = null | 'role' | 'flag' | 'hr_request' | 'approve' | 'decline' | 'withdraw' | 'plan' | 'task' | 'emergency';
 
 export const SuccessionKnowledgeTransfer: React.FC = () => {
   const { employees, currentEmployee } = useEmployee();
@@ -1166,7 +1175,16 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
   const [note, setNote] = useState('');
   const [handover, setHandover] = useState(isoIn(90));
   const [useAi, setUseAi] = useState(true);
-  const [flagForm, setFlagForm] = useState({ critical: true, reason: '', risk: 'Medium' as 'Low' | 'Medium' | 'High', departure: '', owner: '' });
+  const [flagForm, setFlagForm] = useState({
+    critical: true,
+    reason: '',
+    risk: 'Medium' as 'Low' | 'Medium' | 'High',
+    departure: '',
+    owner: '',
+    scenario: 'none',
+    interim: '',
+    factors: { disruption: '', customer_impact: '', expertise_scarcity: '', single_person_knowledge: '', documentation: '' },
+  });
   const emptyRoleForm = {
     role_title: '',
     incumbent_employee_id: '',
@@ -1286,6 +1304,15 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
         risk: role.departure_risk,
         departure: role.expected_departure_date || '',
         owner: role.owner?.id || '',
+        scenario: role.departure_scenario || 'none',
+        interim: role.interim_backup?.id || '',
+        factors: {
+          disruption: role.criticality?.factors?.disruption ? String(role.criticality.factors.disruption) : '',
+          customer_impact: role.criticality?.factors?.customer_impact ? String(role.criticality.factors.customer_impact) : '',
+          expertise_scarcity: role.criticality?.factors?.expertise_scarcity ? String(role.criticality.factors.expertise_scarcity) : '',
+          single_person_knowledge: role.criticality?.factors?.single_person_knowledge ? String(role.criticality.factors.single_person_knowledge) : '',
+          documentation: role.criticality?.factors?.documentation ? String(role.criticality.factors.documentation) : '',
+        },
       });
     }
     if (kind === 'plan' && role) setHandover(role.expected_departure_date && role.expected_departure_date > isoIn(7) ? role.expected_departure_date : isoIn(90));
@@ -1304,6 +1331,13 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
             departure_risk: flagForm.risk,
             expected_departure_date: flagForm.departure || null,
             owner_manager_id: flagForm.owner || null,
+            departure_scenario: flagForm.scenario,
+            interim_backup_employee_id: flagForm.interim || null,
+            ...(Object.values(flagForm.factors).every((value) => value)
+              ? {
+                  criticality_factors: Object.fromEntries(Object.entries(flagForm.factors).map(([key, value]) => [key, Number(value)])),
+                }
+              : {}),
           }),
         flagForm.critical ? 'Role flagged business-critical.' : 'Role flag updated.',
       );
@@ -1317,6 +1351,8 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
       await run(() => successionAPI.withdraw(rid, note), 'Pairing withdrawn.');
     } else if (prompt === 'plan' && rid) {
       await run(() => successionAPI.openPlan(rid, { hr_discretion: true, target_handover_date: handover, use_ai: useAi }), 'Knowledge transfer plan opened.');
+    } else if (prompt === 'emergency') {
+      await run(() => successionAPI.openEmergency(role.id, note), 'Emergency cover plan opened.');
     }
     close();
   };
@@ -1358,7 +1394,9 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
 
   const t = data?.totals;
   const canEdit = persona === 'hr';
-  const flagReasonOk = !flagForm.critical || flagForm.reason.trim().length >= 5;
+  const factorsStarted = Object.values(flagForm.factors).some((value) => value);
+  const factorsComplete = Object.values(flagForm.factors).every((value) => value);
+  const flagReasonOk = !flagForm.critical || (factorsStarted ? flagForm.reason.trim().length >= 15 && factorsComplete : flagForm.reason.trim().length >= 5);
   const roleFormOk =
     roleForm.role_title.trim().length >= 3 && !!roleForm.incumbent_employee_id && (!roleForm.is_business_critical || roleForm.criticality_reason.trim().length >= 5);
 
@@ -1454,6 +1492,20 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
               <Stat icon={ClipboardList} tone="good" label="Knowledge transfer progress" value={`${Math.round(t.avg_kt_progress_pct)}%`} hint={`${t.plans_open} plan${t.plans_open === 1 ? '' : 's'} open`} />
               <Stat icon={AlertTriangle} tone={t.overdue_tasks ? 'danger' : 'good'} label="Overdue tasks" value={t.overdue_tasks} hint="Past due and not complete" />
             </div>}
+
+            {persona !== 'employer' && !!data.next_actions?.length && !(persona === 'manager' && !managerId) && (
+              <section className="sx-card">
+                <div className="sx-card__title">
+                  <AlertTriangle size={17} /> What needs a decision
+                </div>
+                {data.next_actions.slice(0, 8).map((item) => (
+                  <button key={`${item.role_id}-${item.action}`} type="button" className="sx-mini" onClick={() => setSelected(item.role_id)}>
+                    <strong>{item.role_title}</strong>
+                    <span>{item.action}{item.owner ? ` · ${item.owner}` : ''}</span>
+                  </button>
+                ))}
+              </section>
+            )}
 
             {persona === 'manager' && !managerId ? (
               <div className="sx-card sx-empty">
@@ -1668,6 +1720,55 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
               <input type="date" className="sx-input" value={flagForm.departure} onChange={(e) => setFlagForm({ ...flagForm, departure: e.target.value })} />
             </Field>
           </div>
+          <div className="sx-form__grid">
+            <Field label="Departure scenario">
+              <select className="sx-select" value={flagForm.scenario} onChange={(e) => setFlagForm({ ...flagForm, scenario: e.target.value })}>
+                <option value="none">No departure expected</option>
+                <option value="planned">Planned departure</option>
+                <option value="likely">Likely departure</option>
+                <option value="unexpected">Unexpected absence</option>
+              </select>
+            </Field>
+            <Field label="Temporary backup">
+              <select className="sx-select" value={flagForm.interim} onChange={(e) => setFlagForm({ ...flagForm, interim: e.target.value })}>
+                <option value="">No temporary backup</option>
+                {employees
+                  .filter((e) => e.id !== role?.incumbent?.id)
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.full_name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          </div>
+          <p className="sx-muted">Score each factor from 1 to 5. Documentation is the exception: 5 means the work is already written down. Leave them blank to keep the current assessment.</p>
+          <div className="sx-form__grid">
+            {(
+              [
+                ['disruption', 'Disruption if vacant'],
+                ['customer_impact', 'Customer or revenue impact'],
+                ['expertise_scarcity', 'Expertise scarcity'],
+                ['single_person_knowledge', 'Knowledge held by one person'],
+                ['documentation', 'Documentation and cover'],
+              ] as const
+            ).map(([key, label]) => (
+              <Field key={key} label={label}>
+                <select
+                  className="sx-select"
+                  value={flagForm.factors[key]}
+                  onChange={(e) => setFlagForm({ ...flagForm, factors: { ...flagForm.factors, [key]: e.target.value } })}
+                >
+                  <option value="">Not scored</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                </select>
+              </Field>
+            ))}
+          </div>
           <Field label="Owning manager">
             <select className="sx-select" value={flagForm.owner} onChange={(e) => setFlagForm({ ...flagForm, owner: e.target.value })}>
               <option value="">Incumbent's line manager</option>
@@ -1693,10 +1794,18 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
 
       {/* Note-driven prompts */}
       <Modal
-        isOpen={prompt === 'hr_request' || prompt === 'approve' || prompt === 'decline' || prompt === 'withdraw'}
+        isOpen={prompt === 'hr_request' || prompt === 'approve' || prompt === 'decline' || prompt === 'withdraw' || prompt === 'emergency'}
         onClose={close}
         title={
-          prompt === 'hr_request' ? 'Explicit HR request' : prompt === 'approve' ? 'Approve pairing' : prompt === 'decline' ? 'Decline pairing' : 'Withdraw pairing'
+          prompt === 'emergency'
+            ? 'Unexpected absence'
+            : prompt === 'hr_request'
+              ? 'Explicit HR request'
+              : prompt === 'approve'
+                ? 'Approve pairing'
+                : prompt === 'decline'
+                  ? 'Decline pairing'
+                  : 'Withdraw pairing'
         }
       >
         <div className="sx-form">
@@ -1707,6 +1816,9 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
             </p>
           )}
           {prompt === 'hr_request' && <p className="sx-muted">The reason is stored on the succession record as the trigger.</p>}
+          {prompt === 'emergency' && (
+            <p className="sx-muted">This opens one continuity plan for the absence. It does not confirm a long-term successor, and repeating it does not create a second plan.</p>
+          )}
           <Field label={prompt === 'approve' ? 'Approval note (optional)' : 'Reason'}>
             <textarea className="sx-input" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
@@ -1721,7 +1833,7 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
               onClick={submitPrompt}
             >
               {busy && <Loader2 size={15} className="sx-spin" />}
-              {prompt === 'hr_request' ? 'Generate slate' : prompt === 'approve' ? (busy ? 'Approving and drafting the plan…' : 'Approve') : prompt === 'decline' ? 'Decline' : 'Withdraw'}
+              {prompt === 'emergency' ? 'Open cover plan' : prompt === 'hr_request' ? 'Generate slate' : prompt === 'approve' ? (busy ? 'Approving and drafting the plan…' : 'Approve') : prompt === 'decline' ? 'Decline' : 'Withdraw'}
             </button>
           </div>
         </div>

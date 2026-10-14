@@ -77,6 +77,14 @@ class RoleUpdate(BaseModel):
     departure_risk: Literal["Low", "Medium", "High"] | None = None
     expected_departure_date: str | None = None
     requirements: list[Requirement] | None = None
+    role_family: str | None = None
+    departure_scenario: str | None = None
+    interim_backup_employee_id: str | None = None
+    interim_backup_note: str | None = None
+    next_review_date: str | None = None
+    position_status: str | None = None
+    external_contingency: bool | None = None
+    criticality_factors: dict | None = None
 
 
 class DeriveBody(BaseModel):
@@ -203,6 +211,11 @@ def generate_slate(role_id: str, body: SlateBody, actor: dict | None = Depends(g
     return succession.generate_slate(_db(), role_id, body.trigger, body.note, _hr(actor))
 
 
+@router.post("/roles/{role_id}/emergency")
+def emergency_cover(role_id: str, body: NoteBody, actor: dict | None = Depends(get_optional_employee)):
+    return succession.open_emergency_cover(_db(), role_id, _hr(actor), body.note)
+
+
 @router.get("/records/{record_id}")
 def get_record(record_id: str, actor: dict | None = Depends(get_optional_employee)):
     _hr(actor)
@@ -243,6 +256,11 @@ def get_plan(plan_id: str, actor: dict | None = Depends(get_optional_employee)):
 @router.post("/plans/{plan_id}/tasks")
 def add_task(plan_id: str, body: TaskCreate, actor: dict | None = Depends(get_optional_employee)):
     return succession.add_task(_db(), plan_id, body.model_dump(exclude_none=True), _hr(actor))
+
+
+@router.post("/plans/{plan_id}/validate")
+def validate_plan(plan_id: str, body: NoteBody, actor: dict | None = Depends(get_optional_employee)):
+    return succession.validate_plan(_db(), plan_id, _hr(actor), body.note)
 
 
 @router.patch("/tasks/{task_id}")

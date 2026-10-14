@@ -256,3 +256,89 @@ def test_manager_facts_describe_the_confirmed_plan(world):
     assert role["kt_plan"]["next_tasks"]
     reply = succession.answer(db, "manager", "What's the knowledge-transfer plan?", manager_id=world["partial"])
     assert "Sam Strong" in reply["answer"] and "tasks" in reply["answer"]
+
+
+def test_criticality_factors_reject_a_low_score_and_a_short_reason(world):
+    db = world["db"]
+    low = {key: 1 for key, _label in succession.CRITICALITY_FACTORS}
+    low["documentation"] = 5
+    with pytest.raises(HTTPException) as short:
+        succession.update_role(db, world["role"]["id"], {
+            "is_business_critical": True,
+            "criticality_reason": "Too short",
+            "criticality_factors": {key: 5 for key, _label in succession.CRITICALITY_FACTORS},
+        }, "HR")
+    assert short.value.status_code == 400
+    with pytest.raises(HTTPException) as weak:
+        succession.update_role(db, world["role"]["id"], {
+            "is_business_critical": True,
+            "criticality_reason": "The scores do not show a material continuity risk.",
+            "criticality_factors": low,
+        }, "HR")
+    assert weak.value.status_code == 409
+
+
+def test_interim_backup_is_not_the_successor(world):
+    db = world["db"]
+    row = succession.update_role(db, world["role"]["id"], {
+        "interim_backup_employee_id": world["partial"],
+        "interim_backup_note": "Covers the ledger close for two weeks.",
+        "departure_scenario": "planned",
+    }, "HR")
+    view = succession.role_view(db, row, succession._employees(db))
+    assert view["interim_backup"]["id"] == world["partial"]
+    assert view["departure_scenario"] == "planned"
+    assert view.get("record") is None
+    with pytest.raises(HTTPException):
+        succession.update_role(db, world["role"]["id"], {"interim_backup_employee_id": world["incumbent"]}, "HR")
+
+
+def test_emergency_cover_opens_one_plan_without_a_confirmed_successor(world):
+    db = world["db"]
+    first = succession.open_emergency_cover(db, world["role"]["id"], "HR", "Incumbent is unexpectedly unavailable this week.")
+    assert first["opened_reason"] == "Unexpected Absence"
+    assert first["successor"] is None
+    second = succession.open_emergency_cover(db, world["role"]["id"], "HR", "Incumbent is unexpectedly unavailable this week.")
+    assert second["id"] == first["id"]
+    plans = db.table("kt_plans").select("id").eq("role_id", world["role"]["id"]).execute().data or []
+    assert len(plans) == 1
+
+
+def test_removed_tasks_stay_auditable_and_leave_the_progress_count(world):
+    db = world["db"]
+    record_id = succession.generate_slate(db, world["role"]["id"], "business_critical", "", "HR")["succession_record_id"]
+    plan = succession.open_plan(db, record_id, "HR", True, use_ai=False)
+    removed = plan["tasks"][0]
+    plan = succession.delete_task(db, removed["id"], "HR")
+    assert removed["id"] not in {task["id"] for task in plan["tasks"]}
+    stored = db.table("kt_tasks").select("id,cancelled_at").eq("id", removed["id"]).execute().data
+    assert stored and stored[0]["cancelled_at"]
+    events = succession.audit_log(db, 20)
+    assert any(event["action"] == "task_removed" and event["entity_id"] == removed["id"] for event in events)
+
+
+def test_a_mandatory_gap_cannot_be_labelled_ready_now():
+    role = {"role_title": "Payments Platform Lead", "department": "Payments"}
+    incumbent = {"years_experience": 6}
+    candidate = {"id": "c1", "department": "Payments", "role": "Payments Platform Lead", "years_experience": 12}
+    skills = [{"name": "Ledger", "proficiency": 90, "verified": True}]
+    requirements = [{"skill": "Ledger", "level": 7, "mandatory": True}, {"skill": "Incident Command", "level": 1, "mandatory": True}]
+    scored = succession.score_candidate(requirements, candidate, skills, role, incumbent)
+    assert scored["candidate_readiness_score"] >= 80
+    assert scored["readiness_band"] != "Ready now"
+    assert "Incident Command" in scored["components"]["mandatory_unmet"]
+    assert "hours_to_close" not in scored["gaps"][0]
+
+
+def test_handover_validation_waits_for_finished_tasks(world):
+    db = world["db"]
+    record_id = succession.generate_slate(db, world["role"]["id"], "business_critical", "", "HR")["succession_record_id"]
+    plan = succession.open_plan(db, record_id, "HR", True, use_ai=False)
+    with pytest.raises(HTTPException) as early:
+        succession.validate_plan(db, plan["id"], "HR", "Walked the ledger close with the backup.")
+    assert early.value.status_code == 409
+    for task in plan["tasks"]:
+        plan = succession.update_task(db, task["id"], {"status": "Complete", "evidence_note": "Walkthrough notes filed."}, "HR")
+    signed = succession.validate_plan(db, plan["id"], "HR", "Walked the ledger close with the backup.")
+    assert signed["assurance_status"] == "Verified"
+    assert signed["status"] == "Complete"
