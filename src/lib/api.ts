@@ -70,10 +70,10 @@ export interface LoginRequest {
 }
 
 export interface RegisterRequest {
-  employee_code: string;
   full_name: string;
   email: string;
   password: string;
+  employee_code?: string;
   department?: string;
   role?: string;
 }
@@ -81,7 +81,8 @@ export interface RegisterRequest {
 export interface AuthResponse {
   access_token: string;
   token_type: string;
-  employee: any;
+  employee_id: string;
+  full_name: string;
 }
 
 export const authAPI = {
@@ -1647,8 +1648,6 @@ export const organizationAPI = {
   getMentors: () => fetchAPI<any[]>('/api/organization/talent/mentors'),
   getTeamBuilderOptions: () => fetchAPI<any[]>('/api/organization/talent/team-builder'),
 
-
-  // Strategy Role Architect Endpoints
   getStrategyOverview: (department?: string) =>
     fetchAPI<any>(`/api/organization/strategy/overview${buildQueryString({ department })}`),
 
@@ -1664,7 +1663,6 @@ export const organizationAPI = {
   searchKnowledgeGraph: (q: string) =>
     fetchAPI<{ results: any[]; total: number }>(`/api/organization/strategy/knowledge-search${buildQueryString({ q })}`),
 
-  // Applications
   getApplications: (params?: { opportunity_type?: string; employee_id?: string }) =>
     fetchAPI<any[]>(`/api/organization/talent/applications?${new URLSearchParams(
       Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
@@ -1681,6 +1679,241 @@ export const organizationAPI = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+};
+
+export interface TbSkillRequirement {
+  name: string;
+  priority: 'mandatory' | 'important' | 'optional';
+}
+
+export interface TbMetric {
+  mandatory_coverage: number | null;
+  mandatory_met: boolean;
+  weighted_coverage: number | null;
+  proficiency_coverage: number | null;
+  role_coverage: number | null;
+  capacity_fit: number | null;
+  department_count: number;
+  departments: string[];
+  data_completeness: number;
+  requested_headcount: number;
+  actual_headcount: number;
+  recommendation_score: number | null;
+  score_meaning: string;
+}
+
+export interface TbMember {
+  employee_id: string;
+  full_name: string | null;
+  role: string | null;
+  department: string | null;
+  requirement_score: number;
+  capacity_status: string;
+  explanation: string;
+  warnings: string[];
+  matched: { requirement: string; skill: string; match: string; proficiency: number | null; verified: boolean; priority: string }[];
+}
+
+export interface TbOption {
+  id: string;
+  name: string;
+  strategy: string;
+  option_status: string;
+  feasibility: string;
+  rationale: string;
+  score_basis: string;
+  metrics: TbMetric | null;
+  warnings: string[];
+  uncovered: { skill: string; priority: string }[];
+  roles: { role: string; employee_id: string | null; employee_name?: string | null; how: string | null }[];
+  members: TbMember[];
+  assignments: { id: string; employee_id: string; project_name: string; allocation_pct: number; status: string }[];
+  actual_headcount: number | null;
+  requested_headcount: number | null;
+  prediction?: TbPrediction | null;
+  skill_model?: TbSkillModel | null;
+  source?: 'generated' | 'existing';
+  team_id?: string;
+  registration_status?: string;
+}
+
+export interface TbSkillModel {
+  status: string;
+  score: number | null;
+  label: string;
+  meaning: string;
+  warning: string | null;
+  skills_used: string[];
+  model_version: string | null;
+  training_data_type: string | null;
+  production_validated: boolean;
+}
+
+export interface TbPrediction {
+  id: string;
+  status: string;
+  probability: number | null;
+  display_label: string;
+  model_version: string | null;
+  model_type: string | null;
+  training_data_type: string | null;
+  warning: string | null;
+  strengths: string[];
+  risks: string[];
+  missing: string[];
+  stale: boolean;
+  production_validated: boolean;
+}
+
+export interface TbTeamMember {
+  employee_id: string;
+  full_name: string | null;
+  role: string | null;
+  department: string | null;
+  member_role: string;
+  membership_status: string;
+  source: string;
+}
+
+export interface TbInvitation {
+  id: string;
+  team_id: string;
+  employee_id: string;
+  full_name: string | null;
+  role: string | null;
+  department: string | null;
+  status: string;
+  team_name?: string;
+}
+
+export interface TbTeam {
+  id: string;
+  name: string;
+  description: string | null;
+  objective: string | null;
+  team_type: string | null;
+  project_type: string | null;
+  origin: string;
+  creator_id: string;
+  project_name: string | null;
+  headcount: number;
+  allocation_pct: number;
+  registration_status: string;
+  operational_status: string;
+  decision_note: string | null;
+  decided_by: string | null;
+  can_decide: boolean;
+  context: string | null;
+  skills: TbSkillRequirement[];
+  members: TbTeamMember[];
+  invitations: TbInvitation[];
+  prediction: TbPrediction | null;
+  evaluation?: {
+    feasibility: string;
+    metrics: TbMetric;
+    warnings: string[];
+    uncovered: { skill: string; priority: string }[];
+  };
+}
+
+export interface TbWorkspace {
+  teams: TbTeam[];
+  incoming: TbInvitation[];
+  review: TbTeam[];
+  team_types: string[];
+  registration_policy: string;
+  can_review: boolean;
+  model: { available: boolean; warning?: string; training_data_type?: string; production_validated: boolean; version?: string };
+  join_requests?: TbJoinRequest[];
+  join_reviews?: TbJoinRequest[];
+}
+
+export interface TbJoinRequest {
+  id: string;
+  team_id: string;
+  team_name: string | null;
+  option_id: string | null;
+  employee_id: string;
+  full_name: string | null;
+  status: string;
+  note: string | null;
+  can_decide: boolean;
+}
+
+export interface TbRun {
+  run_id: string;
+  request_id: string;
+  status: string;
+  algorithm_version: string;
+  created_at: string;
+  eligible_count: number;
+  requested_headcount: number;
+  warnings: string[];
+  context_skills: string[];
+  request: {
+    project_name: string;
+    project_type: string | null;
+    objective: string | null;
+    start_date: string | null;
+    end_date: string | null;
+    headcount: number;
+    allocation_pct: number;
+    context: string | null;
+    allow_smaller: boolean;
+    skills: TbSkillRequirement[];
+    roles: string[];
+  };
+  options: TbOption[];
+  existing_teams?: TbOption[];
+}
+
+export interface TbCatalogue {
+  skills: { name: string; employees: number }[];
+  aliases: { canonical_name: string; alias: string }[];
+  projects: { id: string; name: string }[];
+  employees: { id: string; full_name: string; role: string | null; department: string | null }[];
+  workforce: { active: number; with_capacity: number; without_capacity: number };
+}
+
+export const teamBuilderAPI = {
+  catalogue: () => fetchAPI<TbCatalogue>('/api/organization/talent/team-builder/catalogue', { timeoutMs: 60000 }),
+  runs: () => fetchAPI<{ runs: { run_id: string; project_name: string | null; created_at: string; status: string }[] }>('/api/organization/talent/team-builder/runs?limit=5'),
+  run: (runId: string) => fetchAPI<TbRun>(`/api/organization/talent/team-builder/runs/${runId}`),
+  optimize: (body: Record<string, unknown>) =>
+    fetchAPI<TbRun>('/api/organization/talent/team-builder/optimize', { method: 'POST', body: JSON.stringify(body), timeoutMs: 60000 }),
+  assemble: (optionId: string, acceptSmaller: boolean) =>
+    fetchAPI<TbOption>(`/api/organization/talent/team-builder/options/${optionId}/assemble`, {
+      method: 'POST',
+      body: JSON.stringify({ accept_smaller: acceptSmaller }),
+    }),
+  reject: (optionId: string, note: string) =>
+    fetchAPI<TbOption>(`/api/organization/talent/team-builder/options/${optionId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+  saveCapacity: (body: { employee_id: string; allocatable_pct: number; start_date?: string; end_date?: string; notes?: string }) =>
+    fetchAPI<{ id: string }>('/api/organization/talent/team-builder/capacity', { method: 'POST', body: JSON.stringify(body) }),
+  workspace: () => fetchAPI<TbWorkspace>('/api/organization/talent/teams/workspace'),
+  createTeam: (body: Record<string, unknown>) => fetchAPI<TbTeam>('/api/organization/talent/teams', { method: 'POST', body: JSON.stringify(body) }),
+  invite: (teamId: string, employeeIds: string[]) =>
+    fetchAPI<TbTeam>(`/api/organization/talent/teams/${teamId}/invitations`, { method: 'POST', body: JSON.stringify({ employee_ids: employeeIds }) }),
+  accept: (invitationId: string) => fetchAPI<TbTeam>(`/api/organization/talent/invitations/${invitationId}/accept`, { method: 'POST', body: '{}' }),
+  decline: (invitationId: string) => fetchAPI<TbTeam>(`/api/organization/talent/invitations/${invitationId}/decline`, { method: 'POST', body: '{}' }),
+  submitTeam: (teamId: string) => fetchAPI<TbTeam>(`/api/organization/talent/teams/${teamId}/submit`, { method: 'POST', body: '{}' }),
+  evaluateTeam: (teamId: string) => fetchAPI<TbTeam>(`/api/organization/talent/teams/${teamId}/evaluate`, { method: 'POST', timeoutMs: 60000 }),
+  approveTeam: (teamId: string, note: string) =>
+    fetchAPI<TbTeam>(`/api/organization/talent/teams/${teamId}/approve`, { method: 'POST', body: JSON.stringify({ note }) }),
+  rejectTeam: (teamId: string, note: string) =>
+    fetchAPI<TbTeam>(`/api/organization/talent/teams/${teamId}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
+  assignTeam: (teamId: string) => fetchAPI<TbTeam>(`/api/organization/talent/teams/${teamId}/assign`, { method: 'POST', body: '{}' }),
+  askToJoin: (optionId: string) =>
+    fetchAPI<TbJoinRequest>(`/api/organization/talent/team-builder/options/${optionId}/join`, { method: 'POST', body: JSON.stringify({ note: '' }) }),
+  askToJoinTeam: (teamId: string) =>
+    fetchAPI<TbJoinRequest>(`/api/organization/talent/teams/${teamId}/join`, { method: 'POST', body: JSON.stringify({ note: '' }) }),
+  joinRequests: () => fetchAPI<{ mine: TbJoinRequest[]; review: TbJoinRequest[] }>('/api/organization/talent/team-builder/join-requests'),
+  acceptJoin: (requestId: string) => fetchAPI<TbJoinRequest>(`/api/organization/talent/join-requests/${requestId}/accept`, { method: 'POST' }),
+  declineJoin: (requestId: string) => fetchAPI<TbJoinRequest>(`/api/organization/talent/join-requests/${requestId}/decline`, { method: 'POST' }),
+  cancelJoin: (requestId: string) => fetchAPI<TbJoinRequest>(`/api/organization/talent/join-requests/${requestId}/cancel`, { method: 'POST' }),
 };
 
 // ==================== DEPARTMENTS ====================
@@ -1944,7 +2177,10 @@ export interface SxPlan {
   role_id: string;
   incumbent: SxPerson | null;
   successor: SxPerson | null;
-  opened_reason: 'Pairing Confirmed' | 'HR Discretion';
+  opened_reason: 'Pairing Confirmed' | 'HR Discretion' | 'Unexpected Absence' | string;
+  assurance_status?: string | null;
+  validated_by?: string | null;
+  validation_note?: string | null;
   status: 'Open' | 'In Progress' | 'Complete';
   overall_progress_pct: number;
   completed_tasks: number;
@@ -2002,6 +2238,11 @@ export interface SxRole {
   criticality_reason: string | null;
   departure_risk: 'Low' | 'Medium' | 'High';
   expected_departure_date: string | null;
+  departure_scenario?: string | null;
+  interim_backup?: SxPerson | null;
+  interim_backup_note?: string | null;
+  criticality?: { level: string; score: number; factors: Record<string, number>; rule: string } | null;
+  external_contingency?: boolean;
   flagged_by: string | null;
   flagged_at: string | null;
   requirements: SxRequirement[];
@@ -2029,7 +2270,10 @@ export interface SxOverview {
     avg_kt_progress_pct: number;
     overdue_tasks: number;
     exposure_by_level: Record<SxExposure['level'], number>;
+    without_temporary_backup?: number;
+    handover_unverified?: number;
   };
+  next_actions?: { role_id: string; role_title: string; action: string; owner: string | null }[];
   roles: SxRole[];
   role_owners: SxPerson[];
 }
@@ -2088,8 +2332,12 @@ export const successionAPI = {
       body: JSON.stringify(data),
       timeoutMs: data.requirements_source === 'market' ? SUCCESSION_AI_TIMEOUT_MS : 30000,
     }),
-  updateRole: (roleId: string, data: Partial<SxRoleInput> & { requirements?: SxRequirement[] }) =>
+  updateRole: (roleId: string, data: Partial<SxRoleInput> & { requirements?: SxRequirement[]; departure_scenario?: string | null; interim_backup_employee_id?: string | null; interim_backup_note?: string | null; external_contingency?: boolean; criticality_factors?: Record<string, number> }) =>
     fetchAPI<SxRole>(`/api/succession/roles/${roleId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  openEmergency: (roleId: string, note: string) =>
+    fetchAPI<SxPlan>(`/api/succession/roles/${roleId}/emergency`, { method: 'POST', body: JSON.stringify({ note }), timeoutMs: 30000 }),
+  validatePlan: (planId: string, note: string) =>
+    fetchAPI<SxPlan>(`/api/succession/plans/${planId}/validate`, { method: 'POST', body: JSON.stringify({ note }) }),
   deriveRequirements: (roleId: string, source: 'incumbent' | 'market') =>
     fetchAPI<SxRole>(`/api/succession/roles/${roleId}/requirements/derive`, {
       method: 'POST',

@@ -13,10 +13,10 @@ class LoginRequest(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    employee_code: str
     full_name: str
     email: str
     password: str
+    employee_code: Optional[str] = None
     department: Optional[str] = None
     role: Optional[str] = None
 

@@ -13,8 +13,14 @@ import { StrategyRoleArchitect } from './views/organization/StrategyRoleArchitec
 import { SuccessionKnowledgeTransfer } from './views/organization/SuccessionKnowledgeTransfer';
 import { AdminSettings } from './views/admin/AdminSettings';
 import { SettingsProvider } from './context/SettingsContext';
+import { useAuth } from './contexts/AuthContext';
+import { AuthPage } from './views/auth/AuthPage';
 
 function App() {
+  const { user, ready } = useAuth();
+  if (!ready) return <div className="auth-boot">Checking your session…</div>;
+  if (!user) return <AuthPage />;
+
   return (
     <SettingsProvider>
       <BrowserRouter>

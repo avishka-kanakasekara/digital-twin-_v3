@@ -13,7 +13,7 @@ export const EmployeeSelector: React.FC = () => {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="employee-selector">
       <label htmlFor="employee-select" className="text-sm font-medium text-gray-700">
         Current Employee:
       </label>
@@ -24,7 +24,7 @@ export const EmployeeSelector: React.FC = () => {
           const selected = employees.find(emp => emp.id === e.target.value);
           if (selected) setCurrentEmployee(selected);
         }}
-        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className="employee-selector__input px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
       >
         {employees.map((emp) => (
           <option key={emp.id} value={emp.id}>
@@ -32,7 +32,7 @@ export const EmployeeSelector: React.FC = () => {
           </option>
         ))}
       </select>
-      <div className="text-sm text-gray-500">
+      <div className="employee-selector__meta text-sm text-gray-500">
         <span className="font-medium">{currentEmployee.full_name}</span>
         <span className="text-gray-400"> • </span>
         <span>{currentEmployee.role}</span>

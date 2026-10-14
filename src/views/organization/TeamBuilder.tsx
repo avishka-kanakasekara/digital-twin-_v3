@@ -1,476 +1,503 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Wand2, ShieldCheck, CheckCircle2, Search, SlidersHorizontal, GitMerge, Star, Check, Target, Activity, HeartHandshake, Sparkles, BrainCircuit } from 'lucide-react';
-
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Loader2, Search, Sparkles, Users, Wand2 } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
+import { teamBuilderAPI, type TbCatalogue, type TbJoinRequest, type TbOption, type TbRun, type TbSkillRequirement } from '../../lib/api';
+import { TeamRegistryPanel } from './TeamRegistryPanel';
+import './TeamBuilder.css';
 
-interface TeamMember {
-  id: string;
-  name: string;
-  role: string;
-  match: number;
-  skills: string[];
-}
+const pct = (value: number | null | undefined) => (value === null || value === undefined ? 'Not enough data' : `${value}%`);
 
-export interface TeamOption {
-  id: string;
-  name: string;
-  successRate: number;
-  compatibilityScore: number;
-  skillBalance: number;
-  performancePrediction: number;
-  rationale: string;
-  members: TeamMember[];
-}
+const feasibilityLabel: Record<string, string> = {
+  feasible: 'Meets the brief',
+  short_staffed: 'Fewer people than requested',
+  gaps: 'Requirements still open',
+  empty: 'No one could be placed',
+};
+
+const statusLabel: Record<string, string> = {
+  proposed: 'Ready to approve',
+  infeasible: 'Not ready',
+  assembled: 'Assembled',
+  rejected: 'Rejected',
+  superseded: 'Replaced',
+  existing: 'Existing team',
+};
+
+const initials = (name: string | null | undefined) =>
+  (name || '?')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+
+const tone = (feasibility: string) => (feasibility === 'feasible' ? 'good' : feasibility === 'short_staffed' ? 'warn' : 'bad');
 
 export const TeamBuilder: React.FC = () => {
-  const { skills, projectTypes } = useSettings();
-  const [headcount, setHeadcount] = useState(4);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(['AWS', 'Node.js', 'Figma']);
+  const { projectTypes } = useSettings();
+  const [catalogue, setCatalogue] = useState<TbCatalogue | null>(null);
+  const [run, setRun] = useState<TbRun | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [projectName, setProjectName] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [projectType, setProjectType] = useState(projectTypes[0] || 'New Product Development');
-  
+  const [objective, setObjective] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [headcount, setHeadcount] = useState(4);
+  const [allocation, setAllocation] = useState(40);
+  const [context, setContext] = useState('');
+  const [allowSmaller, setAllowSmaller] = useState(false);
+  const [rolesText, setRolesText] = useState('');
+  const [skills, setSkills] = useState<TbSkillRequirement[]>([]);
+  const [skillQuery, setSkillQuery] = useState('');
+  const [capacityEmployee, setCapacityEmployee] = useState('');
+  const [capacityPct, setCapacityPct] = useState(50);
+  const [section, setSection] = useState<'recommend' | 'teams'>('teams');
+  const [joinRequests, setJoinRequests] = useState<TbJoinRequest[]>([]);
+
   useEffect(() => {
-    if (projectTypes.length > 0 && !projectTypes.includes(projectType)) {
-      setProjectType(projectTypes[0]);
-    }
-  }, [projectTypes, projectType]);
-  
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [teamGenerated, setTeamGenerated] = useState(false);
-  const [confirmedTeam, setConfirmedTeam] = useState<string | null>(null);
-  const [generatedOptions, setGeneratedOptions] = useState<TeamOption[]>([]);
-  
-  const toggleSkill = (skill: string) => {
-    setSelectedSkills(prev => prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]);
-  };
-
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    setTeamGenerated(false);
-    setConfirmedTeam(null);
-    
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/organization/talent/team-builder/optimize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          project_type: projectType,
-          headcount: headcount,
-          core_competencies: selectedSkills,
-          context: "Context not yet used in backend but passed"
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate teams');
+    let live = true;
+    (async () => {
+      try {
+        const data = await teamBuilderAPI.catalogue();
+        if (!live) return;
+        setCatalogue(data);
+        const recent = await teamBuilderAPI.runs();
+        if (recent.runs[0]) setRun(await teamBuilderAPI.run(recent.runs[0].run_id));
+        const joins = await teamBuilderAPI.joinRequests().catch(() => ({ mine: [] as TbJoinRequest[], review: [] }));
+        if (live) setJoinRequests(joins.mine || []);
+      } catch (err) {
+        if (live) setError(err instanceof Error ? err.message : 'The team builder could not reach the database.');
+      } finally {
+        if (live) setLoading(false);
       }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
 
-      const options = await response.json();
-      
-      // Map API response to frontend camelCase keys expected by UI if they differ.
-      const mappedOptions = options.map((opt: any) => ({
-        id: opt.id,
-        name: opt.name,
-        successRate: opt.success_rate || opt.successRate,
-        compatibilityScore: opt.compatibility_score || opt.compatibilityScore,
-        skillBalance: opt.skill_balance || opt.skillBalance,
-        performancePrediction: opt.performance_prediction || opt.performancePrediction,
-        rationale: opt.rationale,
-        members: opt.members
-      }));
+  const skillMatches = useMemo(() => {
+    const query = skillQuery.trim().toLowerCase();
+    return (catalogue?.skills || [])
+      .filter((skill) => !query || skill.name.toLowerCase().includes(query))
+      .slice(0, 16);
+  }, [catalogue, skillQuery]);
 
-      setGeneratedOptions(mappedOptions);
-      setTeamGenerated(true);
-    } catch (error) {
-      console.error("Error generating teams:", error);
-      // Fallback or show error message if API fails
+  const canGenerate = !busy && (projectName.trim().length >= 3 || !!projectId);
+
+  const toggleSkill = (name: string) => {
+    setSkills((current) => (current.some((skill) => skill.name === name) ? current.filter((skill) => skill.name !== name) : [...current, { name, priority: 'important' }]));
+  };
+
+  const setPriority = (name: string, priority: TbSkillRequirement['priority']) => {
+    setSkills((current) => current.map((skill) => (skill.name === name ? { ...skill, priority } : skill)));
+  };
+
+  const chooseProject = (id: string) => {
+    setProjectId(id);
+    const project = catalogue?.projects.find((item) => item.id === id);
+    if (project && !projectName.trim()) setProjectName(project.name);
+  };
+
+  const generate = async () => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const next = await teamBuilderAPI.optimize({
+        project_name: projectName || (projectId ? catalogue?.projects.find((project) => project.id === projectId)?.name : ''),
+        project_id: projectId || null,
+        project_type: projectType,
+        objective,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        headcount,
+        allocation_pct: allocation,
+        context,
+        allow_smaller: allowSmaller,
+        skills,
+        roles: rolesText.split(',').map((role) => role.trim()).filter(Boolean),
+      });
+      setRun(next);
+      setNotice(next.options.length === 1 ? '1 team option saved.' : `${next.options.length} team options saved.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The teams could not be generated.');
     } finally {
-      setIsGenerating(false);
+      setBusy(false);
     }
   };
 
-  const handleConfirm = (teamId: string) => {
-    setConfirmedTeam(teamId);
+  const assemble = async (option: TbOption) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const saved = await teamBuilderAPI.assemble(option.id, option.feasibility === 'short_staffed');
+      if (saved.option_status !== 'assembled') {
+        setError('The team was not assembled.');
+        return;
+      }
+      if (run) setRun(await teamBuilderAPI.run(run.run_id));
+      setNotice(`Assembled ${saved.assignments.length} ${saved.assignments.length === 1 ? 'assignment' : 'assignments'} for ${saved.name}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Assembly failed.');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const reject = async (option: TbOption) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await teamBuilderAPI.reject(option.id, 'Rejected from the team builder');
+      if (run) setRun(await teamBuilderAPI.run(run.run_id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The option could not be rejected.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const askToJoin = async (option: TbOption) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const request = option.source === 'existing'
+        ? await teamBuilderAPI.askToJoinTeam(option.team_id || option.id)
+        : await teamBuilderAPI.askToJoin(option.id);
+      setJoinRequests((current) => [request, ...current.filter((item) => item.id !== request.id)]);
+      setNotice(`Your request to join ${option.name} is saved. Someone else has to accept it before you are on the team.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The request to join could not be saved.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveCapacity = async () => {
+    if (!capacityEmployee) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await teamBuilderAPI.saveCapacity({
+        employee_id: capacityEmployee,
+        allocatable_pct: capacityPct,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+      });
+      setCatalogue(await teamBuilderAPI.catalogue());
+      setNotice('Availability saved. Generate the teams again to use it.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Availability could not be saved.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resultCards = [...(run?.options || []), ...(run?.existing_teams || [])];
 
   return (
-    <div className="flex flex-col gap-5 relative min-h-full pb-8">
-      {/* Decorative Vibrant Background to make glassmorphism pop */}
-      <div className="absolute inset-0 -m-8 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-200/40 rounded-full blur-[100px] translate-x-1/4 -translate-y-1/4"></div>
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-200/40 rounded-full blur-[100px] -translate-x-1/4 translate-y-1/4"></div>
-      </div>
-
-      {/* Page Header */}
-      <div className="flex items-center justify-between z-10 relative mt-2">
-        <div>
-          <h1 className="text-3xl font-black mb-1.5 text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 tracking-tight">AI Team Builder</h1>
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-full text-[11px] font-bold text-indigo-600 shadow-sm">
-              <BrainCircuit size={12} /> Optimization Engine
-            </span>
-            <p className="text-xs text-slate-500 font-bold">
-              Assemble high-performing teams based on skill compatibility and predictive success models.
-            </p>
-          </div>
+    <div className="team-builder">
+      <header className="tb-head">
+        <p className="tb-eyebrow">Organization Twin</p>
+        <h1>Team Builder</h1>
+        <p className="tb-lead">Form a team with colleagues, or ask for two calculated options. A separate demonstration model can estimate project success, and it is labelled as synthetic.</p>
+        <div className="tb-seg" role="tablist">
+          <button type="button" role="tab" aria-selected={section === 'teams'} className={section === 'teams' ? 'is-on' : ''} onClick={() => setSection('teams')}>My teams</button>
+          <button type="button" role="tab" aria-selected={section === 'recommend'} className={section === 'recommend' ? 'is-on' : ''} onClick={() => setSection('recommend')}>Recommend a team</button>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-12 gap-6 z-10 relative">
-        {/* Left Column: Requirements */}
-        <div className="col-span-4 flex flex-col gap-6">
-          <div 
-            className="backdrop-blur-3xl border border-white/60 p-6 rounded-[2rem] shadow-[0_20px_50px_rgb(0,0,0,0.06)] relative overflow-hidden group h-full flex flex-col"
-            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 100%)', boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.8)' }}
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
-            
-            <div className="relative z-10 flex items-center gap-4 mb-6 pb-5 border-b border-slate-200/50">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-xl shrink-0"
-                   style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #a855f7 100%)', boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4), inset 0 2px 4px rgba(255,255,255,0.3)' }}>
-                <SlidersHorizontal size={22} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-xl font-extrabold text-slate-800 tracking-tight">Parameters</h3>
-                <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-0.5">Define Constraints</p>
-              </div>
+      {error && (
+        <div className="tb-banner tb-banner--error" role="alert">
+          <AlertTriangle size={16} /> {error}
+        </div>
+      )}
+      {notice && (
+        <div className="tb-banner tb-banner--ok" role="status">
+          <CheckCircle2 size={16} /> {notice}
+        </div>
+      )}
+
+      {section === 'teams' && <TeamRegistryPanel catalogue={catalogue} />}
+
+      {section === 'recommend' && (loading ? (
+        <div className="tb-loading">
+          <Loader2 className="tb-spin" size={22} /> Loading people, skills, and saved teams…
+        </div>
+      ) : (
+        <div className="tb-layout">
+          <section className="tb-card">
+            <h2><Sparkles size={18} /> Project brief</h2>
+            <p className="tb-help">Start with a name and the skills the work depends on. Dates and roles make the recommendation more precise.</p>
+
+            <label className="tb-field">
+              Existing project
+              <select className="tb-select" value={projectId} onChange={(event) => chooseProject(event.target.value)}>
+                <option value="">New brief</option>
+                {catalogue?.projects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="tb-field">
+              Project name
+              <input className="tb-input" value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder="Billing migration" />
+            </label>
+            <label className="tb-field">
+              What does this team need to deliver?
+              <textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="Move the billing service before the contract renewal." />
+            </label>
+            <label className="tb-field">
+              Project type
+              <select className="tb-select" value={projectType} onChange={(event) => setProjectType(event.target.value)}>
+                {projectTypes.map((type) => <option key={type}>{type}</option>)}
+              </select>
+            </label>
+            <div className="tb-grid-2">
+              <label className="tb-field">
+                Start
+                <input className="tb-input" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+              </label>
+              <label className="tb-field">
+                End
+                <input className="tb-input" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+              </label>
             </div>
-            
-            <div className="relative z-10 flex flex-col gap-6 flex-1">
-              {/* Project Type */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <Target size={14} className="text-indigo-500"/> Project Type
-                </label>
-                <div className="relative">
-                  <select 
-                    className="w-full px-4 pr-14 py-3 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all cursor-pointer appearance-none shadow-sm hover:-translate-y-0.5"
-                    style={{ background: '#ffffff', border: '1px solid rgba(226, 232, 240, 0.8)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
-                    value={projectType}
-                    onChange={(e) => setProjectType(e.target.value)}
-                  >
-                    {projectTypes.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                    {projectTypes.length === 0 && (
-                      <option disabled value="">No project types available</option>
-                    )}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400 bg-indigo-50 p-1.5 rounded-lg">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                  </div>
-                </div>
-              </div>
+            <label className="tb-field">
+              Team size · {headcount} people
+              <input className="tb-range" type="range" min={2} max={10} value={headcount} onChange={(event) => setHeadcount(Number(event.target.value))} />
+            </label>
+            <label className="tb-field">
+              Time each person needs · {allocation}%
+              <input className="tb-range" type="range" min={10} max={100} step={10} value={allocation} onChange={(event) => setAllocation(Number(event.target.value))} />
+            </label>
+            <label className="tb-field">
+              Roles to cover
+              <input className="tb-input" value={rolesText} onChange={(event) => setRolesText(event.target.value)} placeholder="Backend Engineer, Designer" />
+            </label>
 
-              {/* Headcount */}
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <Users size={14} className="text-indigo-500"/> Required Headcount
-                </label>
-                <div className="flex items-center gap-4 p-2.5 rounded-xl border border-slate-200/60 bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <input 
-                    type="range" 
-                    min="2" max="10" 
-                    value={headcount} 
-                    onChange={(e) => setHeadcount(parseInt(e.target.value))}
-                    className="flex-1 h-2 rounded-lg appearance-none cursor-pointer focus:outline-none"
-                    style={{ 
-                      background: `linear-gradient(to right, #6366f1 ${((headcount - 2) / 8) * 100}%, #e2e8f0 ${((headcount - 2) / 8) * 100}%)`,
-                      accentColor: '#4f46e5'
-                    }}
-                  />
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center font-black text-lg text-white border border-indigo-500 shadow-md shrink-0"
-                       style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' }}>
-                    {headcount}
-                  </div>
-                </div>
-              </div>
-
-              {/* Skills */}
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                    <Star size={14} className="text-indigo-500"/> Core Competencies
+            <label className="tb-field">
+              Search skills
+              <span className="tb-input tb-search">
+                <Search size={15} />
+                <input value={skillQuery} onChange={(event) => setSkillQuery(event.target.value)} placeholder="Python, SQL, React…" />
+              </span>
+            </label>
+            <div className="tb-skills" aria-label="Skill catalogue">
+              {skillMatches.map((skill) => {
+                const selected = skills.some((item) => item.name === skill.name);
+                return (
+                  <button key={skill.name} type="button" className={`tb-chip${selected ? ' is-on' : ''}`} onClick={() => toggleSkill(skill.name)}>
+                    {skill.name} · {skill.employees}
+                  </button>
+                );
+              })}
+              {catalogue && catalogue.skills.length === 0 && <p className="tb-help">No skills are recorded for active employees yet.</p>}
+              {catalogue && catalogue.skills.length > 0 && skillMatches.length === 0 && <p className="tb-help">No catalogue skill matches that search.</p>}
+            </div>
+            {skills.length > 0 && (
+              <div className="tb-picked">
+                {skills.map((skill) => (
+                  <label key={skill.name}>
+                    {skill.name}
+                    <select className="tb-select" value={skill.priority} onChange={(event) => setPriority(skill.name, event.target.value as TbSkillRequirement['priority'])}>
+                      <option value="mandatory">Mandatory</option>
+                      <option value="important">Important</option>
+                      <option value="optional">Optional</option>
+                    </select>
                   </label>
-                  <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{selectedSkills.length} selected</span>
-                </div>
-                <div className="flex flex-wrap gap-2 p-4 border border-slate-200/60 bg-slate-50/50 rounded-xl min-h-[100px] shadow-inner">
-                  {skills.map(skill => {
-                    const isSelected = selectedSkills.includes(skill);
-                    return (
-                      <button 
-                        key={skill}
-                        onClick={() => toggleSkill(skill)}
-                        className={`text-[11px] px-3 py-1.5 rounded-lg font-bold transition-all duration-300 cursor-pointer flex items-center gap-1.5 ${
-                          isSelected 
-                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25 scale-105 border-transparent' 
-                            : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-sm'
-                        }`}
-                      >
-                        {isSelected && <Check size={10} strokeWidth={4} />}
-                        {skill}
-                      </button>
-                    )
-                  })}
-                </div>
+                ))}
               </div>
-              
-              {/* Context */}
-              <div className="flex flex-col gap-2 flex-1">
-                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                  <Sparkles size={14} className="text-indigo-500"/> Additional Context
-                </label>
-                <textarea 
-                  className="w-full flex-1 p-3 rounded-xl border border-slate-200/60 bg-white/80 text-xs font-medium text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all resize-none min-h-[80px] shadow-sm placeholder-slate-400"
-                  placeholder="E.g. Requires high availability due to short timeline..."
-                />
-              </div>
-            </div>
-            
-            <button 
-              className="w-full rounded-2xl py-4 font-black text-sm hover:-translate-y-1 transition-all duration-300 mt-4 z-10 flex items-center justify-center gap-3 relative overflow-hidden group text-white shadow-[0_10px_30px_rgba(79,70,229,0.3)] hover:shadow-[0_15px_40px_rgba(79,70,229,0.4)] border-none cursor-pointer shrink-0"
-              style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' }}
-              onClick={handleGenerate} 
-              disabled={isGenerating}
-            >
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/20 blur-xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
-                {isGenerating ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    <span className="relative z-10">Synthesizing...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wand2 size={20} className="group-hover:rotate-12 transition-transform relative z-10" /> <span className="relative z-10 tracking-wide">Generate Optimal Teams</span>
-                  </>
-                )}
+            )}
+
+            <label className="tb-field">
+              Anything else the team should know
+              <textarea value={context} onChange={(event) => setContext(event.target.value)} placeholder="Mention a catalogue skill, such as Node.js, if it should be considered." />
+            </label>
+            <label className="tb-check">
+              <input type="checkbox" checked={allowSmaller} onChange={(event) => setAllowSmaller(event.target.checked)} />
+              A smaller team is acceptable if fewer people are eligible.
+            </label>
+            <button type="button" className="tb-btn tb-btn--primary" disabled={!canGenerate} onClick={generate}>
+              {busy ? <Loader2 className="tb-spin" size={16} /> : <Wand2 size={16} />}
+              {busy ? 'Building teams…' : 'Generate teams'}
+            </button>
+            {!canGenerate && !busy && <p className="tb-help">Add a project name of at least 3 characters, or pick an existing project.</p>}
+
+            <div className="tb-split">
+              <h3><Users size={16} /> Record availability</h3>
+              <p className="tb-help">People without a record stay marked unknown. Unknown availability is not treated as free time.</p>
+              <label className="tb-field">
+                Employee
+                <select className="tb-select" value={capacityEmployee} onChange={(event) => setCapacityEmployee(event.target.value)}>
+                  <option value="">Choose an employee</option>
+                  {catalogue?.employees.map((person) => (
+                    <option key={person.id} value={person.id}>{person.full_name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="tb-field">
+                Can give this project {capacityPct}%
+                <input className="tb-range" type="range" min={0} max={100} step={10} value={capacityPct} onChange={(event) => setCapacityPct(Number(event.target.value))} />
+              </label>
+              <button type="button" className="tb-btn tb-btn--ghost" disabled={busy || !capacityEmployee} onClick={saveCapacity}>
+                Save availability
               </button>
-          </div>
-        </div>
-
-        {/* Right Column: AI Suggestions */}
-        <div className="col-span-8 flex flex-col h-full min-h-[600px]">
-          
-          {!teamGenerated && !isGenerating && (
-            <div className="flex-1 flex flex-col items-center justify-center relative rounded-[2rem] overflow-hidden shadow-2xl transition-all duration-500 bg-slate-50/40 backdrop-blur-3xl border border-white/60 h-full group">
-              {/* High-end animated mesh gradient background */}
-              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-indigo-400/20 to-purple-400/20 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '8s' }}></div>
-              <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-blue-400/20 to-emerald-400/10 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '10s', animationDelay: '2s' }}></div>
-              
-              <div className="relative z-10 flex flex-col items-center text-center px-12 max-w-2xl transform group-hover:scale-[1.02] transition-transform duration-700">
-                
-                {/* Futuristic Floating Orb Icon */}
-                <div className="w-32 h-32 mb-10 relative">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 rounded-full animate-spin blur-md opacity-70" style={{ animationDuration: '4s' }}></div>
-                  <div className="absolute inset-1 bg-white rounded-full flex items-center justify-center shadow-inner">
-                    <Users size={48} className="text-indigo-600 drop-shadow-sm" strokeWidth={2} />
-                  </div>
-                  {/* Orbiting particles */}
-                  <div className="absolute top-0 left-1/2 w-4 h-4 bg-blue-400 rounded-full blur-[2px] animate-ping" style={{ animationDuration: '2s' }}></div>
-                  <div className="absolute bottom-0 right-0 w-5 h-5 bg-purple-400 rounded-full blur-[2px] animate-bounce" style={{ animationDuration: '3s' }}></div>
-                </div>
-                
-                <h3 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-indigo-800 to-slate-900 tracking-tighter mb-6 drop-shadow-sm">AI Team Assembler</h3>
-                <p className="text-base font-medium text-slate-600 mb-12 leading-relaxed max-w-lg mx-auto">
-                  Configure your constraints on the left. Our neural optimization engine evaluates millions of combinations across skills, availability, and collaboration graphs to surface the ultimate team composition.
-                </p>
-                
-                <div className="flex flex-wrap justify-center gap-4">
-                  <div className="flex items-center gap-3 text-sm font-bold px-6 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-white/80 bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-lg hover:border-blue-200 hover:bg-white transition-all cursor-pointer group/badge">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-blue-100 to-blue-50 text-blue-600 group-hover/badge:from-blue-500 group-hover/badge:to-blue-600 group-hover/badge:text-white transition-all shadow-inner"><Search size={16} strokeWidth={2.5}/></div>
-                    Skill Optimization
-                  </div>
-                  <div className="flex items-center gap-3 text-sm font-bold px-6 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-white/80 bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-lg hover:border-purple-200 hover:bg-white transition-all cursor-pointer group/badge">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-purple-100 to-purple-50 text-purple-600 group-hover/badge:from-purple-500 group-hover/badge:to-purple-600 group-hover/badge:text-white transition-all shadow-inner"><HeartHandshake size={16} strokeWidth={2.5}/></div>
-                    Compatibility Matrix
-                  </div>
-                  <div className="flex items-center gap-3 text-sm font-bold px-6 py-3 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-white/80 bg-white/60 backdrop-blur-md hover:-translate-y-1 hover:shadow-lg hover:border-emerald-200 hover:bg-white transition-all cursor-pointer group/badge">
-                    <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 group-hover/badge:from-emerald-500 group-hover/badge:to-emerald-600 group-hover/badge:text-white transition-all shadow-inner"><ShieldCheck size={16} strokeWidth={2.5}/></div>
-                    Predictive Success
-                  </div>
-                </div>
-              </div>
             </div>
-          )}
+          </section>
 
-          {isGenerating && (
-            <div className="flex-1 flex flex-col items-center justify-center h-full border-2 border-white/50 bg-white/60 backdrop-blur-3xl rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative overflow-hidden">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 rounded-full animate-spin" style={{ animationDuration: '10s' }}></div>
-              
-              <div className="relative z-10 flex flex-col items-center">
-                <div className="relative w-32 h-32 mb-8">
-                  <div className="absolute inset-0 border-4 border-indigo-100 rounded-full shadow-inner"></div>
-                  <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin shadow-[0_0_20px_rgba(79,70,229,0.4)]" style={{ animationDuration: '1s' }}></div>
-                  <div className="absolute inset-2 border-4 border-purple-400 rounded-full border-b-transparent animate-spin-reverse shadow-[0_0_15px_rgba(168,85,247,0.4)]" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}></div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <BrainCircuit size={36} className="text-indigo-600 animate-pulse drop-shadow-lg" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-900 mb-3 tracking-tighter">Running Optimization Model</h3>
-                <p className="text-slate-500 font-bold animate-pulse text-sm flex items-center gap-2">
-                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div> Evaluating multi-dimensional workforce graphs...
-                </p>
+          <div className="tb-results">
+            <section className="tb-stats">
+              <div className="tb-stat">
+                <span>Active employees</span>
+                <strong>{catalogue?.workforce.active ?? 0}</strong>
               </div>
-            </div>
-          )}
-
-          {teamGenerated && (
-            <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-10 fade-in duration-700">
-              {/* Results Header */}
-              <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-800 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl translate-x-1/2 -translate-y-1/2"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full blur-2xl -translate-x-1/2 translate-y-1/2"></div>
-                
-                <div className="relative z-10 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30 shadow-inner">
-                    <Sparkles size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black tracking-tight mb-0.5">Optimization Complete</h3>
-                    <p className="text-indigo-100 font-medium text-xs">Surfaced 2 highly viable configurations.</p>
-                  </div>
-                </div>
+              <div className="tb-stat tb-stat--good">
+                <span>Availability recorded</span>
+                <strong>{catalogue?.workforce.with_capacity ?? 0}</strong>
               </div>
+              <div className="tb-stat tb-stat--warn">
+                <span>Availability unknown</span>
+                <strong>{catalogue?.workforce.without_capacity ?? 0}</strong>
+              </div>
+            </section>
 
-              {/* Options */}
-              <div className="grid grid-cols-1 gap-6">
-                {generatedOptions.map((option) => {
-                  const isConfirmed = confirmedTeam === option.id;
-                  const isAnotherConfirmed = confirmedTeam !== null && confirmedTeam !== option.id;
-                  
-                  if (isAnotherConfirmed) return null;
+            {!run && (
+              <section className="tb-card tb-empty">
+                <Wand2 size={28} color="var(--color-primary)" />
+                <h2>No team yet</h2>
+                <p className="tb-help">Fill in the brief and generate. The result is saved, so it will still be here after you refresh.</p>
+              </section>
+            )}
 
-                  return (
-                    <div key={option.id} className={`flex flex-col rounded-[1.5rem] overflow-hidden transition-all duration-500 relative group ${
-                      isConfirmed 
-                        ? 'bg-emerald-50/90 border-2 border-emerald-400 shadow-[0_20px_50px_rgb(16,185,129,0.15)] scale-[1.02]' 
-                        : 'bg-white/80 backdrop-blur-xl border border-white shadow-[0_8px_30px_rgb(0,0,0,0.06)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1'
-                    }`}>
-                      
-                      {isConfirmed && (
-                        <div className="absolute -top-32 -right-32 w-80 h-80 bg-emerald-400/20 rounded-full blur-3xl opacity-50 z-0 pointer-events-none"></div>
+            {run && (
+              <>
+                <section className="tb-card">
+                  <div className="tb-run-top">
+                    <div>
+                      <h2>{run.request.project_name}</h2>
+                      <p className="tb-help">
+                        {run.options.length === 1 ? '1 generated team' : `${run.options.length} generated teams`}
+                        {(run.existing_teams || []).length > 0 ? ` · ${run.existing_teams?.length} existing ${(run.existing_teams?.length || 0) === 1 ? 'team' : 'teams'}` : ''}
+                        {' '}· {run.eligible_count} eligible people · {run.requested_headcount} requested
+                      </p>
+                    </div>
+                    <span className="tb-pill">{run.status.replace(/_/g, ' ')}</span>
+                  </div>
+                  {run.context_skills.length > 0 && <p className="tb-note">From your notes, these optional skills were added: {run.context_skills.join(', ')}.</p>}
+                  {run.warnings.map((warning) => <p key={warning} className="tb-note tb-note--warn">{warning}</p>)}
+                </section>
+
+                {resultCards.length > 1 && (
+                  <section className="tb-card tb-table-wrap">
+                    <table className="tb-table">
+                      <thead>
+                        <tr>
+                          <th>Compare</th>
+                          {resultCards.map((option) => <th key={option.id}>{option.name}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <CompareRow label="Fit" options={resultCards} cell={(option) => feasibilityLabel[option.feasibility] || option.feasibility} />
+                        <CompareRow label="People" options={resultCards} cell={(option) => `${option.metrics?.actual_headcount ?? 0} of ${option.metrics?.requested_headcount ?? run.requested_headcount}`} />
+                        <CompareRow label="Mandatory skills" options={resultCards} cell={(option) => pct(option.metrics?.mandatory_coverage)} />
+                        <CompareRow label="Weighted skills" options={resultCards} cell={(option) => pct(option.metrics?.weighted_coverage)} />
+                        <CompareRow label="Proficiency" options={resultCards} cell={(option) => pct(option.metrics?.proficiency_coverage)} />
+                        <CompareRow label="Roles" options={resultCards} cell={(option) => pct(option.metrics?.role_coverage)} />
+                        <CompareRow label="Known availability" options={resultCards} cell={(option) => pct(option.metrics?.capacity_fit)} />
+                        <CompareRow label="Departments" options={resultCards} cell={(option) => String(option.metrics?.department_count ?? 0)} />
+                      </tbody>
+                    </table>
+                  </section>
+                )}
+
+                {resultCards.map((option) => (
+                  <article key={option.id} className="tb-card">
+                    <div className="tb-option-head">
+                      <div>
+                        <h2>{option.name}</h2>
+                        <p className="tb-help">{option.rationale}</p>
+                        <p className="tb-note">
+                          <span className={`tb-pill tb-pill--${tone(option.feasibility)}`}>{feasibilityLabel[option.feasibility] || option.feasibility}</span>
+                          {' '}
+                          <span className="tb-pill">{statusLabel[option.option_status] || option.option_status}</span>
+                        </p>
+                      </div>
+                      <div className="tb-score">
+                        <span>{option.skill_model?.label || 'Skill model'}</span>
+                        <strong>{option.skill_model?.score ?? '—'}</strong>
+                        <p>{option.skill_model?.meaning}</p>
+                        {!!option.skill_model?.skills_used?.length && (
+                          <p className="tb-note">Skills used: {option.skill_model.skills_used.join(', ')}</p>
+                        )}
+                        {option.skill_model?.warning && <p className="tb-note">{option.skill_model.warning}</p>}
+                      </div>
+                    </div>
+                    {option.warnings.map((warning) => <p key={warning} className="tb-note tb-note--warn">{warning}</p>)}
+                    {option.uncovered.length > 0 && (
+                      <p className="tb-note">Still uncovered: {option.uncovered.map((item) => `${item.skill} (${item.priority})`).join(', ')}</p>
+                    )}
+                    <div className="tb-people">
+                      {option.members.map((member) => (
+                        <div key={member.employee_id} className="tb-person">
+                          <div className="tb-avatar" aria-hidden>{initials(member.full_name)}</div>
+                          <div>
+                            <h4>{member.full_name}</h4>
+                            <p>{member.role || 'Role not recorded'} · {member.department || 'No department'} · availability {member.capacity_status}</p>
+                            <p>{member.explanation}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {option.assignments.length > 0 && (
+                      <p className="tb-note">Saved assignments: {option.assignments.map((row) => `${row.project_name} at ${row.allocation_pct}%`).join('; ')}</p>
+                    )}
+                    <div className="tb-actions">
+                      {option.option_status === 'proposed' && (
+                        <button type="button" className="tb-btn tb-btn--good" disabled={busy} onClick={() => assemble(option)}>
+                          <CheckCircle2 size={15} /> Approve and assemble
+                        </button>
                       )}
-                      
-                      {/* Header Section */}
-                      <div className={`p-6 z-10 border-b ${isConfirmed ? 'border-emerald-200/60' : 'border-slate-100'} flex justify-between items-start`}>
-                        <div className="flex-1 pr-6">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{option.name}</h3>
-                            {isConfirmed && (
-                              <span className="px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md shadow-emerald-500/20">
-                                <CheckCircle2 size={14} strokeWidth={3} /> Confirmed
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-500 font-bold flex items-start gap-2 leading-relaxed">
-                            <GitMerge size={16} className="text-indigo-400 shrink-0 mt-0.5" /> 
-                            {option.rationale}
-                          </p>
-                        </div>
-                        
-                        <div className="flex flex-col items-end shrink-0 bg-white/60 p-3 rounded-xl border border-slate-100 shadow-sm backdrop-blur-sm">
-                          <span className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 mb-1">Predicted Success</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-4xl font-black tracking-tighter ${option.successRate > 90 ? 'text-emerald-500' : 'text-slate-800'}`}>
-                              {option.successRate}%
-                            </span>
-                            <ShieldCheck size={28} className={option.successRate > 90 ? 'text-emerald-400' : 'text-slate-300'} />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Metrics Row */}
-                      <div className="grid grid-cols-3 divide-x divide-slate-100/50 bg-white/50 z-10 border-b border-slate-100">
-                        <div className="p-4 flex items-center gap-4 hover:bg-white/80 transition-colors">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shadow-inner border border-blue-100/50 shrink-0">
-                            <Target size={20} strokeWidth={2.5} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 mb-0.5">Skill Balance</p>
-                            <p className="text-lg font-black text-slate-800">{option.skillBalance}%</p>
-                          </div>
-                        </div>
-                        <div className="p-4 flex items-center gap-4 hover:bg-white/80 transition-colors">
-                          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center shadow-inner border border-purple-100/50 shrink-0">
-                            <HeartHandshake size={20} strokeWidth={2.5} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 mb-0.5">Compatibility</p>
-                            <p className="text-lg font-black text-slate-800">{option.compatibilityScore}/100</p>
-                          </div>
-                        </div>
-                        <div className="p-4 flex items-center gap-4 hover:bg-white/80 transition-colors">
-                          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center shadow-inner border border-emerald-100/50 shrink-0">
-                            <Activity size={20} strokeWidth={2.5} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase font-extrabold tracking-widest text-slate-400 mb-0.5">Performance</p>
-                            <p className="text-lg font-black text-slate-800">{option.performancePrediction}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Members Roster */}
-                      <div className="p-6 z-10 bg-slate-50/40">
-                        <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-1.5">
-                          <Users size={14} /> Proposed Roster
-                        </h4>
-                        <div className="grid grid-cols-2 gap-4">
-                          {option.members.map(member => (
-                            <div key={member.id} className="flex items-start gap-3 p-4 rounded-xl bg-white/90 border border-slate-200/60 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group/member">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 flex items-center justify-center font-black text-sm border border-slate-300 shadow-inner group-hover/member:from-indigo-50 group-hover/member:to-indigo-100 group-hover/member:text-indigo-600 group-hover/member:border-indigo-200 transition-colors shrink-0">
-                                {member.name.split(' ').map(n => n[0]).join('')}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start mb-0.5">
-                                  <h5 className="font-black text-sm text-slate-800 truncate group-hover/member:text-indigo-600 transition-colors">{member.name}</h5>
-                                  <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/60 shadow-sm shrink-0 flex items-center gap-1">
-                                    <Star size={8} className="fill-emerald-600" /> {member.match}% Match
-                                  </span>
-                                </div>
-                                <p className="text-xs font-bold text-slate-500 mb-2 truncate">{member.role}</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {member.skills.map(skill => {
-                                    const isReq = selectedSkills.includes(skill);
-                                    return (
-                                      <span key={skill} className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md border ${
-                                        isReq 
-                                          ? 'bg-indigo-50 text-indigo-600 border-indigo-200 shadow-sm' 
-                                          : 'bg-slate-50 text-slate-500 border-slate-200/60'
-                                      }`}>
-                                        {skill}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Action Bar */}
-                      {!isConfirmed && (
-                        <div className="p-4 bg-white z-10 border-t border-slate-100 flex justify-end">
-                          <button 
-                            onClick={() => handleConfirm(option.id)} 
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-lg hover:shadow-xl rounded-xl font-black text-sm flex items-center gap-3 px-6 py-3 hover:-translate-y-0.5 transition-all duration-300 group/btn cursor-pointer border-none"
-                          >
-                            <CheckCircle2 size={20} className="group-hover/btn:scale-110 transition-transform" /> <span>Confirm & Assemble</span>
+                      {(() => {
+                        const sameTeam = (item: TbJoinRequest) => item.option_id === option.id || item.team_id === option.id || item.team_id === option.team_id;
+                        const pending = joinRequests.find((item) => sameTeam(item) && item.status === 'pending');
+                        const accepted = joinRequests.find((item) => sameTeam(item) && item.status === 'accepted');
+                        if (accepted) return <button type="button" className="tb-btn tb-btn--ghost" disabled>Joined</button>;
+                        if (pending) return <button type="button" className="tb-btn tb-btn--ghost" disabled>Join requested</button>;
+                        return (
+                          <button type="button" className="tb-btn tb-btn--ghost" disabled={busy} onClick={() => askToJoin(option)}>
+                            Ask to join
                           </button>
-                        </div>
+                        );
+                      })()}
+                      {option.source !== 'existing' && option.option_status !== 'assembled' && option.option_status !== 'rejected' && option.option_status !== 'superseded' && (
+                        <button type="button" className="tb-btn tb-btn--ghost" disabled={busy} onClick={() => reject(option)}>
+                          Reject
+                        </button>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+                  </article>
+                ))}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   );
 };
+
+const CompareRow: React.FC<{ label: string; options: TbOption[]; cell: (option: TbOption) => string }> = ({ label, options, cell }) => (
+  <tr>
+    <th>{label}</th>
+    {options.map((option) => <td key={option.id}>{cell(option)}</td>)}
+  </tr>
+);

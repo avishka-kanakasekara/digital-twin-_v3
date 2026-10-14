@@ -45,14 +45,16 @@ _clear_broken_local_proxies()
 
 def _warm_learning_and_career_schema() -> None:
     try:
-        from app.services import career_market, career_plan, learning_recommendation, succession as succession_service
+        from app.services import career_market, career_plan, learning_recommendation, succession as succession_service, team_builder, team_registry
 
         db = get_db()
         learning_recommendation.ensure_schema(db)
         career_plan.ensure_schema(db)
         career_market.ensure_schema(db)
         succession_service.ensure_schema(db)
-        print("[SUCCESS] Learning, Career Coach, and Succession tables ready")
+        team_builder.ensure_schema(db)
+        team_registry.ensure_schema(db)
+        print("[SUCCESS] Learning, Career Coach, Succession, and Team Builder tables ready")
     except Exception as exc:
         print(f"[WARNING] Learning, Career Coach, and Succession warm-up skipped: {exc}")
 

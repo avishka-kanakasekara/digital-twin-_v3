@@ -804,7 +804,7 @@ export const GlobalAIChatbot: React.FC = () => {
         }
 
         /* Mobile responsive */
-        @media (max-width: 480px) {
+        @media (max-width: 720px) {
           .global-chat-window {
             right: 12px !important;
             left: 12px !important;
