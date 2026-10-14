@@ -1,0 +1,51 @@
+{
+  "version": "synthetic-team-success-v1-42",
+  "model_type": "logistic",
+  "training_data_type": "synthetic",
+  "feature_schema": "team-success-v1",
+  "features": [
+    "mandatory_coverage",
+    "weighted_coverage",
+    "proficiency_coverage",
+    "role_coverage",
+    "capacity_fit",
+    "size_ratio",
+    "department_count",
+    "data_completeness",
+    "unknown_capacity_share",
+    "gap_count",
+    "project_type"
+  ],
+  "trained_at": "2026-10-13T15:22:04+00:00",
+  "rows": 1200,
+  "class_balance": {
+    "positive": 830,
+    "negative": 370
+  },
+  "split": "60/20/20 stratified train/validation/test. Validation Brier selected the model. The test split was not used for selection or calibration.",
+  "validation": {
+    "logistic": {
+      "roc_auc": 0.7038,
+      "brier": 0.1907,
+      "precision": 0.7227,
+      "recall": 0.9578
+    },
+    "random_forest": {
+      "roc_auc": 0.6298,
+      "brier": 0.2031,
+      "precision": 0.6962,
+      "recall": 0.994
+    }
+  },
+  "selected_because": "Lowest validation Brier score (0.1907).",
+  "test_metrics_not_used_for_selection": {
+    "roc_auc": 0.6498,
+    "brier": 0.2003,
+    "precision": 0.729,
+    "recall": 0.9398
+  },
+  "baseline_validation_brier": 0.2133,
+  "limitations": "The active demonstration model was fit on a synthetic dataset with a fixed seed. Holdout scores describe that simulation only. They are not evidence that the model is calibrated for a real company. A historical model can be trained only from verified project outcomes and stays inactive until an authorised user promotes it.",
+  "status": "active_demo",
+  "production_validated": false
+}
