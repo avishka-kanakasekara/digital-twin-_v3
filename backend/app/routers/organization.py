@@ -4,7 +4,7 @@ API routes for Organization module.
 """
 from typing import List
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.database import get_db
 from app.schemas.organization import (
@@ -27,7 +27,9 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ml", "src"))
 from organization.workforce_forecasting.forecast_engine import forecast_headcount_loss, rank_skill_shortages
 from organization.workforce_forecasting.burnout_calculator import calculate_average_burnout
-from organization.team_builder.optimization_engine import optimize_team
+from app.services import team_builder, team_registry
+from app.services.authorization import access_role, settings_enforce
+from app.utils.auth import get_optional_employee
 from organization.at_risk.risk_model import calculate_intervention_effectiveness
 from organization.simulation.causal_simulator import run_causal_simulation
 
@@ -35,6 +37,30 @@ router = APIRouter(
     prefix="/api/organization",
     tags=["Organization"],
 )
+
+_PLANNING_ROLES = {"hr", "employer", "admin", "manager"}
+
+
+def _signed_in(actor: dict | None) -> dict | None:
+    if not settings_enforce():
+        return actor
+    if not actor:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return actor
+
+
+def _planner(actor: dict | None) -> str:
+    if not settings_enforce():
+        if actor:
+            return actor.get("full_name") or actor.get("email") or "signed-in user"
+        return "HR"
+    if not actor:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if access_role(actor) not in _PLANNING_ROLES:
+        managed = get_db().table("employees").select("id").eq("manager_id", actor.get("id")).limit(1).execute().data or []
+        if not managed:
+            raise HTTPException(status_code=403, detail="Only HR, an employer, or a manager can form teams.")
+    return actor.get("full_name") or actor.get("email") or "signed-in user"
 
 # --- Organization Metrics ---
 
@@ -314,8 +340,10 @@ def create_team_builder_option(option: OrgTeamBuilderOptionCreate):
     return result.data[0]
 
 @router.put("/talent/team-builder/{id}", response_model=OrgTeamBuilderOptionRead)
-def update_team_builder_option(id: str, option: OrgTeamBuilderOptionUpdate):
+def update_team_builder_option(id: str, option: OrgTeamBuilderOptionUpdate, actor: dict | None = Depends(get_optional_employee)):
+    _planner(actor)
     sb = get_db()
+    team_builder.assert_option_mutable(sb, id)
     update_data = option.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -325,8 +353,10 @@ def update_team_builder_option(id: str, option: OrgTeamBuilderOptionUpdate):
     return result.data[0]
 
 @router.delete("/talent/team-builder/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_team_builder_option(id: str):
+def delete_team_builder_option(id: str, actor: dict | None = Depends(get_optional_employee)):
+    _planner(actor)
     sb = get_db()
+    team_builder.assert_option_mutable(sb, id)
     result = sb.table("org_team_builder_options").delete().eq("id", id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Team builder option not found")
@@ -438,46 +468,293 @@ def get_skill_shortages():
     # Return top 15 shortages
     return shortages[:15]
 
-@router.post("/talent/team-builder/optimize", response_model=List[OrgTeamBuilderOptionRead])
-def optimize_team_builder(request: TeamBuilderOptimizationRequest):
-    sb = get_db()
-    
-    # Fetch active employees
-    res = sb.table("employees").select("*").eq("employment_status", "Active").execute()
-    employees = res.data
-    # We will fetch actual skills for these employees from the `skills` table
-    try:
-        employee_ids = [emp["id"] for emp in employees]
-        if employee_ids:
-            res_skills = sb.table("skills").select("employee_id, name").in_("employee_id", employee_ids).execute()
-            skills_data = res_skills.data if res_skills.data else []
-            
-            # Map skills to employees
-            skills_map = {}
-            for row in skills_data:
-                emp_id = row["employee_id"]
-                if emp_id not in skills_map:
-                    skills_map[emp_id] = []
-                skills_map[emp_id].append(row["name"])
-                
-            for emp in employees:
-                emp["skills"] = skills_map.get(emp["id"], [])
-        else:
-            for emp in employees:
-                emp["skills"] = []
-    except Exception as e:
-        print(f"Skills table fetch failed: {e}. Using empty skills.")
-        for emp in employees:
-            emp["skills"] = []
-            
-    # Run optimization engine
-    options = optimize_team(
-        employees=employees,
-        headcount=request.headcount,
-        required_skills=request.core_competencies
-    )
-    
-    return options
+class TeamBuilderSkill(BaseModel):
+    name: str
+    priority: str = "important"
+
+
+class TeamBuilderOptimizeBody(BaseModel):
+    project_name: str = ""
+    project_id: str | None = None
+    objective: str | None = None
+    project_type: str | None = None
+    owner_employee_id: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    headcount: int = 4
+    allocation_pct: int = 40
+    context: str | None = None
+    allow_smaller: bool = False
+    skills: list[TeamBuilderSkill] = []
+    roles: list[str] = []
+    core_competencies: list[str] = []
+
+
+class TeamBuilderAssembleBody(BaseModel):
+    accept_smaller: bool = False
+
+
+class TeamBuilderCapacityBody(BaseModel):
+    employee_id: str
+    allocatable_pct: int
+    start_date: str | None = None
+    end_date: str | None = None
+    notes: str | None = None
+
+
+class TeamBuilderRejectBody(BaseModel):
+    note: str = ""
+
+
+@router.get("/talent/team-builder/catalogue")
+def team_builder_catalogue(actor: dict | None = Depends(get_optional_employee)):
+    _signed_in(actor)
+    return team_builder.catalogue(get_db())
+
+
+@router.get("/talent/team-builder/runs")
+def team_builder_runs(limit: int = 20, actor: dict | None = Depends(get_optional_employee)):
+    _planner(actor)
+    return team_builder.list_runs(get_db(), max(1, min(50, limit)))
+
+
+@router.get("/talent/team-builder/runs/{run_id}")
+def team_builder_run(run_id: str, actor: dict | None = Depends(get_optional_employee)):
+    _planner(actor)
+    return team_registry.attach_existing_teams(get_db(), team_builder.run_detail(get_db(), run_id))
+
+
+@router.get("/talent/team-builder/options/{option_id}")
+def team_builder_option(option_id: str, actor: dict | None = Depends(get_optional_employee)):
+    _planner(actor)
+    return team_builder.option_detail(get_db(), option_id)
+
+
+@router.post("/talent/team-builder/capacity")
+def team_builder_capacity(body: TeamBuilderCapacityBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_builder.save_capacity(get_db(), body.model_dump(), _planner(actor))
+
+
+@router.post("/talent/team-builder/options/{option_id}/assemble")
+def team_builder_assemble(option_id: str, body: TeamBuilderAssembleBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_builder.assemble(get_db(), option_id, _planner(actor), body.accept_smaller)
+
+
+@router.post("/talent/team-builder/options/{option_id}/reject")
+def team_builder_reject(option_id: str, body: TeamBuilderRejectBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_builder.reject_option(get_db(), option_id, _planner(actor), body.note)
+
+
+@router.post("/talent/team-builder/optimize")
+def optimize_team_builder(request: TeamBuilderOptimizeBody, actor: dict | None = Depends(get_optional_employee)):
+    actor = _signed_in(actor)
+    payload = request.model_dump()
+    payload["skills"] = [skill.model_dump() for skill in request.skills]
+    label = (actor or {}).get("full_name") or (actor or {}).get("email") or "signed-in user"
+    result = team_builder.optimize(get_db(), payload, label if actor else _planner(None))
+    result = team_registry.predict_options(get_db(), result, actor)
+    return team_registry.attach_existing_teams(get_db(), result)
+
+
+class TeamCreateBody(BaseModel):
+    name: str
+    description: str | None = None
+    objective: str | None = None
+    team_type: str = "Project Team"
+    project_type: str | None = None
+    project_id: str | None = None
+    project_name: str | None = None
+    headcount: int = 4
+    allocation_pct: int = 40
+    start_date: str | None = None
+    end_date: str | None = None
+    skills: list[TeamBuilderSkill] = []
+    roles: list[str] = []
+    context: str | None = None
+
+
+class TeamUpdateBody(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    objective: str | None = None
+    team_type: str | None = None
+    project_type: str | None = None
+    project_id: str | None = None
+    project_name: str | None = None
+    headcount: int | None = None
+    allocation_pct: int | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    skills: list[TeamBuilderSkill] | None = None
+    roles: list[str] | None = None
+    context: str | None = None
+
+
+class TeamInviteBody(BaseModel):
+    employee_ids: list[str]
+
+
+class TeamDecisionBody(BaseModel):
+    note: str = ""
+
+
+class TeamOutcomeBody(BaseModel):
+    project_id: str | None = None
+    project_name: str
+    team_id: str | None = None
+    outcome_label: str
+    definition: str
+    acceptance_status: str | None = None
+    planned_end: str | None = None
+    actual_end: str | None = None
+    verified: bool = False
+
+
+def _team_payload(body: BaseModel) -> dict:
+    payload = body.model_dump(exclude_unset=True)
+    if "skills" in payload and payload["skills"] is not None:
+        payload["skills"] = [skill if isinstance(skill, dict) else skill.model_dump() for skill in body.skills]  # type: ignore[attr-defined]
+    return payload
+
+
+@router.get("/talent/teams/workspace")
+def team_workspace(actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.list_workspace(get_db(), _signed_in(actor))
+
+
+@router.get("/talent/teams/{team_id}")
+def team_detail(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.get_team(get_db(), team_id, _signed_in(actor))
+
+
+@router.post("/talent/teams")
+def team_create(body: TeamCreateBody, actor: dict | None = Depends(get_optional_employee)):
+    payload = body.model_dump()
+    payload["skills"] = [skill.model_dump() for skill in body.skills]
+    return team_registry.create_team(get_db(), payload, _signed_in(actor))
+
+
+@router.put("/talent/teams/{team_id}")
+def team_update(team_id: str, body: TeamUpdateBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.update_team(get_db(), team_id, _team_payload(body), _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/invitations")
+def team_invite(team_id: str, body: TeamInviteBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.invite(get_db(), team_id, body.employee_ids, _signed_in(actor))
+
+
+@router.post("/talent/invitations/{invitation_id}/accept")
+def team_accept(invitation_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.respond(get_db(), invitation_id, True, _signed_in(actor))
+
+
+@router.post("/talent/invitations/{invitation_id}/decline")
+def team_decline(invitation_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.respond(get_db(), invitation_id, False, _signed_in(actor))
+
+
+@router.post("/talent/invitations/{invitation_id}/cancel")
+def team_cancel_invite(invitation_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.cancel_invitation(get_db(), invitation_id, _signed_in(actor))
+
+
+@router.delete("/talent/teams/{team_id}/members/{employee_id}")
+def team_remove_member(team_id: str, employee_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.remove_member(get_db(), team_id, employee_id, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/members/{employee_id}/assign")
+def team_assign_member(team_id: str, employee_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.assign_member(get_db(), team_id, employee_id, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/submit")
+def team_submit(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.submit_team(get_db(), team_id, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/approve")
+def team_approve(team_id: str, body: TeamDecisionBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.decide(get_db(), team_id, True, body.note, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/reject")
+def team_reject_registration(team_id: str, body: TeamDecisionBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.decide(get_db(), team_id, False, body.note, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/assign")
+def team_assign_project(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.assign_project(get_db(), team_id, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/archive")
+def team_archive(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.archive_team(get_db(), team_id, _signed_in(actor))
+
+
+@router.post("/talent/teams/{team_id}/evaluate")
+def team_evaluate(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.evaluate_team(get_db(), team_id, _signed_in(actor))
+
+
+@router.get("/talent/teams/{team_id}/predictions")
+def team_predictions(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.predictions_for_team(get_db(), team_id, _signed_in(actor))
+
+
+@router.get("/talent/teams/{team_id}/audit")
+def team_audit(team_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.audit_for_team(get_db(), team_id, _signed_in(actor))
+
+
+class JoinNoteBody(BaseModel):
+    note: str = ""
+
+
+@router.post("/talent/teams/{team_id}/join")
+def team_ask_to_join_existing(team_id: str, body: JoinNoteBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.ask_to_join_team(get_db(), team_id, _signed_in(actor), body.note)
+
+
+@router.post("/talent/team-builder/options/{option_id}/join")
+def team_ask_to_join(option_id: str, body: JoinNoteBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.ask_to_join(get_db(), option_id, _signed_in(actor), body.note)
+
+
+@router.get("/talent/team-builder/join-requests")
+def team_join_requests(actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.list_join_requests(get_db(), _signed_in(actor))
+
+
+@router.post("/talent/join-requests/{request_id}/accept")
+def team_accept_join(request_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.respond_join(get_db(), request_id, True, _signed_in(actor))
+
+
+@router.post("/talent/join-requests/{request_id}/decline")
+def team_decline_join(request_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.respond_join(get_db(), request_id, False, _signed_in(actor))
+
+
+@router.post("/talent/join-requests/{request_id}/cancel")
+def team_cancel_join(request_id: str, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.cancel_join(get_db(), request_id, _signed_in(actor))
+
+
+@router.post("/talent/team-builder/outcomes")
+def team_outcome(body: TeamOutcomeBody, actor: dict | None = Depends(get_optional_employee)):
+    return team_registry.record_outcome(get_db(), body.model_dump(), _signed_in(actor))
+
+
+@router.get("/talent/team-builder/model-status")
+def team_model_status(actor: dict | None = Depends(get_optional_employee)):
+    _signed_in(actor)
+    status_body = team_registry.model_status()
+    status_body["historical_training"] = team_registry.historical_retrain_ready(get_db())
+    return status_body
+
 
 @router.get("/interventions/effectiveness", response_model=List[InterventionEffectiveness])
 def get_intervention_effectiveness():

@@ -754,6 +754,216 @@ CREATE TABLE IF NOT EXISTS "org_team_builder_options" (
     "performance_prediction" INTEGER NOT NULL,
     "rationale" TEXT NOT NULL,
     "members" TEXT DEFAULT '[]',
+    "run_id" TEXT,
+    "request_id" TEXT,
+    "strategy" TEXT,
+    "option_status" TEXT,
+    "feasibility" TEXT,
+    "metrics_json" TEXT,
+    "warnings_json" TEXT,
+    "gaps_json" TEXT,
+    "actual_headcount" INTEGER,
+    "requested_headcount" INTEGER,
+    "score_basis" TEXT,
+    "recommendation_score" INTEGER,
+    "created_at" TEXT,
+    "updated_at" TEXT,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "skill_aliases" (
+    "id" TEXT NOT NULL,
+    "canonical_name" TEXT NOT NULL,
+    "alias" TEXT NOT NULL,
+    "created_at" TEXT,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "employee_capacity" (
+    "id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "start_date" TEXT,
+    "end_date" TEXT,
+    "allocatable_pct" INTEGER NOT NULL,
+    "notes" TEXT,
+    "updated_by" TEXT,
+    "updated_at" TEXT,
+    "reviewed" INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "team_builder_requests" (
+    "id" TEXT NOT NULL,
+    "project_id" TEXT,
+    "project_name" TEXT NOT NULL,
+    "objective" TEXT,
+    "project_type" TEXT,
+    "owner_employee_id" TEXT,
+    "start_date" TEXT,
+    "end_date" TEXT,
+    "headcount" INTEGER NOT NULL,
+    "allocation_pct" INTEGER NOT NULL,
+    "context" TEXT,
+    "allow_smaller" INTEGER NOT NULL DEFAULT 0,
+    "skills_json" TEXT NOT NULL,
+    "roles_json" TEXT NOT NULL,
+    "requested_by" TEXT,
+    "created_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "team_builder_runs" (
+    "id" TEXT NOT NULL,
+    "request_id" TEXT NOT NULL,
+    "algorithm_version" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "warnings_json" TEXT,
+    "eligible_count" INTEGER NOT NULL,
+    "requested_headcount" INTEGER NOT NULL,
+    "context_skills_json" TEXT,
+    "created_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "team_builder_members" (
+    "id" TEXT NOT NULL,
+    "option_id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "explanation" TEXT NOT NULL,
+    "capacity_status" TEXT,
+    "matched_json" TEXT,
+    "warnings_json" TEXT,
+    "requirement_score" INTEGER NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "team_builder_assignments" (
+    "id" TEXT NOT NULL,
+    "option_id" TEXT NOT NULL,
+    "request_id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "project_id" TEXT,
+    "project_name" TEXT NOT NULL,
+    "role_title" TEXT,
+    "allocation_pct" INTEGER NOT NULL,
+    "start_date" TEXT,
+    "end_date" TEXT,
+    "status" TEXT NOT NULL,
+    "assembled_by" TEXT,
+    "assembled_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "team_builder_audit" (
+    "id" TEXT NOT NULL,
+    "entity_type" TEXT NOT NULL,
+    "entity_id" TEXT NOT NULL,
+    "action" TEXT NOT NULL,
+    "actor" TEXT,
+    "detail" TEXT,
+    "created_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "workforce_teams" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "objective" TEXT,
+    "team_type" TEXT,
+    "project_type" TEXT,
+    "origin" TEXT NOT NULL,
+    "creator_id" TEXT NOT NULL,
+    "owner_id" TEXT NOT NULL,
+    "leader_id" TEXT,
+    "project_id" TEXT,
+    "project_name" TEXT,
+    "headcount" INTEGER NOT NULL,
+    "allocation_pct" INTEGER NOT NULL,
+    "start_date" TEXT,
+    "end_date" TEXT,
+    "skills_json" TEXT NOT NULL,
+    "roles_json" TEXT NOT NULL,
+    "context" TEXT,
+    "registration_status" TEXT NOT NULL,
+    "operational_status" TEXT NOT NULL,
+    "option_id" TEXT,
+    "decision_note" TEXT,
+    "decided_by" TEXT,
+    "decided_at" TEXT,
+    "created_at" TEXT NOT NULL,
+    "updated_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "workforce_team_members" (
+    "id" TEXT NOT NULL,
+    "team_id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "member_role" TEXT NOT NULL,
+    "membership_status" TEXT NOT NULL,
+    "source" TEXT NOT NULL,
+    "created_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "workforce_team_invitations" (
+    "id" TEXT NOT NULL,
+    "team_id" TEXT NOT NULL,
+    "employee_id" TEXT NOT NULL,
+    "invited_by" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "created_at" TEXT NOT NULL,
+    "responded_at" TEXT,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "team_success_predictions" (
+    "id" TEXT NOT NULL,
+    "team_id" TEXT,
+    "option_id" TEXT,
+    "run_id" TEXT,
+    "roster_fingerprint" TEXT NOT NULL,
+    "probability" REAL,
+    "status" TEXT NOT NULL,
+    "model_version" TEXT,
+    "model_type" TEXT,
+    "training_data_type" TEXT,
+    "feature_schema" TEXT,
+    "features_json" TEXT NOT NULL,
+    "notes_json" TEXT NOT NULL,
+    "warning" TEXT,
+    "evaluated_by" TEXT,
+    "created_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "project_outcomes" (
+    "id" TEXT NOT NULL,
+    "project_id" TEXT,
+    "project_name" TEXT NOT NULL,
+    "team_id" TEXT,
+    "outcome_label" TEXT NOT NULL,
+    "definition" TEXT NOT NULL,
+    "acceptance_status" TEXT,
+    "planned_end" TEXT,
+    "actual_end" TEXT,
+    "recorded_by" TEXT NOT NULL,
+    "verified" INTEGER NOT NULL,
+    "recorded_at" TEXT NOT NULL,
+    PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "workforce_join_requests" (
+    "id" TEXT NOT NULL,
+    "team_id" TEXT NOT NULL,
+    "option_id" TEXT,
+    "employee_id" TEXT NOT NULL,
+    "note" TEXT,
+    "status" TEXT NOT NULL,
+    "decided_by" TEXT,
+    "decided_at" TEXT,
+    "created_at" TEXT NOT NULL,
     PRIMARY KEY ("id")
 );
 
