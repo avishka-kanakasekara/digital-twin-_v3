@@ -1,15 +1,29 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Briefcase, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog, ShieldCheck } from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, Activity, Crosshair, BarChart3, AlertTriangle, Users2, Search, Building2, UserCircle, Briefcase, Trophy, Brain, BrainCircuit, Settings, LogOut, Bell, UserCog, ShieldCheck, Menu, X } from 'lucide-react';
 import { SearchModal } from './SearchModal';
 import { Modal } from './Modal';
 import { GlobalAIChatbot } from './chat/GlobalAIChatbot';
+import { useAuth } from '../contexts/AuthContext';
+import { useEmployee } from '../contexts/EmployeeContext';
 
 export const Layout: React.FC = () => {
+  const { user, logout } = useAuth();
+  const { currentEmployee } = useEmployee();
+  const person = currentEmployee || user;
+  const initials = person?.initials || 'ME';
+  const displayName = person?.full_name || 'Signed in';
+  const displayRole = person?.role || 'Employee';
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
+  const [navOpen, setNavOpen] = React.useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    setNavOpen(false);
+  }, [location.pathname]);
 
   const orgNavItems = [
     { name: 'Organization Twin Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
@@ -30,16 +44,21 @@ export const Layout: React.FC = () => {
 
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 glass flex flex-col m-4 rounded-lg overflow-hidden border border-[var(--border-color)]">
-        <div className="p-6">
+    <div className="app-shell flex h-screen overflow-hidden">
+      {navOpen && <button type="button" className="nav-backdrop" aria-label="Close navigation" onClick={() => setNavOpen(false)} />}
+      <aside className={`app-sidebar glass flex flex-col m-4 rounded-lg overflow-hidden border border-[var(--border-color)] ${navOpen ? 'is-open' : ''}`}>
+        <div className="p-6 app-sidebar-head">
+          <div>
           <h1 className="text-lg font-extrabold bg-clip-text text-transparent leading-tight" style={{ backgroundImage: 'linear-gradient(to right, var(--color-primary), var(--color-secondary))', WebkitBackgroundClip: 'text' }}>
             Culture Connect
           </h1>
           <p className="text-[11px] font-semibold text-secondary mt-1.5 leading-snug tracking-wide">
             Predictive Workforce Intelligence
           </p>
+          </div>
+          <button type="button" className="nav-close" aria-label="Close navigation" onClick={() => setNavOpen(false)}>
+            <X size={18} />
+          </button>
         </div>
         <nav className="flex-1 px-4 space-y-6 overflow-y-auto pb-4">
           
@@ -98,45 +117,48 @@ export const Layout: React.FC = () => {
         <button onClick={() => setIsProfileOpen(true)} className="p-4 border-t border-[var(--border-subtle)] hover:bg-white/50 transition-colors text-left w-full cursor-pointer group">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center text-white font-bold shadow-sm group-hover:shadow-md transition-shadow">
-              HR
+              {initials}
             </div>
             <div>
-              <p className="text-sm font-semibold group-hover:text-primary transition-colors">Admin User</p>
-              <p className="text-xs text-tertiary">HR Leader</p>
+              <p className="text-sm font-semibold group-hover:text-primary transition-colors">{displayName}</p>
+              <p className="text-xs text-tertiary">{displayRole}</p>
             </div>
           </div>
         </button>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden m-4 ml-0">
-        <header className="h-[72px] glass rounded-2xl mb-4 flex items-center justify-between px-6 border border-white/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] relative overflow-hidden bg-white/40 backdrop-blur-xl">
+      <main className="app-main flex-1 flex flex-col overflow-hidden m-4 ml-0">
+        <header className="app-topbar glass rounded-2xl mb-4 flex items-center justify-between px-6 border border-white/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] relative overflow-hidden bg-white/40 backdrop-blur-xl">
           <div className="absolute top-0 left-0 w-48 h-48 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 right-0 w-48 h-48 bg-purple-400/10 rounded-full blur-3xl pointer-events-none"></div>
           
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="flex items-center justify-center w-10 h-10 rounded-[12px] bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/20 text-white group-hover:scale-105 transition-transform duration-500">
+          <div className="app-brand flex items-center gap-4 relative z-10">
+            <button type="button" className="nav-toggle" aria-label="Open navigation" onClick={() => setNavOpen(true)}>
+              <Menu size={18} />
+            </button>
+            <div className="flex items-center justify-center w-10 h-10 rounded-[12px] bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-500/20 text-white shrink-0">
               <BrainCircuit size={20} strokeWidth={2.5} />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
+              <div className="app-brand-title flex items-center gap-2.5">
                 <h2 className="text-[16px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">Organization Digital Twin</h2>
-                <span className="px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200/60 text-emerald-700 text-[9px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10">
+                <span className="app-badge px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200/60 text-emerald-700 text-[9px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> AI Active
                 </span>
               </div>
-              <p className="text-[11px] font-semibold text-slate-500 mt-0.5 tracking-wide">Real-time predictive workforce intelligence models</p>
+              <p className="app-brand-sub text-[11px] font-semibold text-slate-500 mt-0.5 tracking-wide">Real-time predictive workforce intelligence models</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 relative z-10">
+          <div className="app-tools flex items-center gap-4 relative z-10">
             <button 
               onClick={() => setIsSearchOpen(true)}
-              className="w-72 h-10 rounded-xl bg-white/70 border-2 border-white px-3 flex items-center justify-between text-sm text-slate-400 hover:border-blue-100 hover:text-slate-600 hover:shadow-[0_4px_15px_rgba(59,130,246,0.15)] hover:bg-white transition-all cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.03)] group"
+              className="app-search h-10 rounded-xl bg-white/70 border-2 border-white px-3 flex items-center justify-between text-sm text-slate-400 hover:border-blue-100 hover:text-slate-600 hover:shadow-[0_4px_15px_rgba(59,130,246,0.15)] hover:bg-white transition-all cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.03)] group"
             >
               <div className="flex items-center gap-2 overflow-hidden mr-2">
                 <Search size={16} className="shrink-0 group-hover:text-blue-500 transition-colors"/> 
-                <span className="truncate whitespace-nowrap font-medium text-[13px]">Search insights, employees, skills...</span>
+                <span className="app-search-label truncate whitespace-nowrap font-medium text-[13px]">Search insights, employees, skills...</span>
               </div>
               <div className="shrink-0 flex items-center">
                 <kbd className="hidden sm:flex items-center justify-center h-5 px-2 text-[10px] font-extrabold bg-slate-100/50 border border-slate-200/50 rounded-md shadow-sm text-slate-400 group-hover:text-blue-500 group-hover:bg-blue-50/50 group-hover:border-blue-100 transition-colors uppercase tracking-wider">Ctrl K</kbd>
@@ -151,7 +173,7 @@ export const Layout: React.FC = () => {
             </button>
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
+        <div className="app-content flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
           <Outlet />
         </div>
       </main>
@@ -189,13 +211,13 @@ export const Layout: React.FC = () => {
           <div className="relative group mb-5">
             <div className="absolute inset-0 rounded-full blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-500" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #8b5cf6 100%)' }}></div>
             <div className="w-24 h-24 rounded-full flex items-center justify-center text-white text-3xl font-black shadow-xl relative z-10 border-[3px]" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)', borderColor: 'rgba(255,255,255,0.8)' }}>
-              HR
+              {initials}
             </div>
             <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 bg-emerald-500 z-20" style={{ borderColor: '#ffffff' }}></div>
           </div>
           
-          <h3 className="text-xl font-extrabold text-slate-800 mb-1">Admin User</h3>
-          <p className="text-sm font-bold text-slate-500 mb-8 uppercase tracking-wider">HR Leader • Super Admin</p>
+          <h3 className="text-xl font-extrabold text-slate-800 mb-1">{displayName}</h3>
+          <p className="text-sm font-bold text-slate-500 mb-8 uppercase tracking-wider">{displayRole}{person?.department ? ` • ${person.department}` : ''}</p>
           
           <div className="w-full flex flex-col gap-3 relative z-10">
             <button 
@@ -235,7 +257,12 @@ export const Layout: React.FC = () => {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-300 group-hover:text-amber-400 transition-colors"><path d="m9 18 6-6-6-6"/></svg>
             </button>
             
-            <button 
+            <button
+              type="button"
+              onClick={() => {
+                setIsProfileOpen(false);
+                logout();
+              }}
               className="w-full py-4 px-5 text-white text-[15px] font-extrabold tracking-wide rounded-2xl transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 text-left flex items-center justify-center gap-3 border-none cursor-pointer group mt-3"
               style={{ background: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)', boxShadow: '0 8px 20px -6px rgba(225, 29, 72, 0.5)' }}
             >

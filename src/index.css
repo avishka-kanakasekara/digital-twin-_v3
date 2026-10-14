@@ -610,3 +610,223 @@ h1, h2, h3, h4, h5, h6 {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
 }
+
+/* App shell: sidebar stays beside the page on a wide screen and becomes a drawer below 1100px. */
+.app-shell {
+  min-width: 0;
+  width: 100%;
+}
+
+.app-sidebar {
+  width: 16rem;
+  min-width: 16rem;
+  max-width: 16rem;
+}
+
+.app-sidebar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.app-main,
+.app-content,
+.app-brand {
+  min-width: 0;
+}
+
+.app-topbar {
+  min-height: 4.5rem;
+  height: auto;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.app-brand {
+  flex: 1 1 auto;
+}
+
+.app-brand-title h2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.app-search {
+  width: min(18rem, 42vw);
+  min-width: 0;
+}
+
+.app-content {
+  overflow-x: hidden;
+}
+
+.employee-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.employee-selector__input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+
+.pd-tabs-wrap,
+.lh-tabs-wrap,
+.gh-tabs-wrap,
+.cc-tabs,
+.tb-table-wrap,
+.lr-table-wrap,
+.hub-switcher {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.app-content > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.nav-toggle,
+.nav-close {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  color: var(--text-primary);
+  flex: none;
+  cursor: pointer;
+}
+
+.nav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(15, 23, 42, 0.45);
+  border: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 1100px) {
+  .nav-toggle,
+  .nav-close {
+    display: inline-flex;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    z-index: 40;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    margin: 0.75rem;
+    height: auto;
+    transform: translateX(calc(-100% - 1.5rem));
+    transition: transform 0.22s ease;
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
+  }
+
+  .app-main {
+    margin: 0.75rem;
+  }
+
+  .app-content .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-content .grid-cols-12 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-content .grid-cols-12 > * {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 800px) {
+  .app-content .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-content .grid-cols-3 > * {
+    grid-column: auto;
+  }
+
+  .app-content .flex-nowrap {
+    flex-wrap: wrap;
+  }
+
+  .app-brand-sub {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .employee-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .employee-selector__meta {
+    display: none;
+  }
+
+  .app-main {
+    margin: 0.5rem;
+  }
+
+  .app-topbar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .app-badge {
+    display: none;
+  }
+
+  .app-search {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: center;
+  }
+
+  .app-search .app-search-label,
+  .app-search kbd,
+  .app-search .mr-2 {
+    display: none;
+  }
+
+  .app-content .grid-cols-2,
+  .app-content .grid-cols-3,
+  .app-content .grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-content .grid-cols-2 > *,
+  .app-content .grid-cols-4 > * {
+    grid-column: auto;
+  }
+
+  .app-content img,
+  .app-content canvas,
+  .app-content iframe {
+    max-width: 100%;
+  }
+}
