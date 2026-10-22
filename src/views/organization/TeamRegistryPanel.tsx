@@ -55,7 +55,7 @@ export const TeamRegistryPanel: React.FC<{ catalogue: TbCatalogue | null }> = ({
     return () => {
       live = false;
     };
-  }, []);
+  }, [user?.id]);
 
   const matches = useMemo(() => {
     const query = skillQuery.trim().toLowerCase();
@@ -155,9 +155,9 @@ export const TeamRegistryPanel: React.FC<{ catalogue: TbCatalogue | null }> = ({
 
       {place === 'invites' && (
         <section className="tb-card">
-          <h2>Invitations for me</h2>
-          <p className="tb-help">Accepting adds you as a confirmed member. Declining leaves you off the roster.</p>
-          {(workspace?.incoming.length || 0) === 0 && (workspace?.join_requests || []).filter((item) => item.status === 'pending').length === 0 && <p className="tb-help">No invitations or join requests are waiting.</p>}
+          <h2>Invitations</h2>
+          <p className="tb-help">Invitations sent to you appear here. Accepting adds you as a confirmed member. People you invited see the same invitation when they sign in.</p>
+          {(workspace?.incoming.length || 0) === 0 && (workspace?.outgoing?.length || 0) === 0 && (workspace?.join_requests || []).filter((item) => item.status === 'pending').length === 0 && <p className="tb-help">No invitations or join requests are waiting.</p>}
           {(workspace?.join_requests || []).filter((item) => item.status === 'pending').map((request) => (
             <div key={request.id} className="tb-team-row">
               <div>
@@ -181,13 +181,26 @@ export const TeamRegistryPanel: React.FC<{ catalogue: TbCatalogue | null }> = ({
               </div>
             ))}
           </div>
+          {(workspace?.outgoing?.length || 0) > 0 && (
+            <div className="tb-team-list">
+              <h3>Sent and still waiting</h3>
+              {workspace?.outgoing?.map((invitation) => (
+                <div key={invitation.id} className="tb-team-row">
+                  <div>
+                    <h3>{invitation.full_name || 'Colleague'}</h3>
+                    <p className="tb-help">Waiting for them to accept {invitation.team_name}. They see this under Invitations after they sign in.</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
       {place === 'approvals' && (
         <section className="tb-card">
           <h2>Approvals</h2>
-          <p className="tb-help">You can approve a team you did not create. Approving registers it. You can then assign a registered team to its project.</p>
+          <p className="tb-help">HR and the creator's manager can approve a team. Approving registers it. The creator cannot approve their own team.</p>
           {!workspace?.can_review && <p className="tb-help">Approvals appear here for HR and managers.</p>}
           {workspace?.can_review && workspace.review.length === 0 && (workspace.join_reviews || []).length === 0 && <p className="tb-help">Nothing is waiting for your decision.</p>}
           {(workspace?.join_reviews || []).map((request) => (
@@ -223,6 +236,7 @@ export const TeamRegistryPanel: React.FC<{ catalogue: TbCatalogue | null }> = ({
       {place === 'mine' && (
         <section className="tb-card">
           <h2>My teams</h2>
+          <p className="tb-help">Teams you created, joined, or were invited to.</p>
           {!workspace && <p className="tb-help">Loading teams…</p>}
           {workspace && workspace.teams.length === 0 && <p className="tb-help">No teams yet. Use Register a team to create one.</p>}
           <div className="tb-team-list">
@@ -260,12 +274,21 @@ export const TeamRegistryPanel: React.FC<{ catalogue: TbCatalogue | null }> = ({
           {selected.decision_note && <p className="tb-note">Decision: {selected.decision_note}{selected.decided_by ? ` — ${selected.decided_by}` : ''}</p>}
           <label className="tb-field">Invite a colleague
             <select className="tb-select" value={colleague} onChange={(event) => setColleague(event.target.value)}>
-              <option value="">Choose an employee</option>
-              {catalogue?.employees.map((person) => <option key={person.id} value={person.id}>{person.full_name}</option>)}
+              <option value="">{catalogue ? 'Choose an employee' : 'Colleagues are still loading'}</option>
+              {(catalogue?.employees || []).filter((person) => person.id !== user?.id).map((person) => <option key={person.id} value={person.id}>{person.full_name}</option>)}
             </select>
           </label>
+          {!catalogue && <p className="tb-help">The colleague list is still loading. Invitations can be sent once a name appears.</p>}
           <div className="tb-actions">
-            <button type="button" className="tb-btn tb-btn--ghost" disabled={busy || !colleague} onClick={() => run(async () => { const team = await teamBuilderAPI.invite(selected.id, [colleague]); setSelected(team); setColleague(''); setNotice('Invitation saved.'); await load(); })}>Send invitation</button>
+            <button type="button" className="tb-btn tb-btn--ghost" disabled={busy || !colleague} onClick={() => run(async () => {
+              const person = catalogue?.employees.find((item) => item.id === colleague);
+              const team = await teamBuilderAPI.invite(selected.id, [colleague]);
+              setSelected(team);
+              setColleague('');
+              setPlace('invites');
+              setNotice(`Invitation sent to ${person?.full_name || 'your colleague'}. They will see it under Invitations when they sign in.`);
+              await load();
+            })}>Send invitation</button>
             <button type="button" className="tb-btn tb-btn--ghost" disabled={busy} onClick={() => run(async () => { const team = await teamBuilderAPI.evaluateTeam(selected.id); setSelected(team); setNotice(team.prediction?.display_label || 'Evaluation saved.'); await load(); })}>Estimate success</button>
             {canRegister(selected) && (
               <button type="button" className="tb-btn tb-btn--primary" disabled={busy} onClick={() => run(async () => { const team = await teamBuilderAPI.submitTeam(selected.id); setSelected(team); setNotice(`${team.name} is submitted for registration.`); await load(); })}>Register team</button>

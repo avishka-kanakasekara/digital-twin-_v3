@@ -484,8 +484,8 @@ def get_pending_verifications():
     # Joined selects require FK relationships
     res = sb.table("challenge_progress").select(
         "id, employee_id, challenge_id, progress, completed, "
-        "challenges(title, xp_reward), "
-        "employees!challenge_progress_employee_id_fkey(full_name)"
+        "challenges!left(title, xp_reward), "
+        "employees!left(full_name)"
     ).eq("progress", 100).eq("completed", False).execute()
     
     return res.data or []
@@ -535,9 +535,9 @@ def get_pending_reviews():
     sb = get_db()
     subs = sb.table("submissions").select(
         "id, employee_id, challenge_id, step_id, content, submitted_at, status, "
-        "employees!submissions_employee_id_fkey(full_name), "
-        "challenge_steps(title, xp_value), "
-        "challenges(title)"
+        "employees!left(full_name), "
+        "challenge_steps!left(title, xp_value), "
+        "challenges!left(title)"
     ).eq("status", "manual_review").order("submitted_at", desc=True).execute()
     return subs.data or []
 

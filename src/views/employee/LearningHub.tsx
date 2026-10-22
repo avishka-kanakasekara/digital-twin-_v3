@@ -64,7 +64,7 @@ const Meter: React.FC<{ label: string; level: number; tone: 'now' | 'need' | 'ga
     <div className="lr-meter__top"><span>{label}</span><strong>{level}/{max}</strong></div>
     <div className="lr-meter__track" aria-hidden>
       <span className={`lr-meter__fill lr-meter__fill--${tone}`} style={{ width: `${Math.max(0, Math.min(100, (level / Math.max(max, 1)) * 100))}%` }} />
-    </div>
+      </div>
   </div>
 );
 
@@ -82,19 +82,15 @@ const stepClass = (status: string) => {
 
 const deliveredLevel = (course: LearningCourse, gap: LearningSkillGap) => {
   const named = course.skills.filter((skill) => skill.skill_name.toLowerCase() === gap.skill.toLowerCase());
-  const pool = named.length ? named : course.skills;
-  return Math.max(...pool.map((skill) => skill.level_delivered), 0);
+  if (!named.length) return 0;
+  return Math.max(...named.map((skill) => skill.level_delivered));
 };
 
 const coursesForGap = (courses: LearningCourse[], gap: LearningSkillGap) => {
-  const ids = gap.matched_course_ids;
-  if (ids && ids.length) {
-    const order = new Map(ids.map((id, index) => [id, index]));
-    return courses.filter((course) => order.has(course.id)).sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
-  }
+  const order = new Map((gap.matched_course_ids ?? []).map((id, index) => [id, index]));
   return courses
-    .filter((course) => deliveredLevel(course, gap) > gap.current_level)
-    .sort((left, right) => deliveredLevel(left, gap) - deliveredLevel(right, gap) || left.duration_hours - right.duration_hours);
+    .filter((course) => order.has(course.id))
+    .sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0));
 };
 
 const GapBoard: React.FC<{
@@ -118,7 +114,7 @@ const GapBoard: React.FC<{
       const onPlan = new Set(plan?.items.map((item) => item.course_id) ?? []);
       const selected = picked[gap.source_gap_reference] ?? [];
       const fresh = selected.filter((id) => !onPlan.has(id));
-      return (
+  return (
         <article className={gap.source_gap_reference === focusId ? 'lr-gap lr-gap--focus' : 'lr-gap'} id={`lr-gap-${gap.source_gap_reference}`} key={gap.source_gap_reference}>
           <div className="lr-gap__head">
             <div>
@@ -127,10 +123,10 @@ const GapBoard: React.FC<{
                 {gap.strategic && <span className="lr-pill lr-pill--violet">Strategic</span>}
                 {gap.mandatory && <span className="lr-pill lr-pill--high">Mandatory</span>}
                 <span className="lr-pill">{gap.learning_plan_id ? 'Plan open' : 'No plan'}</span>
-              </div>
+          </div>
               <h2 className="lh-section__title" style={{ marginTop: '0.45rem' }}>{gap.skill}</h2>
               <p className="lh-section__sub">{shownLevels(gap).current}/{shownLevels(gap).scale} now, {shownLevels(gap).required}/{shownLevels(gap).scale} required. {gap.why}</p>
-            </div>
+        </div>
             <div className="lr-gap__actions">
               {matches.length === 0 ? (
                 <Button disabled={busy === 'course-create'} onClick={() => onCreateCourse(gap)}>Create a course</Button>
@@ -142,14 +138,14 @@ const GapBoard: React.FC<{
                 </Button>
               )}
               {matches.length > 0 && <Button variant="ghost" size="sm" onClick={() => onCreateCourse(gap)}>New course</Button>}
-            </div>
-          </div>
+        </div>
+              </div>
           <div className="flex flex-wrap gap-6">
             <Meter label="Current" level={shownLevels(gap).current} max={shownLevels(gap).scale} tone="now" />
             <Meter label="Required" level={shownLevels(gap).required} max={shownLevels(gap).scale} tone="need" />
-          </div>
+            </div>
           {matches.length === 0 ? (
-            <p className="lr-note">No active course raises this skill above {gap.current_level}/5. Create one, then generate the plan.</p>
+            <p className="lr-note">No active course raises {gap.skill} above {shownLevels(gap).current}/{shownLevels(gap).scale}. Create one, then generate the plan.</p>
           ) : (
             <div className="lr-gap__courses">
               {matches.map((course) => {
@@ -170,13 +166,13 @@ const GapBoard: React.FC<{
                   </label>
                 );
               })}
-            </div>
+        </div>
           )}
         </article>
       );
     })}
-  </div>
-);
+    </div>
+  );
 
 export const LearningHub: React.FC = () => {
   const { currentEmployee, loading: employeeLoading } = useEmployee();
@@ -252,7 +248,7 @@ export const LearningHub: React.FC = () => {
     const token = ++loadToken.current;
     if (initial) setLoading(true);
     else setRefreshing(true);
-    setError(null);
+      setError(null);
     const settled = await Promise.allSettled([
       learningRecommendationAPI.gaps(currentEmployee.id),
       learningRecommendationAPI.plans(currentEmployee.id),
@@ -529,7 +525,12 @@ export const LearningHub: React.FC = () => {
   const generateFor = (gap: LearningSkillGap) => {
     const plan = plans.find((item) => item.id === gap.learning_plan_id);
     const onPlan = new Set(plan?.items.map((item) => item.course_id) ?? []);
-    const courseIds = (picked[gap.source_gap_reference] ?? []).filter((id) => !onPlan.has(id));
+    const allowed = new Set(gap.matched_course_ids ?? []);
+    const courseIds = (picked[gap.source_gap_reference] ?? []).filter((id) => !onPlan.has(id) && allowed.has(id));
+    if (!courseIds.length) {
+      showToast('error', `Choose a course that raises ${gap.skill} above ${shownLevels(gap).current}/${shownLevels(gap).scale}.`);
+      return;
+    }
     act(
       gap.source_gap_reference,
       () => learningRecommendationAPI.createPlan(currentEmployee!.id, gap.source_gap_reference, courseIds),
@@ -608,8 +609,8 @@ export const LearningHub: React.FC = () => {
                 <div className="lh-score-badge__core">
                   <span className="lh-score-badge__label">Gap</span>
                   <span className="lh-score-badge__num">{focusGap ? focusGap.gap_levels : 0}</span>
+                  </div>
                 </div>
-              </div>
               <div className="lh-hero__main">
                 <div className="lh-hero__kicker"><Sparkles size={12} /> What to learn next</div>
                 {focusGap ? (
@@ -619,7 +620,7 @@ export const LearningHub: React.FC = () => {
                     <div className="mt-3 flex flex-wrap gap-4">
                       <Meter label="Current" level={shownLevels(focusGap).current} max={shownLevels(focusGap).scale} tone="now" />
                       <Meter label="Required" level={shownLevels(focusGap).required} max={shownLevels(focusGap).scale} tone="need" />
-                    </div>
+                </div>
                     <div className="lr-pills" style={{ marginTop: '0.75rem' }}>
                       <span className={priorityClass(focusGap.priority_label)}>{focusGap.priority_label} priority {focusGap.priority_score}</span>
                       {focusGap.strategic && <span className="lr-pill lr-pill--violet">Strategic</span>}
@@ -658,7 +659,7 @@ export const LearningHub: React.FC = () => {
                   {item.icon}{item.label}
                 </button>
               ))}
-            </div>
+              </div>
           </div>
           {refreshing && <p className="text-xs font-semibold text-secondary">Refreshing records…</p>}
 
@@ -695,9 +696,9 @@ export const LearningHub: React.FC = () => {
                     </button>
                   ))}
                 </Card>
-              </div>
-            </div>
-          )}
+          </div>
+        </div>
+      )}
 
           {tab === 'Gaps' && (
             <>
@@ -751,7 +752,7 @@ export const LearningHub: React.FC = () => {
           )}
 
           {tab === 'Catalogue' && (
-            <div className="lh-stack">
+      <div className="lh-stack">
               <div className="lh-section__head">
                 <div>
                   <h2 className="lh-section__title">Course catalogue</h2>
@@ -794,15 +795,15 @@ export const LearningHub: React.FC = () => {
                         {course.strategic_priority_flag && <span className="lr-pill lr-pill--violet">Strategic</span>}
                         {course.is_mandatory && <span className="lr-pill lr-pill--high">Mandatory</span>}
                         {!course.has_assessment && <span className="lr-pill">No assessment</span>}
-                      </div>
+                </div>
                       <h3 style={{ marginTop: '0.55rem' }}>{course.course_title}</h3>
                       <p>{course.provider} · {course.modality} · {course.duration_hours}h · {money(course.cost_lkr)}</p>
                       <p>{course.skills.map((skill) => `${skill.skill_name} → level ${skill.level_delivered}`).join(' · ')}</p>
-                    </button>
-                  ))}
-                </div>
+              </button>
+          ))}
+        </div>
               )}
-            </div>
+      </div>
           )}
 
           {tab === 'Assessments' && (
@@ -813,7 +814,7 @@ export const LearningHub: React.FC = () => {
                 const plan = plans.find((row) => row.items.some((entry) => entry.id === item.learning_plan_item_id));
                 return <AssessmentCard key={item.id} item={item} busy={busy} onAct={act} planTitle={plan?.title} onOpenPlan={plan ? () => openPlan(plan.id) : undefined} />;
               })}
-            </div>
+    </div>
           )}
 
           {tab === 'Record' && (
@@ -832,8 +833,8 @@ export const LearningHub: React.FC = () => {
                   </div>
                 </Card>
               ))}
-            </div>
-          )}
+        </div>
+      )}
 
           {tab === 'Team' && (
             <Card glass={false} className="lh-section">
@@ -841,13 +842,13 @@ export const LearningHub: React.FC = () => {
                 <div>
                   <h2 className="lh-section__title">Team learning</h2>
                   <p className="lh-section__sub">{teamLoading ? 'Loading the people in scope…' : team?.scope || (team ? `${team.team_size} people in scope.` : 'Team metrics were not returned.')}</p>
-                </div>
               </div>
+            </div>
               <div className="lr-metric-grid">
                 <div className="lr-metric"><span>Mandatory</span><strong>{ratioLabel(team?.mandatory_compliance)}</strong></div>
                 <div className="lr-metric"><span>Strategic coverage</span><strong>{ratioLabel(team?.strategic_coverage)}</strong></div>
                 <div className="lr-metric"><span>Unverified passes</span><strong>{team?.unverified_completions?.length ?? 0}</strong></div>
-              </div>
+            </div>
               <div className="lr-filters" style={{ marginTop: '1rem' }}>
                 <input aria-label="Filter team by employee" placeholder="Employee" value={teamEmployee} onChange={(event) => setTeamEmployee(event.target.value)} />
                 <input aria-label="Filter team by skill" placeholder="Skill" value={teamSkill} onChange={(event) => setTeamSkill(event.target.value)} />
@@ -937,16 +938,16 @@ export const LearningHub: React.FC = () => {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+              </div>
                 )}
               </Card>
               <Card glass={false} className="lh-section">
                 <h2 className="lh-section__title">Courses with no plan usage</h2>
                 <div className="lr-pills" style={{ marginTop: '0.8rem' }}>
                   {org.unused_active_courses.length === 0 ? <span className="lr-pill">Every active course is on a plan.</span> : org.unused_active_courses.map((title) => <span key={title} className="lr-pill">{title}</span>)}
-                </div>
+          </div>
               </Card>
-            </div>
+    </div>
             )
           )}
         </>
@@ -978,7 +979,7 @@ export const LearningHub: React.FC = () => {
               }
               return <Button disabled={busy === gap.source_gap_reference} onClick={() => act(gap.source_gap_reference, () => learningRecommendationAPI.createPlan(currentEmployee!.id, gap.source_gap_reference, [selectedCourse.id]), `${gap.skill} learning plan is open.`, true).then(() => setSelectedCourse(null))}>Generate a {gap.skill} plan with this course</Button>;
             })()}
-          </div>
+        </div>
         )}
       </Modal>
 
@@ -1049,7 +1050,7 @@ export const LearningHub: React.FC = () => {
             <label className="flex items-center gap-2"><input type="checkbox" checked={courseForm.addToPlan} onChange={(event) => setCourseForm((current) => ({ ...current, addToPlan: event.target.checked }))} /> Add this course to the open plan</label>
           )}
           <Button disabled={busy === 'course-create'} onClick={saveCourse}>Save course</Button>
-        </div>
+          </div>
       </Modal>
 
       <Modal isOpen={Boolean(exam)} onClose={() => setExam(null)} title={exam ? `Assessment · ${exam.title}` : 'Assessment'} maxWidthClass="max-w-xl">
@@ -1127,14 +1128,14 @@ const PlanDetail: React.FC<{
         <span className="lr-pill lr-pill--sky">{plan.plan_status}</span>
         <span className="lr-pill">Priority {plan.priority_score}</span>
         {plan.abandonment_reason && <span className="lr-pill lr-pill--medium">Reason recorded</span>}
-      </div>
+        </div>
       <h2 className="lh-section__title" style={{ marginTop: '0.6rem' }}>{plan.title}</h2>
       <p className="lh-section__sub">{plan.target_skill_ids.join(', ') || 'Skill plan'} · finish by {plan.target_completion_date} · about {plan.estimated_weeks} {plan.estimated_weeks === 1 ? 'week' : 'weeks'}</p>
       <div className="lr-metric-grid" style={{ marginTop: '1rem' }}>
         <div className="lr-metric"><span>Hours</span><strong>{plan.total_estimated_hours}</strong><em>About {plan.estimated_weeks} {plan.estimated_weeks === 1 ? 'week' : 'weeks'}</em></div>
         <div className="lr-metric"><span>Progress</span><strong>{plan.progress_pct}%</strong></div>
         <div className="lr-metric"><span>Expected gain</span><strong>+{expected}</strong><em>Across the sequenced courses</em></div>
-      </div>
+          </div>
       <div className="lh-progress-bar"><div className="lh-progress-bar__fill" style={{ width: `${plan.progress_pct}%` }} /></div>
       {gap && (
         <div className="mt-4 flex flex-wrap gap-6">
@@ -1172,8 +1173,8 @@ const PlanDetail: React.FC<{
                   )}
                   {assessment?.sfa_sync_status === 'Failed' && (
                     <Button size="sm" disabled={busy === assessment.id} onClick={() => onAct(assessment.id, () => learningRecommendationAPI.retrySync(assessment.id), 'Retry succeeded and the skill record was updated.')}>Retry sync</Button>
-                  )}
-                </div>
+      )}
+    </div>
               </div>
             </li>
           );
