@@ -509,6 +509,17 @@
   white-space: nowrap;
 }
 
+.tb-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.15rem;
+  background:
+    radial-gradient(420px 160px at 100% 0%, rgba(139, 92, 246, 0.12), transparent 55%),
+    radial-gradient(360px 140px at 0% 0%, rgba(59, 130, 246, 0.12), transparent 50%),
+    var(--bg-surface);
+}
+
 .tb-option-head {
   display: flex;
   justify-content: space-between;
@@ -516,37 +527,113 @@
   align-items: flex-start;
 }
 
+.tb-option-copy {
+  min-width: 0;
+}
+
+.tb-option-copy h2 {
+  margin: 0.35rem 0 0.25rem;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.tb-option-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+}
+
 .tb-score {
-  min-width: 7.5rem;
-  text-align: right;
+  flex: none;
+  width: 6.4rem;
+  min-height: 6.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  text-align: center;
+  border-radius: 1.15rem;
+  background: linear-gradient(160deg, rgba(59, 130, 246, 0.14), rgba(139, 92, 246, 0.16));
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .tb-score strong {
   display: block;
-  font-size: 2rem;
+  font-size: 1.85rem;
   letter-spacing: -0.05em;
-  color: var(--color-primary);
   line-height: 1;
+  background: linear-gradient(120deg, var(--color-primary), var(--color-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-.tb-score span,
-.tb-score p {
+.tb-score em {
+  margin-top: -0.15rem;
   color: var(--text-tertiary);
+  font-style: normal;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.tb-score p {
-  max-width: 14rem;
-  margin-left: auto;
-  font-weight: 600;
-  line-height: 1.35;
+.tb-score span {
+  color: var(--text-secondary);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tb-skill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tb-skill {
+  border-radius: var(--radius-full);
+  padding: 0.28rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.tb-skill em {
+  margin-left: 0.35rem;
+  font-style: normal;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.tb-skill--ok {
+  background: var(--color-success-light);
+  color: #047857;
+}
+
+.tb-skill--gap {
+  background: var(--color-warning-light);
+  color: #b45309;
+}
+
+.tb-score-note {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: rgba(241, 245, 249, 0.8);
+  font-size: 0.75rem;
+  line-height: 1.4;
 }
 
 .tb-people {
   display: grid;
   gap: 0.7rem;
-  margin-top: 0.9rem;
+  margin-top: 0.15rem;
 }
 
 @media (min-width: 800px) {
@@ -556,10 +643,32 @@
 .tb-person {
   display: flex;
   gap: 0.75rem;
-  padding: 0.8rem;
+  padding: 0.85rem;
   border-radius: var(--radius-md);
-  background: rgba(241, 245, 249, 0.72);
+  background: rgba(255, 255, 255, 0.72);
   border: 1px solid var(--border-subtle);
+}
+
+.tb-person-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+}
+
+.tb-person-meta .tb-pill {
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.tb-why {
+  display: -webkit-box;
+  margin-top: 0.35rem !important;
+  overflow: hidden;
+  color: var(--text-tertiary) !important;
+  font-size: 0.75rem !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .tb-avatar {
@@ -594,6 +703,12 @@
   margin-top: 0.95rem;
 }
 
+.tb-option-actions {
+  margin-top: 0.15rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .tb-results {
   display: flex;
   flex-direction: column;
@@ -604,6 +719,6 @@
 @media (max-width: 720px) {
   .tb-stats { grid-template-columns: 1fr; }
   .tb-grid-2 { grid-template-columns: 1fr; }
-  .tb-score { text-align: left; }
-  .tb-score p { margin-left: 0; }
+  .tb-option-head { flex-direction: column-reverse; }
+  .tb-score { width: 100%; min-height: 0; flex-direction: row; justify-content: flex-start; gap: 0.7rem; padding: 0.7rem 0.9rem; }
 }

@@ -42,9 +42,14 @@ PRIMARY_KEYS: dict[str, list[str]] = {
     "lr_id_counters": ["prefix"],
 }
 
-# Embedded resource used by the leaderboard: gamification_profiles -> employees.
+# Embedded resources. Each pair is (local column, related primary key).
 RELATIONS = {
     ("gamification_profiles", "employees"): ("employee_id", "id"),
+    ("challenge_progress", "employees"): ("employee_id", "id"),
+    ("challenge_progress", "challenges"): ("challenge_id", "id"),
+    ("submissions", "employees"): ("employee_id", "id"),
+    ("submissions", "challenge_steps"): ("step_id", "id"),
+    ("submissions", "challenges"): ("challenge_id", "id"),
 }
 
 

@@ -156,7 +156,7 @@ def test_empty_pool_is_saved_without_a_fake_team():
     run = team_builder.optimize(db, {
         "project_name": "Empty bench",
         "headcount": 3,
-        "skills": [{"name": "COBOL", "priority": "mandatory"}],
+        "skills": [{"name": "Obsolete Mainframe Dialect", "priority": "mandatory"}],
     }, "HR")
     assert run["options"] == [] or all(option["feasibility"] != "feasible" for option in run["options"])
     reloaded = team_builder.run_detail(db, run["run_id"])

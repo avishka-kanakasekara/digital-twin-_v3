@@ -261,3 +261,65 @@ def test_hr_origin_and_outcome_are_stored():
     status = team_registry.model_status()
     assert status["production_validated"] is False
     assert "employee_id" not in status["features"]
+
+
+def test_each_person_sees_only_their_teams_and_receives_their_invitation():
+    db = get_db()
+    owner = _person(db, "Avery Cole")
+    colleague = _person(db, "Mina Ortiz")
+    stranger = _person(db, "Lee Park")
+    team = team_registry.create_team(db, {"name": "Personal pod", "team_type": "Project Team", "headcount": 2}, owner)
+    with pytest.raises(HTTPException) as missing:
+        team_registry.invite(db, team["id"], ["not-a-person"], owner)
+    assert missing.value.status_code == 400
+    team = team_registry.invite(db, team["id"], [colleague["id"]], owner)
+    assert any(row["employee_id"] == colleague["id"] and row["status"] == "pending" for row in team["invitations"])
+    owner_space = team_registry.list_workspace(db, owner)
+    colleague_space = team_registry.list_workspace(db, colleague)
+    stranger_space = team_registry.list_workspace(db, stranger)
+    assert any(item["id"] == team["id"] for item in owner_space["teams"])
+    assert any(item["employee_id"] == colleague["id"] and item["status"] == "pending" for item in owner_space["outgoing"])
+    assert any(item["team_id"] == team["id"] and item["status"] == "pending" for item in colleague_space["incoming"])
+    assert all(item["id"] != team["id"] for item in stranger_space["teams"])
+    assert all(item["team_id"] != team["id"] for item in stranger_space["incoming"])
+    with pytest.raises(HTTPException) as hidden:
+        team_registry.get_team(db, team["id"], stranger)
+    assert hidden.value.status_code == 403
+
+
+def test_recommendation_list_belongs_to_the_requester():
+    db = get_db()
+    owner = _person(db, "Run Owner")
+    other = _person(db, "Run Other")
+    team_builder.ensure_schema(db)
+
+    def seed(person: dict, name: str) -> str:
+        request_id = str(uuid.uuid4())
+        run_id = str(uuid.uuid4())
+        db.table("team_builder_requests").insert({
+            "id": request_id,
+            "project_name": name,
+            "owner_employee_id": person["id"],
+            "headcount": 2,
+            "allocation_pct": 40,
+            "skills_json": "[]",
+            "roles_json": "[]",
+            "requested_by": person["full_name"],
+            "created_at": "2026-01-01T00:00:00",
+        }).execute()
+        db.table("team_builder_runs").insert({
+            "id": run_id,
+            "request_id": request_id,
+            "algorithm_version": "test",
+            "status": "completed",
+            "eligible_count": 1,
+            "requested_headcount": 2,
+            "created_at": "2026-01-01T00:00:00",
+        }).execute()
+        return run_id
+
+    mine = seed(owner, "Mine only")
+    theirs = seed(other, "Not mine")
+    listed = {item["run_id"] for item in team_builder.list_runs(db, owner_employee_id=owner["id"])["runs"]}
+    assert mine in listed
+    assert theirs not in listed

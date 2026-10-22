@@ -157,17 +157,26 @@ def _manages(db: Client, actor: dict, employee_id: str) -> bool:
 def _can_decide(db: Client, actor: dict, team: dict) -> bool:
     if str(actor.get("id")) == str(team.get("creator_id")):
         return False
-    if not settings_enforce():
-        return True
     if _hr(actor):
         return True
     return _manages(db, actor, str(team.get("creator_id")))
 
 
 def _can_edit(db: Client, actor: dict, team: dict) -> bool:
-    if str(actor.get("id")) in {str(team.get("creator_id")), str(team.get("owner_id"))}:
+    if str(actor.get("id")) in {str(team.get("creator_id")), str(team.get("owner_id")), str(team.get("leader_id") or "")}:
         return True
-    return _can_decide(db, actor, team) or (not settings_enforce() and str(actor.get("id")) != str(team.get("creator_id")))
+    if _hr(actor):
+        return True
+    return _manages(db, actor, str(team.get("creator_id")))
+
+
+def _participates(actor: dict, team: dict, members: list[dict], invites: list[dict]) -> bool:
+    user_id = str(actor.get("id"))
+    if user_id in {str(team.get("creator_id")), str(team.get("owner_id")), str(team.get("leader_id") or "")}:
+        return True
+    if any(str(row.get("employee_id")) == user_id and row.get("membership_status") != "removed" for row in members):
+        return True
+    return any(str(row.get("employee_id")) == user_id and row.get("status") == "pending" for row in invites)
 
 
 def _team_row(db: Client, team_id: str) -> dict:
@@ -186,12 +195,7 @@ def _invites(db: Client, team_id: str) -> list[dict]:
 
 
 def _visible(db: Client, actor: dict, team: dict, members: list[dict], invites: list[dict]) -> bool:
-    user_id = str(actor.get("id"))
-    if user_id in {str(team.get("creator_id")), str(team.get("owner_id")), str(team.get("leader_id") or "")}:
-        return True
-    if any(str(row.get("employee_id")) == user_id for row in members + invites):
-        return True
-    if not settings_enforce():
+    if _participates(actor, team, members, invites):
         return True
     if _hr(actor):
         return True
@@ -430,26 +434,37 @@ def list_workspace(db: Client, actor: dict | None) -> dict:
     user = _user(actor)
     directory = _names(db)
     teams = []
+    review = []
     for team in db.table("workforce_teams").select("*").execute().data or []:
         members = _members(db, team["id"])
         invites = _invites(db, team["id"])
-        if _visible(db, user, team, members, invites):
-            teams.append(_view(db, team, user))
+        if team.get("registration_status") == "archived":
+            if not _participates(user, team, members, invites):
+                continue
+        view = _view(db, team, user)
+        if _participates(user, team, members, invites):
+            teams.append(view)
+        if view["can_decide"]:
+            review.append(view)
     incoming = []
     for row in db.table("workforce_team_invitations").select("*").eq("employee_id", user["id"]).eq("status", "pending").execute().data or []:
         team = _team_row(db, row["team_id"])
         incoming.append({**_invite_view(row, directory), "team_name": team.get("name")})
-    review = [team for team in teams if team["can_decide"]]
+    outgoing = []
+    for row in db.table("workforce_team_invitations").select("*").eq("invited_by", user["id"]).eq("status", "pending").execute().data or []:
+        team = _team_row(db, row["team_id"])
+        outgoing.append({**_invite_view(row, directory), "team_name": team.get("name")})
     join_requests = _join_lists(db, user, directory)
     return {
         "teams": teams,
         "incoming": incoming,
+        "outgoing": outgoing,
         "review": review,
         "join_requests": join_requests["mine"],
         "join_reviews": join_requests["review"],
         "team_types": list(TEAM_TYPES),
-        "registration_policy": "A team stays pending until someone other than its creator approves it.",
-        "can_review": (not settings_enforce()) or _hr(user) or access_role(user) == "manager",
+        "registration_policy": "A team stays pending until HR or the creator's manager approves it. The creator cannot approve their own team.",
+        "can_review": _hr(user) or access_role(user) == "manager" or bool(review),
         "model": model_status(),
     }
 
@@ -478,13 +493,26 @@ def invite(db: Client, team_id: str, employee_ids: list[str], actor: dict | None
         for row in _invites(db, team_id)
         if row.get("status") == "pending"
     }
+    invited: list[str] = []
+    already: list[str] = []
+    problems: list[str] = []
     with db.transaction():
-        for employee_id in employee_ids:
-            employee_id = str(employee_id)
-            if employee_id == str(user.get("id")) or employee_id in existing_members or employee_id in pending:
-                continue
-            people = db.table("employees").select("id").eq("id", employee_id).limit(1).execute().data or []
+        for raw_id in employee_ids:
+            employee_id = str(raw_id or "").strip()
+            people = db.table("employees").select("id, full_name").eq("id", employee_id).limit(1).execute().data or [] if employee_id else []
             if not people:
+                problems.append("That person is not in the workforce.")
+                continue
+            employee_id = str(people[0]["id"])
+            person_name = people[0].get("full_name") or "That colleague"
+            if employee_id == str(user.get("id")):
+                problems.append("You are already on this team.")
+                continue
+            if employee_id in existing_members:
+                problems.append(f"{person_name} is already on the team.")
+                continue
+            if employee_id in pending:
+                already.append(person_name)
                 continue
             db.table("workforce_team_invitations").insert({
                 "id": str(uuid.uuid4()),
@@ -495,7 +523,11 @@ def invite(db: Client, team_id: str, employee_ids: list[str], actor: dict | None
                 "created_at": now,
             }).execute()
             pending.add(employee_id)
-        _audit(db, "team", team_id, "invitations_sent", _label(user), str(len(employee_ids)))
+            invited.append(person_name)
+        if invited:
+            _audit(db, "team", team_id, "invitations_sent", _label(user), ", ".join(invited))
+    if not invited and not already:
+        raise HTTPException(status_code=400, detail=problems[0] if problems else "Choose a colleague to invite.")
     return _view(db, _team_row(db, team_id), user)
 
 
@@ -533,7 +565,7 @@ def respond(db: Client, invitation_id: str, accept: bool, actor: dict | None) ->
                     "created_at": now,
                 }).execute()
         _audit(db, "invitation", invitation_id, status, _label(user), invitation["team_id"])
-    return get_team(db, invitation["team_id"], user)
+    return _view(db, _team_row(db, invitation["team_id"]), user)
 
 
 def cancel_invitation(db: Client, invitation_id: str, actor: dict | None) -> dict:
@@ -576,10 +608,8 @@ def assign_member(db: Client, team_id: str, employee_id: str, actor: dict | None
     ensure_schema(db)
     user = _user(actor)
     team = _team_row(db, team_id)
-    if settings_enforce() and not (_hr(user) or _manages(db, user, employee_id) or _manages(db, user, str(team.get("creator_id")))):
+    if not (_hr(user) or _manages(db, user, employee_id) or _manages(db, user, str(team.get("creator_id")))):
         raise HTTPException(status_code=403, detail="Only HR or the person's manager can assign a member directly.")
-    if not settings_enforce() and str(user.get("id")) == str(employee_id):
-        raise HTTPException(status_code=409, detail="Use the team you created. Direct assignment is for colleagues.")
     people = db.table("employees").select("id").eq("id", employee_id).limit(1).execute().data or []
     if not people:
         raise HTTPException(status_code=400, detail="That employee is not in the database.")
@@ -635,7 +665,7 @@ def decide(db: Client, team_id: str, approve: bool, note: str, actor: dict | Non
     user = _user(actor)
     team = _team_row(db, team_id)
     if not _can_decide(db, user, team):
-        raise HTTPException(status_code=403, detail="Someone other than the creator has to decide this registration.")
+        raise HTTPException(status_code=403, detail="Only HR or the creator's manager can decide this registration.")
     if team.get("registration_status") != "pending_approval":
         raise HTTPException(status_code=409, detail="Only a pending registration can be decided.")
     now = _now()
@@ -658,7 +688,7 @@ def assign_project(db: Client, team_id: str, actor: dict | None) -> dict:
     user = _user(actor)
     team = _team_row(db, team_id)
     if not _can_decide(db, user, team):
-        raise HTTPException(status_code=403, detail="Someone other than the creator assigns a registered team.")
+        raise HTTPException(status_code=403, detail="Only HR or the creator's manager can assign a registered team.")
     if team.get("registration_status") != "registered":
         raise HTTPException(status_code=409, detail="Register the team before assigning it to a project.")
     if team.get("operational_status") == "assigned":

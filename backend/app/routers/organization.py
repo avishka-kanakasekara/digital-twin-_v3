@@ -512,15 +512,35 @@ def team_builder_catalogue(actor: dict | None = Depends(get_optional_employee)):
     return team_builder.catalogue(get_db())
 
 
+def _recommendation_actor(actor: dict | None) -> dict:
+    actor = _signed_in(actor)
+    if not actor or not actor.get("id"):
+        raise HTTPException(status_code=401, detail="Sign in to use team recommendations.")
+    return actor
+
+
+def _require_recommendation_owner(run_id: str, actor: dict | None) -> dict:
+    actor = _recommendation_actor(actor)
+    owner = team_builder.recommendation_owner(get_db(), run_id)
+    if access_role(actor) in {"hr", "employer", "admin"}:
+        return actor
+    if owner and str(owner) == str(actor["id"]):
+        return actor
+    if owner:
+        raise HTTPException(status_code=403, detail="This recommendation belongs to another person.")
+    raise HTTPException(status_code=403, detail="This recommendation is not linked to your account.")
+    return actor
+
+
 @router.get("/talent/team-builder/runs")
 def team_builder_runs(limit: int = 20, actor: dict | None = Depends(get_optional_employee)):
-    _planner(actor)
-    return team_builder.list_runs(get_db(), max(1, min(50, limit)))
+    actor = _recommendation_actor(actor)
+    return team_builder.list_runs(get_db(), max(1, min(50, limit)), owner_employee_id=str(actor["id"]))
 
 
 @router.get("/talent/team-builder/runs/{run_id}")
 def team_builder_run(run_id: str, actor: dict | None = Depends(get_optional_employee)):
-    _planner(actor)
+    _require_recommendation_owner(run_id, actor)
     return team_registry.attach_existing_teams(get_db(), team_builder.run_detail(get_db(), run_id))
 
 
@@ -535,23 +555,33 @@ def team_builder_capacity(body: TeamBuilderCapacityBody, actor: dict | None = De
     return team_builder.save_capacity(get_db(), body.model_dump(), _planner(actor))
 
 
+def _option_run_id(option_id: str) -> str | None:
+    rows = get_db().table("org_team_builder_options").select("run_id").eq("id", option_id).limit(1).execute().data or []
+    return str(rows[0]["run_id"]) if rows and rows[0].get("run_id") else None
+
+
 @router.post("/talent/team-builder/options/{option_id}/assemble")
 def team_builder_assemble(option_id: str, body: TeamBuilderAssembleBody, actor: dict | None = Depends(get_optional_employee)):
-    return team_builder.assemble(get_db(), option_id, _planner(actor), body.accept_smaller)
+    run_id = _option_run_id(option_id)
+    actor = _require_recommendation_owner(run_id, actor) if run_id else _recommendation_actor(actor)
+    return team_builder.assemble(get_db(), option_id, actor.get("full_name") or actor.get("email") or "signed-in user", body.accept_smaller)
 
 
 @router.post("/talent/team-builder/options/{option_id}/reject")
 def team_builder_reject(option_id: str, body: TeamBuilderRejectBody, actor: dict | None = Depends(get_optional_employee)):
-    return team_builder.reject_option(get_db(), option_id, _planner(actor), body.note)
+    run_id = _option_run_id(option_id)
+    actor = _require_recommendation_owner(run_id, actor) if run_id else _recommendation_actor(actor)
+    return team_builder.reject_option(get_db(), option_id, actor.get("full_name") or actor.get("email") or "signed-in user", body.note)
 
 
 @router.post("/talent/team-builder/optimize")
 def optimize_team_builder(request: TeamBuilderOptimizeBody, actor: dict | None = Depends(get_optional_employee)):
-    actor = _signed_in(actor)
+    actor = _recommendation_actor(actor)
     payload = request.model_dump()
     payload["skills"] = [skill.model_dump() for skill in request.skills]
-    label = (actor or {}).get("full_name") or (actor or {}).get("email") or "signed-in user"
-    result = team_builder.optimize(get_db(), payload, label if actor else _planner(None))
+    payload["owner_employee_id"] = actor["id"]
+    label = actor.get("full_name") or actor.get("email") or "signed-in user"
+    result = team_builder.optimize(get_db(), payload, label)
     result = team_registry.predict_options(get_db(), result, actor)
     return team_registry.attach_existing_teams(get_db(), result)
 

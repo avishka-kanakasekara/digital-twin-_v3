@@ -526,22 +526,38 @@ def _with_skill_model(detail: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-def list_runs(db: Client, limit: int = 20) -> dict[str, Any]:
+def list_runs(db: Client, limit: int = 20, owner_employee_id: str | None = None) -> dict[str, Any]:
     ensure_schema(db)
     rows = db.table("team_builder_runs").select("*").execute().data or []
     rows.sort(key=lambda row: str(row.get("created_at") or ""), reverse=True)
     items = []
-    for row in rows[:limit]:
-        request = db.table("team_builder_requests").select("project_name").eq("id", row["request_id"]).limit(1).execute().data or []
+    for row in rows:
+        if len(items) >= limit:
+            break
+        request = db.table("team_builder_requests").select("project_name, owner_employee_id").eq("id", row["request_id"]).limit(1).execute().data or []
+        if not request:
+            continue
+        if owner_employee_id is not None and str(request[0].get("owner_employee_id") or "") != str(owner_employee_id):
+            continue
         items.append({
             "run_id": row["id"],
             "created_at": row["created_at"],
             "status": row["status"],
-            "project_name": request[0]["project_name"] if request else None,
+            "project_name": request[0]["project_name"],
             "eligible_count": row["eligible_count"],
             "requested_headcount": row["requested_headcount"],
         })
     return {"runs": items}
+
+
+def recommendation_owner(db: Client, run_id: str) -> str | None:
+    ensure_schema(db)
+    runs = db.table("team_builder_runs").select("request_id").eq("id", run_id).limit(1).execute().data or []
+    if not runs:
+        raise HTTPException(status_code=404, detail="Team recommendation not found.")
+    request = db.table("team_builder_requests").select("owner_employee_id").eq("id", runs[0]["request_id"]).limit(1).execute().data or []
+    owner = request[0].get("owner_employee_id") if request else None
+    return str(owner) if owner else None
 
 
 def option_detail(db: Client, option_id: str) -> dict[str, Any]:

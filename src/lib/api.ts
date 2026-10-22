@@ -1832,6 +1832,7 @@ export interface TbTeam {
 export interface TbWorkspace {
   teams: TbTeam[];
   incoming: TbInvitation[];
+  outgoing?: TbInvitation[];
   review: TbTeam[];
   team_types: string[];
   registration_policy: string;

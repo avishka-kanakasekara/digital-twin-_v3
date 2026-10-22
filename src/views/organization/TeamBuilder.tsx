@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, Search, Sparkles, Users, Wand2 } from 'lucide-react';
 import { useSettings } from '../../context/SettingsContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { teamBuilderAPI, type TbCatalogue, type TbJoinRequest, type TbOption, type TbRun, type TbSkillRequirement } from '../../lib/api';
 import { TeamRegistryPanel } from './TeamRegistryPanel';
 import './TeamBuilder.css';
@@ -31,10 +32,9 @@ const initials = (name: string | null | undefined) =>
     .map((part) => part[0]?.toUpperCase())
     .join('');
 
-const tone = (feasibility: string) => (feasibility === 'feasible' ? 'good' : feasibility === 'short_staffed' ? 'warn' : 'bad');
-
 export const TeamBuilder: React.FC = () => {
   const { projectTypes } = useSettings();
+  const { user } = useAuth();
   const [catalogue, setCatalogue] = useState<TbCatalogue | null>(null);
   const [run, setRun] = useState<TbRun | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +79,7 @@ export const TeamBuilder: React.FC = () => {
     return () => {
       live = false;
     };
-  }, []);
+  }, [user?.id]);
 
   const skillMatches = useMemo(() => {
     const query = skillQuery.trim().toLowerCase();
@@ -419,31 +419,53 @@ export const TeamBuilder: React.FC = () => {
                   </section>
                 )}
 
-                {resultCards.map((option) => (
-                  <article key={option.id} className="tb-card">
+                {resultCards.map((option) => {
+                  const skillsOpen = option.uncovered.length > 0;
+                  const fitTone = option.feasibility === 'feasible' && !skillsOpen ? 'good' : option.feasibility === 'empty' ? 'bad' : 'warn';
+                  const fitLabel = option.feasibility === 'feasible' && skillsOpen
+                    ? 'Skills still open'
+                    : feasibilityLabel[option.feasibility] || option.feasibility;
+                  const summary = (option.rationale || '')
+                    .replace(new RegExp(`^${option.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[:.]?\\s*`), '')
+                    .split(/(?<=\.)\s+/)
+                    .filter((sentence) => !/^feasibility is/i.test(sentence) && !/^uncovered requirements/i.test(sentence))
+                    .join(' ');
+                  const score = option.skill_model?.score;
+                  return (
+                  <article key={option.id} className="tb-card tb-option">
                     <div className="tb-option-head">
-                      <div>
-                        <h2>{option.name}</h2>
-                        <p className="tb-help">{option.rationale}</p>
-                        <p className="tb-note">
-                          <span className={`tb-pill tb-pill--${tone(option.feasibility)}`}>{feasibilityLabel[option.feasibility] || option.feasibility}</span>
-                          {' '}
+                      <div className="tb-option-copy">
+                        <p className="tb-option-pills">
+                          <span className={`tb-pill tb-pill--${fitTone}`}>{fitLabel}</span>
                           <span className="tb-pill">{statusLabel[option.option_status] || option.option_status}</span>
                         </p>
+                        <h2>{option.name}</h2>
+                        {summary && <p className="tb-help">{summary}</p>}
                       </div>
-                      <div className="tb-score">
+                      <div className="tb-score" title={option.skill_model?.meaning || 'Model estimate of how well this roster matches the skills in the brief.'}>
+                        <strong>{score ?? '—'}</strong>
+                        {score != null && <em>/100</em>}
                         <span>{option.skill_model?.label || 'Skill model'}</span>
-                        <strong>{option.skill_model?.score ?? '—'}</strong>
-                        <p>{option.skill_model?.meaning}</p>
-                        {!!option.skill_model?.skills_used?.length && (
-                          <p className="tb-note">Skills used: {option.skill_model.skills_used.join(', ')}</p>
-                        )}
-                        {option.skill_model?.warning && <p className="tb-note">{option.skill_model.warning}</p>}
                       </div>
                     </div>
+                    {!!option.skill_model?.skills_used?.length && (
+                      <div className="tb-skill-row" aria-label="Skills in this brief">
+                        {option.skill_model.skills_used.map((skill) => {
+                          const gap = option.uncovered.find((item) => item.skill === skill);
+                          return (
+                            <span key={skill} className={gap ? 'tb-skill tb-skill--gap' : 'tb-skill tb-skill--ok'}>
+                              {skill}
+                              <em>{gap ? 'missing' : 'covered'}</em>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                     {option.warnings.map((warning) => <p key={warning} className="tb-note tb-note--warn">{warning}</p>)}
-                    {option.uncovered.length > 0 && (
-                      <p className="tb-note">Still uncovered: {option.uncovered.map((item) => `${item.skill} (${item.priority})`).join(', ')}</p>
+                    {option.skill_model?.warning && (
+                      <p className="tb-note tb-score-note" title={option.skill_model.warning}>
+                        Demonstration score from simulated skill matches. It is not a project-success probability.
+                      </p>
                     )}
                     <div className="tb-people">
                       {option.members.map((member) => (
@@ -451,8 +473,14 @@ export const TeamBuilder: React.FC = () => {
                           <div className="tb-avatar" aria-hidden>{initials(member.full_name)}</div>
                           <div>
                             <h4>{member.full_name}</h4>
-                            <p>{member.role || 'Role not recorded'} · {member.department || 'No department'} · availability {member.capacity_status}</p>
-                            <p>{member.explanation}</p>
+                            <p className="tb-person-meta">
+                              <span>{member.role || 'Role not recorded'}</span>
+                              <span>{member.department || 'No department'}</span>
+                              <span className={`tb-pill tb-pill--${member.capacity_status === 'sufficient' ? 'good' : member.capacity_status === 'conflict' ? 'bad' : 'warn'}`}>
+                                {member.capacity_status === 'sufficient' ? 'Available' : member.capacity_status === 'conflict' ? 'Overbooked' : 'Availability unknown'}
+                              </span>
+                            </p>
+                            <p className="tb-why" title={member.explanation}>{member.explanation}</p>
                           </div>
                         </div>
                       ))}
@@ -460,7 +488,7 @@ export const TeamBuilder: React.FC = () => {
                     {option.assignments.length > 0 && (
                       <p className="tb-note">Saved assignments: {option.assignments.map((row) => `${row.project_name} at ${row.allocation_pct}%`).join('; ')}</p>
                     )}
-                    <div className="tb-actions">
+                    <div className="tb-actions tb-option-actions">
                       {option.option_status === 'proposed' && (
                         <button type="button" className="tb-btn tb-btn--good" disabled={busy} onClick={() => assemble(option)}>
                           <CheckCircle2 size={15} /> Approve and assemble
@@ -485,7 +513,8 @@ export const TeamBuilder: React.FC = () => {
                       )}
                     </div>
                   </article>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>
