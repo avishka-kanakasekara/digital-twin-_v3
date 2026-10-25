@@ -9,6 +9,8 @@ headcount demand by year, and a recommended 5B fulfilment route for closing each
 from __future__ import annotations
 
 import json
+import os
+import sys
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -841,6 +843,28 @@ _FUTURE_ROLES: List[Dict[str, Any]] = [
     }
 ]
 
+# Auto-load official seed dataset from Organization_Twin_Dummy_Data_M1-M9 if available
+_SEED_PATHS = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/m1_strategy_data.json")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../backend/data/m1_strategy_data.json")),
+    r"D:\Projects\digital-twin-_v3\backend\data\m1_strategy_data.json"
+]
+
+for _sp in _SEED_PATHS:
+    if os.path.exists(_sp):
+        try:
+            with open(_sp, "r", encoding="utf-8") as _sf:
+                _seed_dict = json.load(_sf)
+                if _seed_dict.get("strategy_drivers"):
+                    _STRATEGY_DRIVERS = _seed_dict["strategy_drivers"]
+                if _seed_dict.get("future_roles"):
+                    _FUTURE_ROLES = _seed_dict["future_roles"]
+                if _seed_dict.get("skills"):
+                    _SKILLS_TAXONOMY = _seed_dict["skills"]
+                break
+        except Exception as _err:
+            pass
+
 
 def get_strategy_drivers() -> List[Dict[str, Any]]:
     return _STRATEGY_DRIVERS
@@ -876,15 +900,27 @@ def create_future_role(role_data: Dict[str, Any], approver: str = "Workforce Pla
     bci = round(0.30 * strategic + 0.25 * revenue + 0.20 * blocking + 0.15 * spof + 0.10 * regulatory, 2)
     tier = "Tier 1" if bci > 0.70 else ("Tier 2" if bci >= 0.40 else "Tier 3")
     
-    # 5B distribution defaults
-    b5 = role_data.get("five_b_strategy") or {
-        "build_pct": 50,
-        "buy_pct": 30,
-        "borrow_pct": 5,
-        "bot_pct": 15,
-        "bridge_pct": 0,
-        "summary": "Build 50% + Buy 30% + Bot 15% + Borrow 5%"
-    }
+    # 5B ML distribution prediction
+    b5 = role_data.get("five_b_strategy")
+    if not b5:
+        try:
+            sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
+            from ml.src.organization.strategy_architect.strategy_predictor import get_strategy_predictor
+            predictor = get_strategy_predictor()
+            b5 = predictor.predict_5b({
+                **role_data,
+                "business_criticality_index": bci,
+                "criticality_tier": tier
+            })
+        except Exception:
+            b5 = {
+                "build_pct": 50,
+                "buy_pct": 30,
+                "borrow_pct": 5,
+                "bot_pct": 15,
+                "bridge_pct": 0,
+                "summary": "Build 50% + Buy 30% + Bot 15% + Borrow 5%"
+            }
 
     new_role = {
         "future_role_id": role_id,

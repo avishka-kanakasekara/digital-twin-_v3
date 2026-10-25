@@ -1,0 +1,48 @@
+{
+  "model_type": "MultiOutput RandomForestRegressor",
+  "n_estimators": 120,
+  "max_depth": 12,
+  "features": [
+    "skill_distance_to_feeders",
+    "business_criticality_index",
+    "current_headcount",
+    "target_headcount_demand",
+    "market_scarcity_index",
+    "workforce_growth_pct",
+    "expected_productivity_gain_pct",
+    "evolution_class_idx",
+    "criticality_tier_idx",
+    "career_level_idx"
+  ],
+  "targets": [
+    "build_pct",
+    "buy_pct",
+    "borrow_pct",
+    "bot_pct",
+    "bridge_pct"
+  ],
+  "overall_mae": 3.761,
+  "overall_r2": 0.706,
+  "target_metrics": {
+    "build_pct": {
+      "mae": 5.736,
+      "r2": 0.874
+    },
+    "buy_pct": {
+      "mae": 4.544,
+      "r2": 0.852
+    },
+    "borrow_pct": {
+      "mae": 4.506,
+      "r2": 0.286
+    },
+    "bot_pct": {
+      "mae": 3.404,
+      "r2": 0.526
+    },
+    "bridge_pct": {
+      "mae": 0.618,
+      "r2": 0.99
+    }
+  }
+}
