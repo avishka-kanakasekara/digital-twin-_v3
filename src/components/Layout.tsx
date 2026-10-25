@@ -144,10 +144,10 @@ export const Layout: React.FC = () => {
               <div className="app-brand-title flex items-center gap-2.5">
                 <h2 className="text-[16px] font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">Organization Digital Twin</h2>
                 <span className="app-badge px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200/60 text-emerald-700 text-[9px] font-extrabold uppercase tracking-widest flex items-center gap-1.5 shadow-sm shadow-emerald-500/10">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_rgba(16,185,129,0.8)]"></span> AI Active
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> System Active
                 </span>
               </div>
-              <p className="app-brand-sub text-[11px] font-semibold text-slate-500 mt-0.5 tracking-wide">Real-time predictive workforce intelligence models</p>
+              <p className="app-brand-sub text-[11px] font-semibold text-slate-500 mt-0.5 tracking-wide">Strategic Workforce Architecture & Capability Planning</p>
             </div>
           </div>
 

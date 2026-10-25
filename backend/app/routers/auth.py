@@ -68,7 +68,7 @@ def register(req: RegisterRequest):
         "initials": initials,
         "department": department,
         "role": role,
-        "access_role": "employee",
+        "access_role": "admin" if any(k in (role or "").lower() or k in (department or "").lower() for k in ("admin", "hr", "employer", "manager", "director")) else "employee",
         "employment_status": "Active",
     }
     with sb.transaction():

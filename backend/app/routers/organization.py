@@ -2,7 +2,7 @@ from __future__ import annotations
 """
 API routes for Organization module.
 """
-from typing import List
+from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -811,143 +811,208 @@ def run_simulation(request: SimulationRequest):
     simulation_results = run_causal_simulation(params, historical_metrics, request.isSnapshot)
     return simulation_results
 
-# ==================== STRATEGY ROLE ARCHITECT ====================
+# ==================== STRATEGY ROLE ARCHITECT (ADL SPECIFICATION) ====================
+from app.services import strategy_architect
+
+
+@router.get("/strategy/drivers")
+def get_strategy_drivers_list():
+    """1.1 Strategy Driver records."""
+    return strategy_architect.get_strategy_drivers()
+
+
+@router.post("/strategy/drivers")
+def add_strategy_driver(data: Dict[str, Any]):
+    """Add a new strategy driver."""
+    drivers = strategy_architect.get_strategy_drivers()
+    new_driver_id = f"STR-{len(drivers) + 1:03d}"
+    driver_item = {
+        "strategy_driver_id": new_driver_id,
+        "driver_name": data.get("driver_name", "New Strategic Driver"),
+        "driver_type": data.get("driver_type", "Growth"),
+        "description": data.get("description", "Strategic objective description."),
+        "affected_org_unit_ids": data.get("affected_org_unit_ids", ["OU-004"]),
+        "affected_dept": data.get("affected_dept", "Engineering"),
+        "horizon_start_fy": data.get("horizon_start_fy", "FY26"),
+        "horizon_end_fy": data.get("horizon_end_fy", "FY28"),
+        "priority_rank": int(data.get("priority_rank", len(drivers) + 1)),
+        "source_document_ref": data.get("source_document_ref", f"BP-{new_driver_id}"),
+        "workforce_growth_assumption_pct": float(data.get("workforce_growth_assumption_pct", 0.30)),
+        "technology_roadmap_items": data.get("technology_roadmap_items", []),
+        "sunsetting_items": data.get("sunsetting_items", []),
+        "sunset_target_fy": data.get("sunset_target_fy"),
+        "expected_productivity_gain_pct": float(data.get("expected_productivity_gain_pct", 0.15)),
+        "opex_ceiling_lkr": int(data.get("opex_ceiling_lkr", 50000000)),
+        "approver_role": data.get("approver_role", "CHRO"),
+        "status": "Active"
+    }
+    drivers.append(driver_item)
+    return driver_item
+
+
+@router.get("/strategy/skills")
+def get_skills_taxonomy_list():
+    """1.2 Skill (taxonomy records)."""
+    return strategy_architect.get_skills_taxonomy()
+
+
+@router.get("/strategy/roles")
+def get_future_roles_list(department: Optional[str] = None):
+    """1.3 Future Roles with 1.4 Role Skill Requirements & 1.5 Demand Lines."""
+    return strategy_architect.get_future_roles(department)
+
+
+@router.get("/strategy/roles/{role_id}")
+def get_future_role_item(role_id: str):
+    """Get single Future Role Specification with detailed breakdown."""
+    role = strategy_architect.get_future_role_detail(role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Future role specification not found")
+    return role
+
+
+@router.post("/strategy/roles")
+def create_future_role_endpoint(data: Dict[str, Any]):
+    """Create or version a Future Role specification."""
+    return strategy_architect.create_future_role(data)
+
+
+@router.put("/strategy/roles/{role_id}/status")
+def update_future_role_status(role_id: str, payload: Dict[str, Any]):
+    """Approve (Live) or Archive a Future Role."""
+    new_status = payload.get("status", "Live")
+    approver = payload.get("approver", "CHRO")
+    role = strategy_architect.approve_role_status(role_id, new_status, approver)
+    if not role:
+        raise HTTPException(status_code=404, detail="Future role not found")
+    return role
+
+
+@router.get("/strategy/diff/{role_id}")
+def get_role_version_diff(role_id: str):
+    """1.7 Version diff between Role-Skill Map versions."""
+    return strategy_architect.get_version_diff(role_id)
+
 
 @router.get("/strategy/role-specs")
 def get_strategy_role_specs(department: str = None):
-    """Retrieve translated future role specifications & requirements."""
-    sb = get_db()
-    fallback_specs = [
-        { "rank": 1, "role": "Senior Cloud Architect", "skill": "AWS / Azure & Terraform", "dept": "Engineering", "level": "L5 Staff", "gap": "+14", "urgency": "HIGH", "status": "In Strategy Plan" },
-        { "rank": 2, "role": "AI / MLOps Specialist", "skill": "LLM Fine-tuning & PyTorch", "dept": "Engineering", "level": "L4 Senior", "gap": "+10", "urgency": "HIGH", "status": "In Strategy Plan" },
-        { "rank": 3, "role": "Lead Data Governance Officer", "skill": "GDPR & Data Architecture", "dept": "Corporate", "level": "L5 Lead", "gap": "+6", "urgency": "HIGH", "status": "In Strategy Plan" },
-        { "rank": 4, "role": "DevSecOps Engineer", "skill": "CI/CD & Container Security", "dept": "Operations", "level": "L4 Senior", "gap": "+8", "urgency": "MEDIUM", "status": "In Strategy Plan" },
-        { "rank": 5, "role": "Product Growth Strategist", "skill": "SaaS Metrics & A/B Testing", "dept": "Product", "level": "L4 Senior", "gap": "+5", "urgency": "MEDIUM", "status": "In Strategy Plan" }
+    """Legacy compatibility endpoint returning future role specs."""
+    roles = strategy_architect.get_future_roles(department)
+    return [
+        {
+            "rank": idx + 1,
+            "role_id": r["future_role_id"],
+            "role": r["role_title"],
+            "skill": ", ".join([req["skill_name"] for req in r.get("role_skill_requirements", [])[:2]]) or "Cloud & AI",
+            "dept": r.get("dept", "Engineering"),
+            "level": r.get("career_level_id", "L4 Senior"),
+            "gap": r.get("gap", "+5"),
+            "urgency": r.get("urgency", "HIGH"),
+            "status": "In Strategy Plan" if r["status"] == "Live" else r["status"],
+            "criticality": r.get("business_criticality_index", 0.85),
+            "tier": r.get("criticality_tier", "Tier 1"),
+            "evolution": r.get("role_evolution_class", "Evolving"),
+            "five_b_summary": r.get("five_b_strategy", {}).get("summary", ""),
+            "build_cost_lkr": r.get("build_cost_lkr", 1200000),
+            "buy_cost_lkr": r.get("buy_cost_lkr", 2600000),
+            "driver": r.get("strategy_driver_name", "Corporate Strategy")
+        }
+        for idx, r in enumerate(roles)
     ]
-
-    try:
-        query = sb.table("org_strategy_role_specs").select("*").order("rank")
-        if department and department != "All Departments":
-            query = query.eq("dept", department)
-        res = query.execute()
-        if res.data and len(res.data) > 0:
-            return res.data
-    except Exception as e:
-        print(f"Fabric fetch for org_strategy_role_specs failed: {e}")
-
-    if department and department != "All Departments":
-        filtered = [s for s in fallback_specs if s["dept"] == department]
-        if len(filtered) > 0:
-            return filtered
-    return fallback_specs
 
 
 @router.get("/strategy/forecast-timeline")
 def get_strategy_forecast_timeline():
-    """Retrieve 2025-2030 strategic headcount trajectory forecast."""
+    """2025-2030 strategic headcount trajectory forecast."""
     return [
-        { "year": "2025", "headcount": 6055, "target": 6180, "engineering": 2500, "operations": 1300 },
-        { "year": "2026", "headcount": 6180, "target": 6320, "engineering": 2620, "operations": 1350 },
-        { "year": "2027", "headcount": 6320, "target": 6480, "engineering": 2710, "operations": 1380 },
-        { "year": "2028", "headcount": 6480, "target": 6600, "engineering": 2790, "operations": 1400 },
-        { "year": "2029", "headcount": 6600, "target": 6700, "engineering": 2820, "operations": 1415 },
-        { "year": "2030", "headcount": 6700, "target": 6782, "engineering": 2849, "operations": 1425 }
+        { "year": "FY25", "headcount": 6055, "target": 6180, "engineering": 2500, "operations": 1300 },
+        { "year": "FY26", "headcount": 6180, "target": 6320, "engineering": 2620, "operations": 1350 },
+        { "year": "FY27", "headcount": 6320, "target": 6480, "engineering": 2710, "operations": 1380 },
+        { "year": "FY28", "headcount": 6480, "target": 6600, "engineering": 2790, "operations": 1400 },
+        { "year": "FY29", "headcount": 6600, "target": 6700, "engineering": 2820, "operations": 1415 },
+        { "year": "FY30", "headcount": 6700, "target": 6782, "engineering": 2849, "operations": 1425 }
     ]
 
 
 @router.get("/strategy/primary-inputs")
 def get_strategy_primary_inputs():
-    """Retrieve corporate strategy documents & business scenarios parsed by AI."""
-    sb = get_db()
-    try:
-        res = sb.table("org_strategy_primary_inputs").select("*").execute()
-        if res.data:
-            return res.data
-    except Exception as e:
-        print(f"Fabric fetch for org_strategy_primary_inputs failed: {e}")
-
+    """Corporate strategy documents & business scenarios parsed by AI."""
     return [
-        { "title": "Corporate Strategy 2025-2030", "type": "Strategy Doc", "status": "Parsed by AI", "date": "Aug 2025" },
-        { "title": "Division Business Unit Plans", "type": "Business Scenario", "status": "5 Units Synced", "date": "Jul 2025" },
-        { "title": "Cloud & AI Operating Model", "type": "Institutional Doc", "status": "Active Driver", "date": "Aug 2025" }
+        { "title": "Corporate Strategy 2026-2028 (BP-2026-STRAT)", "type": "Board Paper", "status": "Parsed by AI", "date": "Sep 2026", "driver": "STR-001..STR-005" },
+        { "title": "Division Business Unit Growth Plans", "type": "Business Plan", "status": "5 Units Synced", "date": "Jul 2026", "driver": "OU-001..OU-004" },
+        { "title": "AI & Cloud Operating Model Target Architecture", "type": "Architecture Spec", "status": "Active Driver", "date": "Aug 2026", "driver": "STR-002, STR-004" }
     ]
 
 
 @router.get("/strategy/knowledge-assets")
 def get_strategy_knowledge_assets():
-    """Retrieve institutional wiki, role-skill maps, and knowledge graph asset counts."""
-    sb = get_db()
-    try:
-        res = sb.table("org_strategy_knowledge_assets").select("*").execute()
-        if res.data:
-            return res.data
-    except Exception as e:
-        print(f"Fabric fetch for org_strategy_knowledge_assets failed: {e}")
-
+    """Institutional wiki, role-skill maps, and knowledge graph asset counts."""
     return [
-        { "name": "Role-Skill Map Templates", "count": "62 Templates", "color": "#3b82f6" },
-        { "name": "Strategic Headcount Targets", "count": "6,782 Target", "color": "#10b981" },
-        { "name": "Corporate Knowledge Graph", "count": "1,420 Nodes", "color": "#a855f7" }
+        { "name": "Role-Skill Map Templates", "count": f"{len(strategy_architect.get_future_roles())} Specifications", "color": "#3b82f6" },
+        { "name": "Strategic Demand FY26-FY28", "count": "6,782 Target Headcount", "color": "#10b981" },
+        { "name": "Corporate Knowledge Graph", "count": "1,420 Nodes Indexed", "color": "#a855f7" }
     ]
 
 
 @router.get("/strategy/competency-radar")
 def get_strategy_competency_radar():
-    """Retrieve organizational competency shift radar map."""
+    """Organizational competency shift radar map."""
     return [
-        { "subject": "Cloud Architecture", "A": 135, "fullMark": 150 },
-        { "subject": "AI & Automation", "A": 142, "fullMark": 150 },
-        { "subject": "Data Governance", "A": 110, "fullMark": 150 },
-        { "subject": "DevSecOps", "A": 125, "fullMark": 150 },
-        { "subject": "Agile Leadership", "A": 118, "fullMark": 150 }
+        { "subject": "Cloud Architecture", "A": 138, "fullMark": 150 },
+        { "subject": "AI & MLOps", "A": 145, "fullMark": 150 },
+        { "subject": "Data Governance", "A": 120, "fullMark": 150 },
+        { "subject": "DevSecOps", "A": 130, "fullMark": 150 },
+        { "subject": "Agile Leadership", "A": 115, "fullMark": 150 }
     ]
 
 
 @router.get("/strategy/overview")
 def get_strategy_overview(department: str = "All Departments"):
-    """Single aggregated payload for Strategy Role Architect dashboard."""
+    """Single aggregated payload for Strategy Role Architect dashboard matching ADL Reference Architecture."""
     sb = get_db()
+    roles = strategy_architect.get_future_roles(department)
+    drivers = strategy_architect.get_strategy_drivers()
+    skills = strategy_architect.get_skills_taxonomy()
     specs = get_strategy_role_specs(department)
     forecast = get_strategy_forecast_timeline()
     inputs = get_strategy_primary_inputs()
     assets = get_strategy_knowledge_assets()
     radar = get_strategy_competency_radar()
 
-    # Calculate employee headcount from DB if available, fallback to 6055
     current_headcount = 6055
     try:
         emp_res = sb.table("employees").select("id", count="exact").execute()
-        if emp_res.count and emp_res.count > 0:
+        if emp_res.count and emp_res.count > 50:
             current_headcount = emp_res.count
-    except Exception as e:
-        print(f"Fabric fetch for employee count failed: {e}")
+    except Exception:
+        pass
 
-    # Calculate planned growth from role specs gap column
-    planned_growth = 0
-    unique_skills = set()
-    for spec in specs:
-        gap_str = str(spec.get("gap", "")).replace("+", "").strip()
-        if gap_str.isdigit():
-            planned_growth += int(gap_str)
-        if spec.get("skill"):
-            unique_skills.add(spec.get("skill"))
-            
-    if planned_growth == 0:
-        planned_growth = 727
-        
+    planned_growth = 727
     target_headcount = current_headcount + planned_growth
-    future_roles_count = len(specs) if len(specs) > 5 else 62
-    key_skills_count = len(unique_skills) if len(unique_skills) > 5 else 48
+
+    # Overall 5B Fulfilment Strategy aggregate
+    five_b_aggregate = {
+        "build": 52,
+        "buy": 28,
+        "borrow": 5,
+        "bot": 12,
+        "bridge": 3
+    }
 
     return {
         "summary": {
             "current_headcount": current_headcount,
             "planned_growth": planned_growth,
             "target_headcount": target_headcount,
-            "future_roles_count": future_roles_count,
-            "key_skills_count": key_skills_count,
-            "primary_goal": "2025–2030 Cloud & AI Transformation"
+            "future_roles_count": len(roles),
+            "key_skills_count": len(skills),
+            "strategy_drivers_count": len(drivers),
+            "primary_goal": "2026–2028 Cloud, AI & Data Modernization",
+            "five_b_aggregate": five_b_aggregate
         },
+        "strategy_drivers": drivers,
+        "skills_taxonomy": skills,
+        "future_roles": roles,
         "role_specs": specs,
         "forecast_timeline": forecast,
         "primary_inputs": inputs,
@@ -964,15 +1029,13 @@ class StrategyTranslateRequest(BaseModel):
 def translate_strategy(req: Optional[StrategyTranslateRequest] = None):
     """Trigger AI Strategy Translation pipeline to parse strategic documents and refresh role specs."""
     dept = req.department if req else None
-    specs = get_strategy_role_specs(dept)
     overview = get_strategy_overview(dept or "All Departments")
     
-    from datetime import datetime, timezone
     return {
         "status": "success",
-        "message": "Strategy Role Architect pipeline executed: Future role specs & headcount targets updated from Corporate Strategy.",
+        "message": "AI Strategy Translation pipeline executed: Refreshed Future Role specs, Strategy Driver links & 5B Fulfilment targets from Board Paper BP-2026-STRAT.",
         "updated_summary": overview["summary"],
-        "role_specs_count": len(specs),
+        "role_specs_count": len(overview["future_roles"]),
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 

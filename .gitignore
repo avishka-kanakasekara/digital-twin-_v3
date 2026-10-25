@@ -95,3 +95,8 @@ backend/secrets/
 
 # Local uploaded files
 backend/uploads/
+
+# Local Dummy Datasets
+Organization_Twin_Dummy_Data*
+temp_extracted_data/
+*.xlsx

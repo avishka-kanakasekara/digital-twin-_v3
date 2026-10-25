@@ -39,3 +39,5 @@ python-docx>=1.1.0     # DOCX text extraction
 # MIME type detection from magic bytes (optional — graceful fallback if libmagic not installed)
 # Requires: brew install libmagic (macOS) or apt-get install libmagic1 (Linux)
 python-magic>=0.4.27
+pandas>=2.2.0
+numpy>=1.26.0

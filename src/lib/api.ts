@@ -1654,6 +1654,39 @@ export const organizationAPI = {
   getStrategyRoleSpecs: (department?: string) =>
     fetchAPI<any[]>(`/api/organization/strategy/role-specs${buildQueryString({ department })}`),
 
+  getStrategyDrivers: () =>
+    fetchAPI<any[]>('/api/organization/strategy/drivers'),
+
+  addStrategyDriver: (data: any) =>
+    fetchAPI<any>('/api/organization/strategy/drivers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getSkillsTaxonomy: () =>
+    fetchAPI<any[]>('/api/organization/strategy/skills'),
+
+  getFutureRoles: (department?: string) =>
+    fetchAPI<any[]>(`/api/organization/strategy/roles${buildQueryString({ department })}`),
+
+  getFutureRoleDetail: (roleId: string) =>
+    fetchAPI<any>(`/api/organization/strategy/roles/${roleId}`),
+
+  createFutureRole: (data: any) =>
+    fetchAPI<any>('/api/organization/strategy/roles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateFutureRoleStatus: (roleId: string, status: string, approver?: string) =>
+    fetchAPI<any>(`/api/organization/strategy/roles/${roleId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, approver }),
+    }),
+
+  getRoleVersionDiff: (roleId: string) =>
+    fetchAPI<any>(`/api/organization/strategy/diff/${roleId}`),
+
   translateStrategy: (department?: string) =>
     fetchAPI<any>('/api/organization/strategy/translate', {
       method: 'POST',
