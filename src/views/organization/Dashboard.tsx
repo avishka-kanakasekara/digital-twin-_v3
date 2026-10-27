@@ -85,6 +85,20 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 relative pb-10 w-full">
+
+      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      <div className="flex flex-col gap-1 w-full pt-1">
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+              Organization Twin Dashboard
+            </h1>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500 max-w-2xl mb-1">
+          Real-time enterprise organizational health, predictive workforce capability metrics, and systemic anomaly tracking.
+        </p>
+      </div>
       
       {/* ROW 1: 4 Executive KPI Cards ALWAYS in 1 SINGLE HORIZONTAL LINE */}
       <div className="flex flex-row items-center gap-4 w-full">

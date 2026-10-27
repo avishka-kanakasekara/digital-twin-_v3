@@ -2131,6 +2131,15 @@ export const workforceAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  getGapHeatmap: () =>
+    fetchAPI<any>(`/api/workforce/gap-heatmap`),
+
+  getNetGapPipeline: (orgUnitId?: string) =>
+    fetchAPI<any>(`/api/workforce/net-gap-pipeline${buildQueryString({ org_unit_id: orgUnitId })}`),
+
+  getRiskSignals: (roleId?: string) =>
+    fetchAPI<any[]>(`/api/workforce/risk-signals${buildQueryString({ role_id: roleId })}`),
 };
 
 // ==================== SUCCESSION & KNOWLEDGE TRANSFER ====================

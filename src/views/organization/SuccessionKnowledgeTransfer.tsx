@@ -1402,30 +1402,41 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
 
   return (
     <div className="succession">
-      <header className="sx-head">
-        <div>
-          <div className="sx-eyebrow">Organization Twin · Succession</div>
-          <h1>Succession & Knowledge Transfer</h1>
-          <p className="sx-muted">
-            Ranked successors for business-critical roles, an HR-approved pairing, and a tracked handover so critical knowledge stays when an
-            incumbent leaves.
-          </p>
-        </div>
-        <div className="sx-head__actions">
-          <div className="sx-seg" role="tablist" aria-label="View as">
-            {PERSONAS.map((p) => (
-              <button key={p.id} type="button" role="tab" aria-selected={persona === p.id} className={persona === p.id ? 'is-on' : ''} onClick={() => setPersona(p.id)}>
-                <p.icon size={14} /> {p.label}
-              </button>
-            ))}
+      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      <div className="flex flex-col gap-1 w-full pt-1 mb-2">
+        
+        {/* Main Line: Title on Left, Standardized Action Toolbar on Right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
+          
+          {/* Left: Title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+              Succession & Knowledge Transfer
+            </h1>
           </div>
-          {persona === 'hr' && (
-            <Button onClick={openRoleForm} disabled={busy}>
-              <Plus size={16} className="mr-1" /> Register a role
-            </Button>
-          )}
+
+          {/* Right: Action Toolbar with Standard Heights & Paddings */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="sx-seg" role="tablist" aria-label="View as">
+              {PERSONAS.map((p) => (
+                <button key={p.id} type="button" role="tab" aria-selected={persona === p.id} className={persona === p.id ? 'is-on' : ''} onClick={() => setPersona(p.id)}>
+                  <p.icon size={14} /> {p.label}
+                </button>
+              ))}
+            </div>
+            {persona === 'hr' && (
+              <Button onClick={openRoleForm} disabled={busy} className="h-9">
+                <Plus size={16} className="mr-1" /> Register a role
+              </Button>
+            )}
+          </div>
         </div>
-      </header>
+
+        {/* Subtitle Description */}
+        <p className="text-xs text-slate-500 max-w-2xl mb-1">
+          Ranked successors for business-critical roles, an HR-approved pairing, and tracked handovers so critical knowledge stays protected.
+        </p>
+      </div>
 
       {persona === 'manager' && (
         <div className="sx-scope">

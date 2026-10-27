@@ -205,15 +205,57 @@ export const TeamBuilder: React.FC = () => {
 
   return (
     <div className="team-builder">
-      <header className="tb-head">
-        <p className="tb-eyebrow">Organization Twin</p>
-        <h1>Team Builder</h1>
-        <p className="tb-lead">Form a team with colleagues, or ask for two calculated options. A separate demonstration model can estimate project success, and it is labelled as synthetic.</p>
-        <div className="tb-seg" role="tablist">
-          <button type="button" role="tab" aria-selected={section === 'teams'} className={section === 'teams' ? 'is-on' : ''} onClick={() => setSection('teams')}>My teams</button>
-          <button type="button" role="tab" aria-selected={section === 'recommend'} className={section === 'recommend' ? 'is-on' : ''} onClick={() => setSection('recommend')}>Recommend a team</button>
+      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      <div className="flex flex-col gap-1 w-full pt-1 mb-4">
+        
+        {/* Main Line: Title on Left, Standardized Action Toolbar on Right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
+          
+          {/* Left: Title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+              Team Builder Engine
+            </h1>
+          </div>
+
+          {/* Right: Action Toolbar with Standard Heights & Paddings */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="inline-flex items-center p-1 rounded-lg bg-slate-100 border border-slate-200/90 gap-1" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={section === 'teams'}
+                className={`h-7 px-3 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  section === 'teams'
+                    ? 'bg-white text-blue-700 shadow-2xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={() => setSection('teams')}
+              >
+                My Teams
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={section === 'recommend'}
+                className={`h-7 px-3 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                  section === 'recommend'
+                    ? 'bg-white text-blue-700 shadow-2xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                onClick={() => setSection('recommend')}
+              >
+                Recommend a Team
+              </button>
+            </div>
+          </div>
         </div>
-      </header>
+
+        {/* Subtitle Description */}
+        <p className="text-xs text-slate-500 max-w-2xl mb-1">
+          Assemble cross-functional project teams with automated skill complementarity and synthetic project success prediction.
+        </p>
+      </div>
 
       {error && (
         <div className="tb-banner tb-banner--error" role="alert">

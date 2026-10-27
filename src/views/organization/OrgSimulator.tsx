@@ -255,7 +255,46 @@ export const OrgSimulator: React.FC = () => {
   return (
     <div className="flex flex-col gap-6 pb-12 relative min-h-screen">
 
+      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      <div className="flex flex-col gap-1 w-full pt-1">
+        
+        {/* Main Line: Title on Left, Standardized Action Toolbar on Right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
+          
+          {/* Left: Title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+              Scenario Simulator
+            </h1>
+          </div>
 
+          {/* Right: Action Toolbar with Standard Heights & Paddings */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              onClick={() => handleReset()}
+              className="flex items-center gap-2 h-9 px-3 bg-white border border-slate-200/90 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-[0.98]"
+            >
+              <RefreshCw size={13} className="text-slate-500" />
+              <span>Reset Parameters</span>
+            </button>
+
+            <button
+              onClick={handleRunSimulation}
+              disabled={isSimulating}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] disabled:opacity-60"
+              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+            >
+              <Play size={13} className={isSimulating ? 'animate-spin text-white' : 'text-white'} />
+              <span className="text-white">{isSimulating ? 'Simulating...' : 'Run Simulation'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Subtitle Description */}
+        <p className="text-xs text-slate-500 max-w-2xl mb-1">
+          Simulate organizational reorganizations, headcount shifts, and automation impacts on performance and cost.
+        </p>
+      </div>
 
       {/* Main 3-Column Workspace */}
       <div className="grid grid-cols-12 gap-6 items-stretch">

@@ -150,17 +150,36 @@ export const TalentMarketplace: React.FC = () => {
       <div className="absolute top-0 -left-32 w-[500px] h-[500px] rounded-full blur-[100px] -z-10 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.15) 0%, rgba(255,255,255,0) 70%)' }}></div>
       <div className="absolute bottom-0 right-0 w-[600px] h-[600px] rounded-full blur-[120px] -z-10 pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.1) 0%, rgba(255,255,255,0) 70%)' }}></div>
 
-      {/* Header */}
-      <div className="flex justify-between items-end relative z-10">
-        <div>
-          <h1 className="text-4xl font-extrabold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-950 via-slate-800 to-slate-600 tracking-tighter drop-shadow-sm">AI Talent Marketplace</h1>
-          <p className="text-sm text-slate-500 font-bold mt-1 bg-white/60 backdrop-blur-md inline-flex items-center gap-2 px-4 py-2 rounded-xl shadow-sm" style={{ border: '1px solid rgba(255,255,255,0.8)' }}>
-            <Sparkles size={14} className="text-indigo-500" /> Organization Digital Twin • Internal mobility, gig assignments, and mentoring.
-          </p>
+      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      <div className="flex flex-col gap-1 w-full pt-1 relative z-10">
+        
+        {/* Main Line: Title on Left, Standardized Action Toolbar on Right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
+          
+          {/* Left: Title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+              Internal Talent Marketplace
+            </h1>
+          </div>
+
+          {/* Right: Action Toolbar with Standard Heights & Paddings */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              onClick={() => setShowPostModal(true)}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98]"
+              style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+            >
+              <Plus size={14} className="text-white shrink-0" />
+              <span className="text-white">Post Opportunity</span>
+            </button>
+          </div>
         </div>
-        <button onClick={() => setShowPostModal(true)} className="shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/40 rounded-full font-black text-sm flex items-center gap-3 px-10 py-4 text-white hover:-translate-y-1 transition-all duration-300 border-none cursor-pointer whitespace-nowrap" style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)' }}>
-          <Plus size={20} /> Post Opportunity
-        </button>
+
+        {/* Subtitle Description */}
+        <p className="text-xs text-slate-500 max-w-2xl mb-1">
+          Internal mobility, project gig assignments, and AI-driven skill-to-opportunity matching.
+        </p>
       </div>
 
       {/* Main Grid */}

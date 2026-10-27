@@ -69,12 +69,24 @@ export const AtRiskRadar: React.FC = () => {
         </div>
       )}
 
-      {/* Top headers */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-extrabold mb-1 bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">At-Risk Radar & Interventions</h1>
-          <p className="text-base text-slate-500 font-medium mt-0.5">Prioritized burnout and attrition risks powered by Uplift Modeling.</p>
+      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      <div className="flex flex-col gap-1 w-full pt-1 mb-2">
+        
+        {/* Main Line: Title on Left, Standardized Action Toolbar on Right */}
+        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
+          
+          {/* Left: Title */}
+          <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+              At-Risk Radar & Interventions
+            </h1>
+          </div>
         </div>
+
+        {/* Subtitle Description */}
+        <p className="text-xs text-slate-500 max-w-2xl mb-1">
+          Prioritized burnout and attrition risks powered by Uplift Modeling and retention early-warning signals.
+        </p>
       </div>
 
       {/* Main Grid Layout */}
