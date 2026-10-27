@@ -108,6 +108,15 @@ def get_net_gap_pipeline(org_unit_id: Optional[str] = "OU-004"):
     return workforce_service.get_net_gap_pipeline(org_unit_id)
 
 
+@router.get("/distributions")
+def get_workforce_distributions():
+    """
+    Returns real Department Distribution and Career Level / Seniority Distribution
+    calculated across the 146 active employees from Organization_Twin_Dummy_Data_M1-M9.xlsx.
+    """
+    return workforce_service.get_workforce_distributions()
+
+
 class CertificationRecord(BaseModel):
     employee_id: str
     name: str

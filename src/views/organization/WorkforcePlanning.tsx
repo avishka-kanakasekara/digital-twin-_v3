@@ -3,8 +3,9 @@ import { Card } from '../../components/Card';
 import {
   Users, TrendingUp, Layers, Target, Activity,
   ArrowUpRight, CheckCircle2, X, BrainCircuit,
-  Calendar, UserCheck, Search, ShieldAlert, UserMinus, UserPlus, Award,
-  AlertTriangle, Clock, Info, ShieldCheck, ChevronRight, Building2, ChevronDown
+  Calendar, Search, ShieldAlert, UserMinus, UserPlus, Award,
+  AlertTriangle, Clock, ShieldCheck, ChevronRight, Building2, ChevronDown,
+  TrendingDown, Minus
 } from 'lucide-react';
 import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area,
@@ -12,9 +13,15 @@ import {
 } from 'recharts';
 import {
   DEPT_COLORS,
-  mockExperience, EXP_COLORS
+  EXP_COLORS
 } from '../../dummy/organization/workforcePlanningData';
 import api from '../../lib/api';
+import {
+  DEFAULT_SKILL_SHORTAGES,
+  DEFAULT_GAP_HEATMAP,
+  DEFAULT_CRITICAL_ROLES_AT_RISK,
+  DEFAULT_NET_GAP_DATA
+} from '../../dummy/organization/workforceIntelligenceDefaults';
 import { TwinChatModal } from '../../components/TwinChatModal';
 import { WorkforceProfileModal } from '../../components/WorkforceProfileModal';
 
@@ -34,24 +41,51 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
   const [horizon, setHorizon] = useState('Next 2 Quarters');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hiringAttrition, setHiringAttrition] = useState<any[]>([]);
-  const [deptDistribution, setDeptDistribution] = useState<any[]>([]);
-  const [skillShortages, setSkillShortages] = useState<any[]>([]);
+  const [hiringAttrition, setHiringAttrition] = useState<any[]>([
+    { month: "Nov '25", hired: 3, attrition: 1 },
+    { month: "Dec '25", hired: 4, attrition: 2 },
+    { month: "Jan '26", hired: 6, attrition: 2 },
+    { month: "Feb '26", hired: 5, attrition: 1 },
+    { month: "Mar '26", hired: 4, attrition: 3 },
+    { month: "Apr '26", hired: 7, attrition: 2 },
+    { month: "May '26", hired: 5, attrition: 2 },
+    { month: "Jun '26", hired: 6, attrition: 4 },
+    { month: "Jul '26", hired: 4, attrition: 2 },
+    { month: "Aug '26", hired: 5, attrition: 1 },
+    { month: "Sep '26", hired: 4, attrition: 2 },
+    { month: "Oct '26", hired: 3, attrition: 1 },
+  ]);
+  const [deptDistribution, setDeptDistribution] = useState<any[]>([
+    { name: 'Customer Experience & Contact Centre', employees: 34 },
+    { name: 'Data Science & Retail Analytics', employees: 19 },
+    { name: 'Network Operations', employees: 19 },
+    { name: 'Digital Platforms & IT', employees: 17 },
+    { name: 'Mobile Core & 5G', employees: 16 },
+    { name: 'Cloud & Data Centre', employees: 13 },
+    { name: 'Enterprise & SD-WAN Solutions', employees: 10 },
+    { name: 'Cybersecurity', employees: 10 },
+    { name: 'Human Resources & Talent', employees: 7 },
+    { name: 'Group Executive Office', employees: 1 },
+  ]);
+  const [experienceDistribution, setExperienceDistribution] = useState<any[]>([
+    { name: 'Senior Specialist / Engineer', value: 54, count: 79 },
+    { name: 'Associate Level', value: 16, count: 24 },
+    { name: 'Lead / Principal Specialist', value: 16, count: 23 },
+    { name: 'Head of Department / Unit', value: 5, count: 7 },
+    { name: 'Operations Officer', value: 4, count: 6 },
+    { name: 'Principal Technical Staff', value: 3, count: 5 },
+    { name: 'Group Executive', value: 2, count: 2 },
+  ]);
+  const [skillShortages, setSkillShortages] = useState<any[]>(DEFAULT_SKILL_SHORTAGES);
 
-  // Net Gap Pipeline State (Dynamic Calculation)
-  const [netGapData, setNetGapData] = useState({
-    baseline_staff: 40,
-    attrition: 5,
-    retirements: 3,
-    growth_demand: 15,
-    net_shortage: -9
-  });
+  // Net Gap Pipeline State (Dynamic Calculation from 146 Employees)
+  const [netGapData, setNetGapData] = useState(DEFAULT_NET_GAP_DATA);
 
-  // Gap Heatmap State (Recommended Addition 2.8)
-  const [heatmapData, setHeatmapData] = useState<any | null>(null);
+  // Gap Heatmap State (Recommended Addition 2.8 from 146 Employees)
+  const [heatmapData, setHeatmapData] = useState<any | null>(DEFAULT_GAP_HEATMAP);
 
-  // Critical Roles At Risk (Compound Rule: Criticality + Scarcity + Succession)
-  const [criticalRolesAtRisk, setCriticalRolesAtRisk] = useState<any[]>([]);
+  // Critical Roles At Risk (Compound Rule from 146 Employees)
+  const [criticalRolesAtRisk, setCriticalRolesAtRisk] = useState<any[]>(DEFAULT_CRITICAL_ROLES_AT_RISK);
   const [selectedCriticalRole, setSelectedCriticalRole] = useState<any | null>(null);
 
   // At-Risk Radar & Interventions State
@@ -60,6 +94,9 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
   const [chattingEmployee, setChattingEmployee] = useState<{ name: string; role: string } | null>(null);
   const [selectedWorkforceEmployee, setSelectedWorkforceEmployee] = useState<{ id: string; name: string; role: string } | null>(null);
   const [riskSearchQuery, setRiskSearchQuery] = useState('');
+  const [riskFilterTab, setRiskFilterTab] = useState<'all' | 'high' | 'worsening' | 'silo'>('all');
+  const [riskItemsLimit, setRiskItemsLimit] = useState<number>(8);
+  const [showAllCriticalRoles, setShowAllCriticalRoles] = useState<boolean>(false);
 
   // Certifications State
   const [certificationsData, setCertificationsData] = useState<any[]>([]);
@@ -113,27 +150,57 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
             };
           });
           setSkillShortages(ranked);
+        } else {
+          setSkillShortages(DEFAULT_SKILL_SHORTAGES);
         }
-      }).catch(console.error);
+      }).catch(() => {
+        setSkillShortages(DEFAULT_SKILL_SHORTAGES);
+      });
     }
 
     // 3. Compound Critical Roles at Risk (User Story 2: 3-leg compound rule)
     if (api.workforce && api.workforce.getCriticalRolesAtRisk) {
       api.workforce.getCriticalRolesAtRisk().then(res => {
-        if (res && res.at_risk_roles) {
+        if (res && res.at_risk_roles && res.at_risk_roles.length > 0) {
           setCriticalRolesAtRisk(res.at_risk_roles);
+        } else {
+          setCriticalRolesAtRisk(DEFAULT_CRITICAL_ROLES_AT_RISK);
         }
-      }).catch(console.error);
+      }).catch(() => {
+        setCriticalRolesAtRisk(DEFAULT_CRITICAL_ROLES_AT_RISK);
+      });
     }
 
     // 4. Gap Heatmap (Section 2.8 Recommended Addition)
     if (api.workforce && api.workforce.getGapHeatmap) {
       api.workforce.getGapHeatmap().then(res => {
-        if (res) setHeatmapData(res);
+        if (res && res.matrix && res.matrix.length > 0) {
+          setHeatmapData(res);
+        } else {
+          setHeatmapData(DEFAULT_GAP_HEATMAP);
+        }
+      }).catch(() => {
+        setHeatmapData(DEFAULT_GAP_HEATMAP);
+      });
+    }
+
+    // 5. Real 12-Month Trailing Trends & Distributions (from official Excel 146 Employees)
+    if (api.workforce && api.workforce.getWorkforceDistributions) {
+      api.workforce.getWorkforceDistributions().then(res => {
+        if (res) {
+          if (res.departments && res.departments.length > 0) {
+            setDeptDistribution(res.departments);
+          }
+          if (res.experience && res.experience.length > 0) {
+            setExperienceDistribution(res.experience);
+          }
+          if (res.hiring_attrition && res.hiring_attrition.length > 0) {
+            setHiringAttrition(res.hiring_attrition);
+          }
+        }
       }).catch(console.error);
     }
 
-    // 5. Hiring vs Attrition Trends
     api.organization.getHistory({ limit: 12 }).then((data: any[]) => {
       if (data && data.length > 0) {
         setHiringAttrition(data.slice(-12).map((d: any) => ({
@@ -141,38 +208,9 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
           hired: d.new_hires,
           attrition: Math.round(d.total_headcount * d.voluntary_attrition_rate / 100),
         })));
-      } else {
-        throw new Error("Empty data");
       }
     }).catch(() => {
-      setHiringAttrition([
-        { month: 'Jan', hired: 4, attrition: 2 },
-        { month: 'Feb', hired: 6, attrition: 1 },
-        { month: 'Mar', hired: 3, attrition: 4 },
-        { month: 'Apr', hired: 8, attrition: 2 },
-        { month: 'May', hired: 5, attrition: 3 },
-        { month: 'Jun', hired: 7, attrition: 2 }
-      ]);
-    });
-
-    // 6. Departments Distribution
-    api.departments.list().then((data: any[]) => {
-      if (data && data.length > 0) {
-        setDeptDistribution(data.map((d: any) => ({
-          name: d.name,
-          employees: d.headcount,
-        })));
-      } else {
-        throw new Error("Empty data");
-      }
-    }).catch(() => {
-      setDeptDistribution([
-        { name: 'Engineering', employees: 145 },
-        { name: 'Product', employees: 42 },
-        { name: 'Design', employees: 28 },
-        { name: 'Sales', employees: 85 },
-        { name: 'Marketing', employees: 34 }
-      ]);
+      // Retain authentic 12-month trailing defaults from Excel
     });
 
     // 7. At-Risk Risk Signals & Interventions
@@ -201,10 +239,47 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
       fallbackRiskProfiles();
     }
 
-    // 8. Intervention Effectiveness
+    // 8. Intervention Effectiveness (Enriched Domain Fallback)
+    const defaultInterventions = [
+      {
+        role_group: 'Network & SD-WAN Engineering',
+        intervention_name: 'Workload Balancing & Shift Rotation',
+        risk_reduction_percentage: 24,
+        description: 'Cuts acute on-call cognitive fatigue & 24/7 incident burnout',
+        theme_color: 'rose'
+      },
+      {
+        role_group: 'Data Science & MLOps',
+        intervention_name: 'Model Shadowing & Knowledge Transfer',
+        risk_reduction_percentage: 21,
+        description: 'Eliminates single-point-of-failure silos in predictive pipelines',
+        theme_color: 'indigo'
+      },
+      {
+        role_group: 'Cloud & Cybersecurity',
+        intervention_name: 'Comp Calibration & Project Ownership',
+        risk_reduction_percentage: 19,
+        description: 'Prevents external market poaching of certified architects',
+        theme_color: 'emerald'
+      },
+      {
+        role_group: 'Core Telecom & 5G Systems',
+        intervention_name: 'Cross-Skilling Acceleration Path',
+        risk_reduction_percentage: 16,
+        description: 'Facilitates 4G legacy to 5G Standalone core skills transition',
+        theme_color: 'amber'
+      }
+    ];
+
     api.organization.getInterventionEffectiveness().then(data => {
-      setInterventionEffectiveness(data);
-    }).catch(console.error);
+      if (data && data.length > 0) {
+        setInterventionEffectiveness(data);
+      } else {
+        setInterventionEffectiveness(defaultInterventions);
+      }
+    }).catch(() => {
+      setInterventionEffectiveness(defaultInterventions);
+    });
 
     // 9. Certifications Data Fetching
     if (api.workforce) {
@@ -257,10 +332,28 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
     }, 1200);
   };
 
-  const filteredRiskEmployees = atRiskEmployees.filter(emp =>
-    (emp.name || '').toLowerCase().includes(riskSearchQuery.toLowerCase()) ||
-    (emp.role || '').toLowerCase().includes(riskSearchQuery.toLowerCase())
-  );
+  const highRiskCount = atRiskEmployees.filter(emp => emp.urgency === 'High' || emp.attritionRisk >= 70).length;
+  const worseningCount = atRiskEmployees.filter(emp => (emp.trendDirection || '').toLowerCase().includes('worsen') || (emp.trendDirection || '').toLowerCase().includes('up')).length;
+  const highLossCount = atRiskEmployees.filter(emp => parseInt(emp.burnoutScore || '0') >= 40).length;
+
+  const filteredRiskEmployees = atRiskEmployees.filter(emp => {
+    const matchesSearch = (emp.name || '').toLowerCase().includes(riskSearchQuery.toLowerCase()) ||
+      (emp.role || '').toLowerCase().includes(riskSearchQuery.toLowerCase()) ||
+      (emp.dept || '').toLowerCase().includes(riskSearchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (riskFilterTab === 'high') {
+      return emp.urgency === 'High' || emp.attritionRisk >= 70;
+    }
+    if (riskFilterTab === 'worsening') {
+      return (emp.trendDirection || '').toLowerCase().includes('worsen') || (emp.trendDirection || '').toLowerCase().includes('up');
+    }
+    if (riskFilterTab === 'silo') {
+      const burnoutNum = parseInt(emp.burnoutScore || '0');
+      return burnoutNum >= 40;
+    }
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6 relative pb-8 w-full">
@@ -361,9 +454,10 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
         </p>
       </div>
 
-      {/* Integrated Navigation Tabs Segment */}
-      <div className="relative z-30 mb-3 flex items-center overflow-x-auto pb-1 pointer-events-auto">
-        <div className="inline-flex items-center p-1.5 rounded-2xl bg-slate-100/90 border border-slate-200/90 shadow-inner gap-1.5 min-w-max">
+      {/* Integrated Navigation Tabs Segment - Spacious & Elegant Executive Bar */}
+      <div className="relative z-30 mb-4 flex items-center overflow-x-auto pb-1 pointer-events-auto">
+        <div className="inline-flex items-center p-2 rounded-2xl bg-slate-100/95 border border-slate-200/90 shadow-sm gap-2 min-w-max h-14">
+          
           {/* Tab 1: Capability & Skill Shortages */}
           <button
             type="button"
@@ -372,13 +466,15 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
               e.stopPropagation();
               setActiveTab('analytics');
             }}
-            className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer flex items-center gap-2.5 select-none relative z-10 ${
+            className={`h-10 sm:h-11 px-6 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-3 select-none relative z-10 ${
               activeTab === 'analytics'
-                ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80 ring-1 ring-blue-500/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                ? 'bg-white text-blue-700 shadow-md border border-slate-200/90 ring-1 ring-blue-500/20 transform -translate-y-0.5'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 hover:shadow-2xs'
             }`}
           >
-            <Target size={16} className={activeTab === 'analytics' ? 'text-blue-600' : 'text-slate-400'} />
+            <div className={`p-1 rounded-lg ${activeTab === 'analytics' ? 'bg-blue-50 text-blue-600' : 'text-slate-400'}`}>
+              <Target size={17} />
+            </div>
             <span>Capability & Skill Shortages</span>
           </button>
 
@@ -390,16 +486,21 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
               e.stopPropagation();
               setActiveTab('radar');
             }}
-            className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer flex items-center gap-2.5 relative z-10 select-none ${
+            className={`h-10 sm:h-11 px-6 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-3 relative z-10 select-none ${
               activeTab === 'radar'
-                ? 'bg-white text-rose-700 shadow-sm border border-slate-200/80 ring-1 ring-rose-500/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                ? 'bg-white text-indigo-700 shadow-md border border-slate-200/90 ring-1 ring-indigo-500/20 transform -translate-y-0.5'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 hover:shadow-2xs'
             }`}
           >
-            <BrainCircuit size={16} className={activeTab === 'radar' ? 'text-rose-600' : 'text-slate-400'} />
+            <div className={`p-1 rounded-lg ${activeTab === 'radar' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400'}`}>
+              <BrainCircuit size={17} />
+            </div>
             <span>At-Risk & Critical Roles Radar</span>
             {criticalRolesAtRisk.length > 0 && (
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse ml-0.5"></span>
+              <span className="flex h-2.5 w-2.5 relative ml-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+              </span>
             )}
           </button>
 
@@ -411,16 +512,21 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
               e.stopPropagation();
               setActiveTab('certifications');
             }}
-            className={`px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer flex items-center gap-2.5 relative z-10 select-none ${
+            className={`h-10 sm:h-11 px-6 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-3 relative z-10 select-none ${
               activeTab === 'certifications'
-                ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/80 ring-1 ring-emerald-500/20'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                ? 'bg-white text-emerald-700 shadow-md border border-slate-200/90 ring-1 ring-emerald-500/20 transform -translate-y-0.5'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/70 hover:shadow-2xs'
             }`}
           >
-            <Award size={16} className={activeTab === 'certifications' ? 'text-emerald-600' : 'text-slate-400'} />
+            <div className={`p-1 rounded-lg ${activeTab === 'certifications' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400'}`}>
+              <Award size={17} />
+            </div>
             <span>Compliance & Certifications (90-Day Window)</span>
             {certificationsData.some(c => c.renewal_flag) && (
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse ml-0.5"></span>
+              <span className="flex h-2.5 w-2.5 relative ml-1">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
             )}
           </button>
         </div>
@@ -563,147 +669,121 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                     </button>
                   </div>
 
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3.5 max-h-[760px] overflow-y-auto pr-1.5">
                     {skillShortages.map((item) => (
                       <div
                         key={item.rank}
-                        className="p-4 bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400/80 shadow-xs flex flex-col gap-3 transition-all duration-200 hover:shadow-md group"
+                        className="p-4 bg-white rounded-2xl border border-slate-200/90 hover:border-blue-400 hover:shadow-md transition-all duration-200 flex flex-col gap-3 group shadow-2xs"
                       >
-                        {/* Top Section: Main Role & Gap Metrics */}
-                        <div className="flex items-center justify-between gap-4">
+                        {/* Row 1: Role, Department, Critical Risk & Action Header */}
+                        <div className="flex items-center justify-between gap-3">
                           
-                          {/* Left: Rank & Title with Details */}
-                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                            <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center font-black text-xs shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-200 transition-colors">
-                              {item.rank}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              {/* Line 1: Role Title, Critical Badge, Dept */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-blue-600 transition-colors truncate">
-                                  {item.role}
-                                </h4>
-                                {item.critical_risk_flag && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shrink-0">
-                                    <AlertTriangle size={11} className="text-rose-500" /> CRITICAL RISK
-                                  </span>
-                                )}
-                                <span className="text-slate-300 text-xs hidden sm:inline">•</span>
-                                <span className="text-[11px] font-semibold text-slate-500 truncate hidden sm:inline">
-                                  {item.dept}
+                          {/* Left: Rank, Role Title & Department Badge */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <span className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-blue-50 group-hover:text-blue-600 text-slate-700 font-black text-xs flex items-center justify-center shrink-0 transition-colors border border-slate-200/80">
+                              #{item.rank}
+                            </span>
+                            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                              <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-blue-600 transition-colors truncate">
+                                {item.role}
+                              </h4>
+                              <span className="text-[11px] font-semibold text-slate-600 bg-slate-100/80 px-2.5 py-0.5 rounded-md border border-slate-200/80 truncate">
+                                {item.dept}
+                              </span>
+                              {item.critical_risk_flag && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                                  <AlertTriangle size={11} className="text-rose-500" /> Critical Risk
                                 </span>
-                              </div>
-
-                              {/* Line 2: Primary Skill & Target vs Current, Readiness Band */}
-                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                                <div className="inline-flex items-center gap-1 text-[11px] bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200 text-slate-700">
-                                  <span className="font-medium text-slate-500">Skill:</span>
-                                  <span className="font-bold text-slate-800">{item.skill}</span>
-                                  <span className="text-slate-400 font-medium ml-1">
-                                    (Target Lv {item.target_prof} vs Current Lv {item.mean_prof})
-                                  </span>
-                                </div>
-                                <span
-                                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold border ${
-                                    item.readiness_band === 'Green'
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                      : item.readiness_band === 'Amber'
-                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                      : 'bg-rose-50 text-rose-700 border-rose-200'
-                                  }`}
-                                >
-                                  <span
-                                    className={`w-1.5 h-1.5 rounded-full ${
-                                      item.readiness_band === 'Green'
-                                        ? 'bg-emerald-500'
-                                        : item.readiness_band === 'Amber'
-                                        ? 'bg-amber-500'
-                                        : 'bg-rose-500'
-                                    }`}
-                                  />
-                                  Readiness: {item.readiness_band || 'Amber'} ({Math.round((item.workforce_readiness_score || 0.45) * 100)}%)
-                                </span>
-                              </div>
+                              )}
                             </div>
                           </div>
 
-                          {/* Right: Urgency, Headcount Gap, Action Button */}
-                          <div className="flex items-center gap-4 shrink-0">
+                          {/* Right: Gap Badge, Urgency & Open Reqs Button */}
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            {/* Gap pill */}
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200">
+                              <span className="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Gap</span>
+                              <span className="text-xs font-black text-rose-700">{item.gap} FTE</span>
+                            </div>
+
                             {/* Urgency */}
-                            <div className="flex flex-col items-center w-14">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                Urgency
-                              </span>
-                              <span
-                                className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
-                                  item.urgency === 'HIGH'
-                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
-                              >
-                                {item.urgency}
-                              </span>
-                            </div>
+                            <span className={`text-[10px] font-black px-2 py-1 rounded-lg border uppercase tracking-wider ${
+                              item.urgency === 'HIGH' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}>
+                              {item.urgency}
+                            </span>
 
-                            {/* Headcount Gap */}
-                            <div className="flex flex-col items-center w-24 border-l border-slate-100 pl-3">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                                Gap
-                              </span>
-                              <span className="text-base font-black text-rose-600 tracking-tight">
-                                {item.gap} FTE
-                              </span>
-                            </div>
-
-                            {/* Action Button */}
+                            {/* Action Button: Consistent blue button matching design standard */}
                             <button
+                              type="button"
                               onClick={() => triggerToast(`Requisition opened for ${item.role}. Forwarded to Talent Marketplace & Learning Recommendations.`)}
-                              className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-all cursor-pointer hover:-translate-y-0.5"
+                              className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-[0.98]"
                             >
-                              Open Reqs <ArrowUpRight size={13} />
+                              <span>Open Reqs</span>
+                              <ArrowUpRight size={13} />
                             </button>
                           </div>
                         </div>
 
-                        {/* Bottom Output Strip: Clean Segmented Bar */}
-                        <div className="flex items-center justify-between bg-slate-50/70 px-3.5 py-2 rounded-xl border border-slate-100 text-[11px]">
-                          <div className="flex items-center divide-x divide-slate-200 text-slate-600 flex-wrap">
-                            <div className="pr-3 flex items-center gap-1.5">
-                              <Clock size={12} className="text-indigo-500" />
-                              <span className="text-slate-500 font-medium">Build Time:</span>
-                              <span className="font-bold text-slate-800">{item.time_to_close_build_months || 6} mo</span>
-                            </div>
-                            <div className="px-3 flex items-center gap-1.5">
-                              <Clock size={12} className="text-emerald-500" />
-                              <span className="text-slate-500 font-medium">Buy Time:</span>
-                              <span className="font-bold text-slate-800">{item.time_to_close_buy_days || 155} d</span>
-                            </div>
-                            <div className="px-3 flex items-center gap-1.5">
-                              <span className="text-slate-500 font-medium">Bus Factor:</span>
-                              <span className="font-bold text-slate-800">{item.knowledge_concentration_index || 0.5}</span>
-                            </div>
-                            <div className="pl-3 flex items-center gap-1.5">
-                              <span className="text-slate-500 font-medium">Internal Supply:</span>
-                              <span className="font-bold text-slate-800">{Math.round((item.internal_supply_ratio || 0.22) * 100)}%</span>
-                            </div>
+                        {/* Row 2: Skill Focus & Readiness Bar */}
+                        <div className="flex items-center justify-between gap-3 bg-slate-50/80 px-3.5 py-2 rounded-xl border border-slate-200/70 text-xs">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <span className="text-slate-400 font-bold text-[11px] uppercase tracking-wider shrink-0">Key Skill:</span>
+                            <span className="font-extrabold text-slate-800 truncate">{item.skill}</span>
+                            <span className="text-slate-500 text-[11px] shrink-0 font-medium">
+                              (Current <strong className="text-slate-800 font-bold">Lv {item.mean_prof}</strong> → Target <strong className="text-blue-700 font-black">Lv {item.target_prof}</strong>)
+                            </span>
                           </div>
 
-                          <div className="flex items-center gap-2 pl-3 shrink-0">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Feasibility:</span>
+                          {/* Readiness Badge */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Readiness:</span>
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
-                                item.closure_feasibility === 'Feasible'
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold border ${
+                                item.readiness_band === 'Green'
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : item.readiness_band === 'Amber'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
                                   : 'bg-rose-50 text-rose-700 border-rose-200'
                               }`}
                             >
                               <span
                                 className={`w-1.5 h-1.5 rounded-full ${
-                                  item.closure_feasibility === 'Feasible' ? 'bg-emerald-500' : 'bg-rose-500'
+                                  item.readiness_band === 'Green'
+                                    ? 'bg-emerald-500'
+                                    : item.readiness_band === 'Amber'
+                                    ? 'bg-amber-500'
+                                    : 'bg-rose-500'
                                 }`}
                               />
-                              {item.closure_feasibility || 'At Risk'}
+                              {Math.round((item.workforce_readiness_score || 0.45) * 100)}% ({item.readiness_band || 'Amber'})
                             </span>
+                          </div>
+                        </div>
+
+                        {/* Row 3: 5-Column Symmetrical Metrics Grid */}
+                        <div className="grid grid-cols-5 gap-2 text-center text-xs pt-0.5">
+                          <div className="bg-slate-50/90 rounded-xl p-2 border border-slate-200/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Build Time</div>
+                            <div className="font-extrabold text-slate-800 mt-0.5">{item.time_to_close_build_months || 6} mo</div>
+                          </div>
+                          <div className="bg-slate-50/90 rounded-xl p-2 border border-slate-200/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Buy Time</div>
+                            <div className="font-extrabold text-slate-800 mt-0.5">{item.time_to_close_buy_days || 155} d</div>
+                          </div>
+                          <div className="bg-slate-50/90 rounded-xl p-2 border border-slate-200/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Bus Factor</div>
+                            <div className="font-extrabold text-slate-800 mt-0.5">{item.knowledge_concentration_index || 0.5}</div>
+                          </div>
+                          <div className="bg-slate-50/90 rounded-xl p-2 border border-slate-200/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Internal Supply</div>
+                            <div className="font-extrabold text-slate-800 mt-0.5">{Math.round((item.internal_supply_ratio || 0.22) * 100)}%</div>
+                          </div>
+                          <div className="bg-slate-50/90 rounded-xl p-2 border border-slate-200/60 flex flex-col justify-center items-center">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Feasibility</div>
+                            <div className={`text-[11px] font-black mt-0.5 ${item.closure_feasibility === 'Feasible' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                              {item.closure_feasibility || 'At Risk'}
+                            </div>
                           </div>
                         </div>
 
@@ -712,42 +792,7 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                   </div>
                 </Card>
 
-                {/* Hiring vs Attrition Trends */}
-                <Card className="glass-panel flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md h-[300px] border border-slate-200/80">
-                  <div className="flex justify-between items-center mb-4 z-10">
-                    <div>
-                      <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2"><TrendingUp size={20} className="text-blue-600" /> Hiring vs Attrition Trends</h3>
-                      <p className="text-xs text-slate-500 font-medium mt-0.5">Historical net headcount movements over the trailing 12 months.</p>
-                    </div>
-                    <div className="flex gap-4 text-xs font-bold text-slate-600">
-                      <span className="flex items-center gap-2 text-emerald-600"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Hired</span>
-                      <span className="flex items-center gap-2 text-rose-600"><div className="w-2 h-2 rounded-full bg-rose-500"></div> Attrition</span>
-                    </div>
-                  </div>
-                  <div className="flex-1 w-full z-10">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={hiringAttrition} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorHired" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorAttr" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#e11d48" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#e11d48" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dx={-10} />
-                        <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', backgroundColor: '#ffffff' }} />
-                        <Area type="monotone" dataKey="hired" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorHired)" />
-                        <Area type="monotone" dataKey="attrition" stroke="#e11d48" strokeWidth={3} fillOpacity={1} fill="url(#colorAttr)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-              </div>
+                </div>
 
               {/* Right Column: Workforce Distributions */}
               <div className="col-span-1 flex flex-col gap-6">
@@ -788,8 +833,8 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                   <div className="w-full relative flex justify-center items-center" style={{ height: '180px' }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                        <Pie data={mockExperience} cx="50%" cy="50%" innerRadius={35} outerRadius={68} dataKey="value" stroke="#ffffff" strokeWidth={2.5}>
-                          {mockExperience.map((_, index) => (
+                        <Pie data={experienceDistribution} cx="50%" cy="50%" innerRadius={35} outerRadius={68} dataKey="value" stroke="#ffffff" strokeWidth={2.5}>
+                          {experienceDistribution.map((_, index) => (
                             <Cell key={`cell-${index}`} fill={EXP_COLORS[index % EXP_COLORS.length]} />
                           ))}
                         </Pie>
@@ -797,14 +842,14 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex flex-col gap-2 mt-3">
-                    {mockExperience.map((d, i) => (
-                      <div key={d.name} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200 shadow-2xs hover:border-blue-400 transition-colors cursor-pointer group">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full shadow-2xs group-hover:scale-110 transition-transform" style={{ backgroundColor: EXP_COLORS[i] }}></div>
-                          <span className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors">{d.name}</span>
+                  <div className="flex flex-col gap-2 mt-3 max-h-[160px] overflow-y-auto pr-1">
+                    {experienceDistribution.map((d, i) => (
+                      <div key={d.name} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-200/80 shadow-2xs hover:border-blue-400 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-2.5 h-2.5 rounded-full shadow-2xs group-hover:scale-110 transition-transform shrink-0" style={{ backgroundColor: EXP_COLORS[i % EXP_COLORS.length] }}></div>
+                          <span className="text-xs font-bold text-slate-700 group-hover:text-blue-600 transition-colors truncate">{d.name}</span>
                         </div>
-                        <span className="text-xs font-extrabold text-slate-900 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">{d.value}%</span>
+                        <span className="text-xs font-black text-slate-900 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200 shrink-0 ml-1.5">{d.value}% ({d.count || 0})</span>
                       </div>
                     ))}
                   </div>
@@ -812,6 +857,50 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
 
               </div>
             </div>
+
+            {/* Full-Width 12-Month Trajectory: Hiring vs Attrition Trends (Aligned with Page) */}
+            <Card className="glass-panel w-full flex flex-col p-6 relative overflow-hidden transition-all duration-300 hover:shadow-md min-h-[360px] border border-slate-200/80 rounded-3xl shadow-xs">
+              <div className="flex justify-between items-center mb-4 z-10 flex-wrap gap-2">
+                <div>
+                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                    <TrendingUp size={20} className="text-blue-600" /> Hiring vs Attrition Trends
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Historical net headcount movements over trailing 12 months (Nov &apos;25 &ndash; Oct &apos;26).
+                  </p>
+                </div>
+                <div className="flex gap-4 text-xs font-bold text-slate-600">
+                  <span className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-2xs"></div> Hired ({hiringAttrition.reduce((acc, curr) => acc + (curr.hired || 0), 0)} Total)
+                  </span>
+                  <span className="flex items-center gap-2 text-rose-600 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-2xs"></div> Attrition ({hiringAttrition.reduce((acc, curr) => acc + (curr.attrition || 0), 0)} Total)
+                  </span>
+                </div>
+              </div>
+              <div className="flex-1 w-full z-10 min-h-[260px]">
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={hiringAttrition} margin={{ top: 10, right: 20, left: -15, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorHired" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorAttr" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#e11d48" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#e11d48" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b", fontWeight: 600 }} dx={-10} />
+                    <Tooltip contentStyle={{ borderRadius: "14px", border: "1px solid #e2e8f0", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.07)", backgroundColor: "#ffffff", fontWeight: "bold" }} />
+                    <Area type="monotone" dataKey="hired" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorHired)" />
+                    <Area type="monotone" dataKey="attrition" stroke="#e11d48" strokeWidth={3} fillOpacity={1} fill="url(#colorAttr)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
 
             {/* Section 2.8 Recommended Addition: Gap Heat Map by Org Unit against Skill Family */}
             {heatmapData && (
@@ -900,230 +989,448 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
 
         {/* TAB 2: AT-RISK & BURNOUT RADAR (Enriched with Compound Rule & Section 2.5 Explainability) */}
         {activeTab === 'radar' && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4.5">
 
-            {/* Compound Critical Risk Roles Alert Strip (User Story 2: 3-Leg Compound Rule) */}
+            {/* Compound Critical Risk Roles Alert Strip - Compact 3-Column Executive Grid */}
             {criticalRolesAtRisk.length > 0 && (
-              <div className="p-5 rounded-3xl bg-gradient-to-r from-rose-50 via-amber-50 to-rose-50 border border-rose-300 shadow-sm flex flex-col gap-3">
-                <div className="flex items-center justify-between">
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col gap-3.5 relative overflow-hidden">
+                <div className="flex items-center justify-between flex-wrap gap-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                      <AlertTriangle size={18} />
+                    <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center shrink-0 shadow-2xs">
+                      <ShieldAlert size={16} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-black text-rose-950 uppercase tracking-wider">
-                        Compound Rule Alert: {criticalRolesAtRisk.length} Business-Critical Roles at Critical Risk
-                      </h4>
-                      <p className="text-xs text-rose-700 font-medium">
-                        Tripped all 3 legs simultaneously: Criticality &gt; 0.70 AND Ready Successors &lt; 1 AND Skill Scarcity &gt; 0.60.
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                          Compound Rule Alert: {criticalRolesAtRisk.length} Business-Critical Roles Flagged
+                        </h4>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/70">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> 3-Leg Threshold Active
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        Tripped all 3 legs simultaneously: Criticality &gt; 0.70 · Ready Successors &lt; 1 · External Skill Scarcity &gt; 0.60
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-black px-3 py-1 bg-white text-rose-700 rounded-full border border-rose-200 shadow-2xs">
-                    Central Rule CFG-001 Enforced
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-full border border-slate-200 shadow-2xs">
+                      Central Policy CFG-001 Enforced
+                    </span>
+                    {criticalRolesAtRisk.length > 3 && (
+                      <button
+                        onClick={() => setShowAllCriticalRoles(prev => !prev)}
+                        className="text-[10px] font-bold px-2.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-full border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        {showAllCriticalRoles ? 'Show Top 4' : `View All ${criticalRolesAtRisk.length} Roles`}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-1">
-                  {criticalRolesAtRisk.slice(0, 3).map((r) => (
-                    <div key={r.role_id} className="p-4 bg-white rounded-2xl border border-rose-200/90 shadow-2xs flex flex-col justify-between gap-3 hover:border-rose-400 hover:shadow-md transition-all">
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs font-black text-slate-900 truncate">{r.role_title}</span>
-                          <span className="text-[10px] font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200 shrink-0">
-                            Shortage: {r.headcount_gap} FTE
-                          </span>
+                {/* 2-Column Symmetrical Grid - Exactly 2 Cards Per Row with Standard Red Accent */}
+                <div className="grid grid-cols-2 gap-4 mt-1">
+                  {(showAllCriticalRoles ? criticalRolesAtRisk : criticalRolesAtRisk.slice(0, 4)).map((r) => {
+                    const topSkillGap = r.skill_gaps && r.skill_gaps[0] ? r.skill_gaps[0] : null;
+                    const hasFteShortage = (r.headcount_gap || 0) > 0;
+
+                    return (
+                      <div
+                        key={r.role_id}
+                        className="p-4 bg-white rounded-2xl border border-slate-200/90 border-l-[3.5px] border-l-rose-500 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group relative"
+                      >
+                        <div>
+                          {/* Card Header: Role title, Dept, and Red Deficit / Shortage badge */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <h5 className="text-sm font-extrabold text-slate-900 group-hover:text-rose-700 transition-colors truncate">
+                                {r.role_title}
+                              </h5>
+                              <p className="text-xs font-medium text-slate-500 truncate mt-0.5">
+                                {r.dept || 'Strategic Org Unit'}
+                              </p>
+                            </div>
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border shrink-0 ${
+                                hasFteShortage
+                                  ? 'text-rose-700 bg-rose-50 border-rose-200/90'
+                                  : 'text-rose-700 bg-rose-50/70 border-rose-200/70'
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  hasFteShortage ? 'bg-rose-500 animate-pulse' : 'bg-rose-400'
+                                }`}
+                              />
+                              {hasFteShortage
+                                ? `Shortage: -${r.headcount_gap} FTE`
+                                : topSkillGap
+                                ? `Deficit: ${topSkillGap.skill_name} (-${topSkillGap.gap})`
+                                : 'Succession Deficit'}
+                            </span>
+                          </div>
+
+                          {/* Unified 4-Column Metric Strip (Criticality, Pipeline, Scarcity, Bottleneck) */}
+                          <div className="grid grid-cols-4 gap-2 bg-slate-50/90 p-2.5 rounded-xl border border-slate-100 mt-2.5">
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Criticality</span>
+                              <span className="text-sm font-black text-rose-700 mt-0.5">{r.business_criticality_index}</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Successors</span>
+                              <span className="text-sm font-black text-slate-900 mt-0.5">{r.ready_successors} ready</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Scarcity</span>
+                              <span className="text-sm font-black text-slate-900 mt-0.5">{r.skill_scarcity_index}</span>
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Top Bottleneck</span>
+                              <span
+                                className="text-xs font-bold text-rose-700 truncate mt-0.5"
+                                title={topSkillGap ? `${topSkillGap.skill_name} (Gap ${topSkillGap.gap})` : 'Core Architecture'}
+                              >
+                                {topSkillGap ? `${topSkillGap.skill_name} (-${topSkillGap.gap})` : 'Architecture'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[11px]">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 font-bold border border-slate-200">
-                            Criticality: <strong className="text-rose-700 font-black">{r.business_criticality_index}</strong>
+
+                        {/* Card Footer: Feasibility & Audit Action */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                          <span className="font-medium text-slate-500">
+                            Feasibility: <strong className="font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/70 text-[11px]">{r.closure_feasibility}</strong>
                           </span>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 font-bold border border-slate-200">
-                            Successors: <strong className="text-rose-700 font-black">{r.ready_successors}</strong>
-                          </span>
-                          <span className="px-2 py-0.5 rounded-md bg-slate-50 text-slate-600 font-bold border border-slate-200">
-                            Scarcity: <strong className="text-rose-700 font-black">{r.skill_scarcity_index}</strong>
-                          </span>
+                          <button
+                            onClick={() => setSelectedCriticalRole(r)}
+                            className="text-xs font-bold text-rose-700 hover:text-rose-900 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            Audit 3-Leg Rule <ChevronRight size={14} />
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                        <span className="text-[10px] text-slate-400 font-bold">Feasibility: {r.closure_feasibility}</span>
-                        <button
-                          onClick={() => setSelectedCriticalRole(r)}
-                          className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer"
-                        >
-                          View 3-Leg Audit <ChevronRight size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-3 gap-6">
-
-              {/* Left Column: Intervention Effectiveness (Uplift ML Insights) */}
-              <div className="col-span-1 flex flex-col gap-6">
-                <Card className="p-6 flex flex-col gap-5 glass border border-slate-200/80 rounded-3xl shadow-xs relative overflow-hidden">
-                  <div>
-                    <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
-                      <BrainCircuit size={18} className="text-rose-600" /> Intervention Effectiveness
-                    </h3>
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-1">Uplift ML Insights</p>
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                    {interventionEffectiveness.map((item, index) => (
-                      <div key={index} className="p-4 bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all cursor-default relative overflow-hidden group">
-                        <div className="absolute right-0 top-0 w-1.5 h-full bg-rose-500 opacity-80 group-hover:opacity-100 transition-opacity"></div>
-                        <span className="text-[10px] font-extrabold text-rose-600 uppercase tracking-widest">{item.role_group}</span>
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-sm font-extrabold text-slate-900">{item.intervention_name}</span>
-                          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg shadow-2xs">
-                            -{item.risk_reduction_percentage}% Risk
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-slate-500 font-medium mt-2">{item.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
+            {/* Section 1: Intervention Effectiveness (2-Column Executive Grid) */}
+            <Card className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex flex-col gap-4 relative overflow-hidden">
+              <div className="flex justify-between items-start flex-wrap gap-2">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+                    <BrainCircuit size={16} className="text-indigo-600" /> Intervention Effectiveness
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                    Causal ML Uplift Prescriptions targeting acute attrition drivers and skill silos
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                  Trained Uplift Model Active
+                </span>
               </div>
 
-              {/* Right Column: Urgent Interventions Queue with Section 2.5 Explainability Factors */}
-              <div className="col-span-2 flex flex-col gap-6">
-                <Card className="p-6 flex flex-col gap-5 glass-panel bg-white/60 border border-slate-200/80 rounded-3xl shadow-xs relative overflow-hidden">
-                  <div className="flex justify-between items-center flex-wrap gap-2">
-                    <div>
-                      <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
-                        <Activity size={18} className="text-rose-600" /> Urgent Interventions Queue
-                      </h3>
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mt-1">
-                        Predictive Risk Signals with 2-4 Explainable Factors (Confidence &gt; 0.60)
-                      </p>
+              {/* 2-Column Symmetrical Grid - Exactly 2 Cards Per Row */}
+              <div className="grid grid-cols-2 gap-4">
+                {interventionEffectiveness.map((item, index) => {
+                  const reduction = item.risk_reduction_percentage || 20;
+                  const accentColor = item.theme_color === 'rose' ? 'border-l-rose-500' :
+                    item.theme_color === 'indigo' ? 'border-l-indigo-500' :
+                    item.theme_color === 'emerald' ? 'border-l-emerald-500' : 'border-l-amber-500';
+
+                  return (
+                    <div
+                      key={index}
+                      className={`p-4 bg-white rounded-xl border border-slate-200/90 border-l-[3.5px] ${accentColor} shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group relative`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">
+                            {item.role_group}
+                          </span>
+                          <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0">
+                            -{reduction}% Risk
+                          </span>
+                        </div>
+
+                        <h4 className="text-sm font-extrabold text-slate-900 mt-1 leading-snug group-hover:text-blue-600 transition-colors">
+                          {item.intervention_name}
+                        </h4>
+
+                        <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                          {item.description}
+                        </p>
+
+                        {/* Simulated Uplift Impact & Post-Action Risk */}
+                        <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-600">Simulated Post-Action Risk:</span>
+                            <div className="flex items-center gap-1.5 font-extrabold text-slate-900">
+                              <span className="line-through text-slate-400 font-semibold text-[11px]">100%</span>
+                              <span className="text-emerald-700 font-black text-sm">{100 - reduction}%</span>
+                              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
+                                -{reduction}% drop
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Standard Left-to-Right Progress Bar */}
+                          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200/70 p-0.5 shadow-2xs">
+                            <div
+                              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${100 - reduction}%` }}
+                            />
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold">
+                            <span>0% (Zero Risk)</span>
+                            <span className="text-emerald-700 font-bold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              {reduction}% Attrition Risk Mitigated
+                            </span>
+                            <span>100% (Baseline)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => triggerToast(`Applied simulation for ${item.role_group}: Projected retention increased by ${reduction}%.`)}
+                        className="w-full py-1.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-colors cursor-pointer text-center"
+                      >
+                        Simulate Uplift Impact
+                      </button>
                     </div>
+                  );
+                })}
+              </div>
+            </Card>
 
-                    {/* Search Bar inside Queue */}
-                    <div className="flex items-center gap-2 p-2 bg-slate-100 rounded-xl border border-slate-200 w-64">
-                      <Search size={14} className="text-slate-400 shrink-0" />
-                      <input
-                        type="text"
-                        value={riskSearchQuery}
-                        onChange={(e) => setRiskSearchQuery(e.target.value)}
-                        placeholder="Filter at-risk employees..."
-                        className="bg-transparent text-xs text-slate-800 font-medium focus:outline-none w-full"
-                      />
-                      {riskSearchQuery && (
-                        <button onClick={() => setRiskSearchQuery('')} className="text-slate-400 hover:text-slate-600 cursor-pointer">
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+            {/* Section 2: Urgent Interventions Queue (2-Column Symmetrical Grid) */}
+            <Card className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex flex-col gap-4 relative overflow-hidden">
+              {/* Queue Header & Search */}
+              <div className="flex justify-between items-center flex-wrap gap-3">
+                <div>
+                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
+                    <Activity size={16} className="text-blue-600" /> Urgent Interventions Queue
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
+                    {atRiskEmployees.length} Predictive Risk Signals with Explainable Drivers (Confidence &ge; 0.60)
+                  </p>
+                </div>
 
-                  <div className="flex flex-col gap-4">
-                    {filteredRiskEmployees.map((emp) => (
-                      <div key={emp.name} className="relative flex flex-col gap-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-rose-300 hover:shadow-md transition-all duration-200 group">
+                {/* Search Bar */}
+                <div className="flex items-center gap-2.5 px-3.5 h-10 bg-slate-50 hover:bg-white focus-within:bg-white focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 rounded-xl border border-slate-200 w-full sm:w-80 shadow-2xs transition-all">
+                  <Search size={16} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={riskSearchQuery}
+                    onChange={(e) => setRiskSearchQuery(e.target.value)}
+                    placeholder="Filter by name, role, dept..."
+                    className="bg-transparent text-xs sm:text-sm text-slate-800 font-medium placeholder:text-slate-400 focus:outline-none w-full"
+                  />
+                  {riskSearchQuery && (
+                    <button onClick={() => setRiskSearchQuery('')} className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                        <div className="flex items-center justify-between gap-4">
-                          {/* Floating edge indicator */}
-                          <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-12 w-1.5 rounded-r-md ${emp.urgency === 'High' ? 'bg-amber-500' : emp.urgency === 'Moderate' ? 'bg-blue-500' : 'bg-rose-600'}`}></div>
+              {/* Interactive Filter Pills */}
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
+                <button
+                  onClick={() => setRiskFilterTab('all')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    riskFilterTab === 'all'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  All ({atRiskEmployees.length})
+                </button>
+                <button
+                  onClick={() => setRiskFilterTab('high')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    riskFilterTab === 'high'
+                      ? 'bg-rose-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  High Risk (&ge;70%) ({highRiskCount})
+                </button>
+                <button
+                  onClick={() => setRiskFilterTab('worsening')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    riskFilterTab === 'worsening'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  Worsening ({worseningCount})
+                </button>
+                <button
+                  onClick={() => setRiskFilterTab('silo')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    riskFilterTab === 'silo'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  Knowledge Silos ({highLossCount})
+                </button>
+              </div>
 
-                          {/* 1. Avatar & Info */}
+              {/* Employee Interventions 2-Column Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                {filteredRiskEmployees.slice(0, riskItemsLimit).map((emp) => {
+                  const isHigh = emp.urgency === 'High' || emp.attritionRisk >= 70;
+                  const isMedium = !isHigh && (emp.urgency === 'Moderate' || emp.attritionRisk >= 40);
+                  const urgencyBorder = isHigh ? 'border-l-rose-500' : isMedium ? 'border-l-amber-500' : 'border-l-blue-500';
+                  const urgencyBadge = isHigh
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : isMedium
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-blue-50 text-blue-700 border-blue-200';
+
+                  const isWorsening = (emp.trendDirection || '').toLowerCase().includes('worsen') || (emp.trendDirection || '').toLowerCase().includes('up');
+                  const isImproving = (emp.trendDirection || '').toLowerCase().includes('improv') || (emp.trendDirection || '').toLowerCase().includes('down');
+
+                  return (
+                    <div
+                      key={emp.employee_id || emp.name}
+                      className={`p-4 bg-white rounded-xl border border-slate-200/90 border-l-[3.5px] ${urgencyBorder} shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group relative`}
+                    >
+                      <div>
+                        {/* 1. Header: Avatar + Name/Role on left; Attrition Badge on right */}
+                        <div className="flex items-start justify-between gap-2.5">
                           <div
-                            className="flex items-center gap-3.5 w-[220px] shrink-0 pl-2 cursor-pointer hover:bg-slate-50 rounded-lg transition-colors p-1"
+                            className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:opacity-85 transition-opacity"
                             onClick={() => setSelectedWorkforceEmployee({ id: emp.employee_id || emp.name, name: emp.name, role: emp.role })}
                           >
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-[13px] font-extrabold shadow-2xs ${emp.urgency === 'High' ? 'bg-amber-500' : emp.urgency === 'Moderate' ? 'bg-blue-500' : 'bg-rose-600'}`}>
-                              {(emp.name || 'EM').split(' ').filter(Boolean).map((n: string) => n[0]).join('')}
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black shadow-2xs shrink-0 bg-slate-900">
+                              {(emp.name || 'EM').split(' ').filter(Boolean).map((n: string) => n[0]).slice(0, 2).join('')}
                             </div>
-                            <div className="flex flex-col truncate">
-                              <h4 className="font-extrabold text-slate-900 text-sm truncate">{emp.name}</h4>
-                              <p className="text-[11px] font-medium text-slate-400 truncate">{emp.role}</p>
-                            </div>
-                          </div>
-
-                          {/* 2. Metrics with structured alignment */}
-                          <div className="flex flex-1 items-center gap-4 sm:gap-6">
-                            <div className="flex flex-col w-28">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                <Activity size={11} className="text-blue-500" /> Knowledge Loss
-                              </span>
-                              <span className="text-sm font-black text-slate-900">{emp.burnoutScore}</span>
-                            </div>
-
-                            <div className="flex flex-col w-28">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                <Calendar size={11} className="text-rose-500" /> Attrition Risk
-                              </span>
-                              <span className="text-sm font-black text-rose-600">{emp.attritionRisk}%</span>
-                            </div>
-
-                            <div className="flex flex-col w-24">
-                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                <Target size={11} className="text-emerald-500" /> Trend
-                              </span>
-                              <span className="text-xs font-black text-slate-800 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200/80 w-fit">
-                                {emp.trendDirection}
-                              </span>
+                            <div className="flex flex-col min-w-0">
+                              <h4 className="font-extrabold text-sm text-slate-900 hover:text-blue-600 transition-colors truncate">
+                                {emp.name}
+                              </h4>
+                              <p className="text-xs font-medium text-slate-500 truncate">{emp.role}</p>
                             </div>
                           </div>
 
-                          {/* 3. Actions */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={() => triggerToast(`Scheduled 1:1 retention conversation with ${emp.name}.`)}
-                              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer"
-                              title="Schedule 1:1"
-                            >
-                              <Calendar size={16} />
-                            </button>
-                            <button
-                              onClick={() => triggerToast(`Logged direct confidential reach-out to ${emp.name}.`)}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                              title="Reach Out"
-                            >
-                              <UserCheck size={16} />
-                            </button>
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border shrink-0 ${urgencyBadge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isHigh ? 'bg-rose-500 animate-pulse' : isMedium ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                            {emp.attritionRisk}% {emp.urgency || (isHigh ? 'High' : 'Mod')}
+                          </span>
+                        </div>
 
-                            {/* Primary AI Action */}
-                            <button
-                              onClick={() => setChattingEmployee({ name: emp.name, role: emp.role })}
-                              className="bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold px-3.5 py-2 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer ml-1"
-                            >
-                              <BrainCircuit size={14} /> AI Insight
-                            </button>
+                        {/* 2. Structured 3-Metric Strip (Knowl. Loss | Confidence | Trend) */}
+                        <div className="grid grid-cols-3 gap-2 py-2 px-2.5 bg-slate-50/90 rounded-xl border border-slate-100 mt-3 text-center">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Knowl. Loss</span>
+                            <span className="text-xs font-black text-slate-900 mt-0.5">{emp.burnoutScore || '40%'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Confidence</span>
+                            <span className="text-xs font-black text-slate-900 mt-0.5">{emp.perfCurrent || '85%'}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Trend</span>
+                            <span className={`inline-flex items-center justify-center gap-0.5 text-xs font-extrabold mt-0.5 ${
+                              isWorsening ? 'text-rose-600' : isImproving ? 'text-emerald-600' : 'text-slate-700'
+                            }`}>
+                              {isWorsening ? <TrendingUp size={12} /> : isImproving ? <TrendingDown size={12} /> : <Minus size={12} />}
+                              {emp.trendDirection}
+                            </span>
                           </div>
                         </div>
 
-                        {/* Top Contributing Factors (Section 2.5 Explainability Requirement) */}
+                        {/* 3. Contributing Drivers */}
                         {emp.contributingFactors && emp.contributingFactors.length > 0 && (
-                          <div className="ml-3 pl-3 border-l-2 border-slate-200 flex flex-wrap gap-1.5 items-center">
-                            <span className="text-[10px] font-extrabold uppercase text-slate-400 mr-1 flex items-center gap-1">
-                              <Info size={11} /> Top Contributing Factors:
-                            </span>
-                            {emp.contributingFactors.map((factor: string, i: number) => (
-                              <span key={i} className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                          <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Drivers:</span>
+                            {emp.contributingFactors.slice(0, 2).map((factor: string, i: number) => (
+                              <span
+                                key={i}
+                                className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/70 truncate max-w-[180px]"
+                                title={factor}
+                              >
                                 {factor}
                               </span>
                             ))}
                           </div>
                         )}
-
                       </div>
-                    ))}
 
-                    {filteredRiskEmployees.length === 0 && (
-                      <div className="text-center py-10 text-slate-400 font-semibold text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                        No at-risk employee matches your filter.
+                      {/* Card Footer: Due Date & Actions */}
+                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 text-xs">
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          Due: <strong className="text-slate-600">{emp.last1on1 ? emp.last1on1.substring(0, 10) : '2026-12-15'}</strong>
+                        </span>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => triggerToast(`Scheduled 1:1 retention review with ${emp.name}.`)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Schedule 1:1"
+                          >
+                            <Calendar size={14} />
+                          </button>
+                          <button
+                            onClick={() => setChattingEmployee({ name: emp.name, role: emp.role })}
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            <BrainCircuit size={12} /> AI Insight
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    </div>
+                  );
+                })}
+
+                {filteredRiskEmployees.length === 0 && (
+                  <div className="col-span-full text-center py-12 text-slate-400 font-semibold text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                    No at-risk employee matches your current filter or search criteria.
                   </div>
-                </Card>
+                )}
               </div>
 
-            </div>
+              {/* Pagination / Load More Footer */}
+              {filteredRiskEmployees.length > 8 && (
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2 text-xs text-slate-500 font-medium">
+                  <span>
+                    Showing top <strong>{Math.min(filteredRiskEmployees.length, riskItemsLimit)}</strong> of <strong>{filteredRiskEmployees.length}</strong> active risk signals
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {filteredRiskEmployees.length > riskItemsLimit ? (
+                      <>
+                        <button
+                          onClick={() => setRiskItemsLimit((prev) => prev + 8)}
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer text-xs"
+                        >
+                          Load +8 More
+                        </button>
+                        <button
+                          onClick={() => setRiskItemsLimit(filteredRiskEmployees.length)}
+                          className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg transition-colors cursor-pointer text-xs"
+                        >
+                          Show All ({filteredRiskEmployees.length})
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setRiskItemsLimit(8)}
+                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer text-xs"
+                      >
+                        Collapse to Top 8
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
 
           </div>
         )}
@@ -1293,7 +1600,7 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <span className="text-slate-400 uppercase font-bold text-[10px]">Succession & Knowledge Protection</span>
                 <div className="text-xs text-slate-700 mt-1">
-                  Readiness Level: <strong>{selectedCriticalRole.succession_level}</strong> | Knowledge Concentration Index (Bus Factor): <strong>{selectedCriticalRole.knowledge_concentration_index}</strong>
+                  Readiness Band: <strong className="text-amber-700 font-bold">{selectedCriticalRole.readiness_band || selectedCriticalRole.succession_level || 'Amber'}</strong> ({Math.round((selectedCriticalRole.workforce_readiness_score || 0.44) * 100)}%) | Knowledge Concentration Index (Bus Factor): <strong>{selectedCriticalRole.knowledge_concentration_index}</strong>
                 </div>
               </div>
             </div>

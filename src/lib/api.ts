@@ -2140,6 +2140,9 @@ export const workforceAPI = {
 
   getRiskSignals: (roleId?: string) =>
     fetchAPI<any[]>(`/api/workforce/risk-signals${buildQueryString({ role_id: roleId })}`),
+
+  getWorkforceDistributions: () =>
+    fetchAPI<any>(`/api/workforce/distributions`),
 };
 
 // ==================== SUCCESSION & KNOWLEDGE TRANSFER ====================
