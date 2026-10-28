@@ -1,0 +1,50 @@
+{
+  "model_type": "MultiOutputRegressor(RandomForestRegressor(n_estimators=100, max_depth=12))",
+  "overall_r2": 0.8244,
+  "r2_per_target": {
+    "target_headcount": 0.8878,
+    "target_run_cost_lkr": 0.8986,
+    "target_transition_cost_lkr": 0.9019,
+    "target_capability_gap": 0.9975,
+    "target_productivity_score": 0.9346,
+    "target_csat_score": 0.8965,
+    "target_absenteeism_rate": 0.7372,
+    "target_break_even_months": 0.3415
+  },
+  "mae_per_target": {
+    "target_headcount": 1.576,
+    "target_run_cost_lkr": 5192641.3756,
+    "target_transition_cost_lkr": 2976629.8904,
+    "target_capability_gap": 0.0079,
+    "target_productivity_score": 0.6663,
+    "target_csat_score": 0.64,
+    "target_absenteeism_rate": 0.1702,
+    "target_break_even_months": 4.884
+  },
+  "features": [
+    "baseline_headcount",
+    "baseline_run_cost_lkr",
+    "baseline_capability_gap",
+    "automation_share",
+    "reskilling_rate",
+    "hiring_rate",
+    "attrition_rate",
+    "horizon_years",
+    "ramp_profile",
+    "opex_ceiling_lkr",
+    "hiring_capacity",
+    "reskilling_capacity"
+  ],
+  "targets": [
+    "target_headcount",
+    "target_run_cost_lkr",
+    "target_transition_cost_lkr",
+    "target_capability_gap",
+    "target_productivity_score",
+    "target_csat_score",
+    "target_absenteeism_rate",
+    "target_break_even_months"
+  ],
+  "training_samples": 1200,
+  "trained_date": "2026-10-27"
+}

@@ -100,3 +100,15 @@ backend/uploads/
 Organization_Twin_Dummy_Data*
 temp_extracted_data/
 *.xlsx
+
+# Data import batch & temporary files
+data_import_batch/
+data_import_batch.zip
+m3_spec.txt
+scratch_step2365.txt
+
+Data3/
+Data3.zip
+
+Data 3/
+Data_3.zip

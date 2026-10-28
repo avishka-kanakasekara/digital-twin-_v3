@@ -1,1167 +1,1112 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Sliders, Activity, Target, Network,
-  BrainCircuit, Users, Building2, Lightbulb, Bot, Layers, ShieldAlert,
-  ArrowRightLeft, Cpu, Grid, Search, Check, TrendingUp, Play, ArrowRight, Info,
-  Shield, RefreshCw, X, ChevronDown, Sparkles, Zap
+  Users, DollarSign, Clock, Coins, Sliders, TrendingUp, CheckCircle,
+  Lock, RefreshCw, ArrowDownRight,
+  ShieldCheck, X, Zap, ChevronDown, Building2
 } from 'lucide-react';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import api from '../../lib/api';
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
+} from 'recharts';
+
+export interface Data3Scenario {
+  id: string;
+  name: string;
+  type: 'Automation' | 'Contraction' | 'Restructure' | 'Outsourcing' | 'Expansion';
+  orgUnitId: string;
+  horizon: string;
+  defaultAutomation: number;
+  defaultHeadcountDelta: number;
+  defaultReskilling: number;
+  defaultOffshoring: number;
+  defaultAttrition: number;
+}
+
+export interface Data3OrgUnit {
+  id: string;
+  name: string;
+  fteCount: number;
+  head: string;
+}
+
+// =========================================================================
+// DATA3 CONFIGURATION LISTS (Easily add or modify new scenarios & departments here)
+// =========================================================================
+export const DATA3_SCENARIOS: Data3Scenario[] = [
+  { id: 'SCN-5001', name: 'SCN-5001 · Analytics Automation FY26–28', type: 'Automation', orgUnitId: 'OU-004', horizon: 'FY26 – FY28', defaultAutomation: 35, defaultHeadcountDelta: -12, defaultReskilling: 10, defaultOffshoring: 5, defaultAttrition: 7.5 },
+  { id: 'SCN-5002', name: 'SCN-5002 · Virtual Agent Deflection FY26–29', type: 'Automation', orgUnitId: 'OU-005', horizon: 'FY26 – FY29', defaultAutomation: 40, defaultHeadcountDelta: -15, defaultReskilling: 12, defaultOffshoring: 8, defaultAttrition: 8.0 },
+  { id: 'SCN-5003', name: 'SCN-5003 · Hiring Freeze plus 10% Attrition FY27', type: 'Contraction', orgUnitId: 'OU-005', horizon: 'FY27 – FY28', defaultAutomation: 15, defaultHeadcountDelta: -10, defaultReskilling: 6, defaultOffshoring: 0, defaultAttrition: 10.0 },
+  { id: 'SCN-5004', name: 'SCN-5004 · Legacy Switching Exit FY26–28', type: 'Restructure', orgUnitId: 'OU-001', horizon: 'FY26 – FY28', defaultAutomation: 25, defaultHeadcountDelta: -14, defaultReskilling: 8, defaultOffshoring: 10, defaultAttrition: 7.0 },
+  { id: 'SCN-5005', name: 'SCN-5005 · Outsource Cloud Managed Services', type: 'Outsourcing', orgUnitId: 'OU-003', horizon: 'FY27 – FY28', defaultAutomation: 20, defaultHeadcountDelta: -18, defaultReskilling: 5, defaultOffshoring: 30, defaultAttrition: 6.5 },
+  { id: 'SCN-5006', name: 'SCN-5006 · 5G Slicing Expansion FY26–29', type: 'Expansion', orgUnitId: 'OU-008', horizon: 'FY26 – FY29', defaultAutomation: 10, defaultHeadcountDelta: 12, defaultReskilling: 15, defaultOffshoring: 0, defaultAttrition: 5.5 },
+  { id: 'SCN-5007', name: 'SCN-5007 · SD-WAN Growth Plan FY26–28', type: 'Expansion', orgUnitId: 'OU-002', horizon: 'FY26 – FY28', defaultAutomation: 15, defaultHeadcountDelta: 8, defaultReskilling: 10, defaultOffshoring: 5, defaultAttrition: 6.0 },
+  { id: 'SCN-5008', name: 'SCN-5008 · AI-assisted SOC Triage FY27–28', type: 'Automation', orgUnitId: 'OU-007', horizon: 'FY27 – FY28', defaultAutomation: 45, defaultHeadcountDelta: -8, defaultReskilling: 14, defaultOffshoring: 10, defaultAttrition: 7.0 },
+  { id: 'SCN-5009', name: 'SCN-5009 · Analytics Expansion - Buy Heavy', type: 'Expansion', orgUnitId: 'OU-004', horizon: 'FY26 – FY28', defaultAutomation: 20, defaultHeadcountDelta: 15, defaultReskilling: 12, defaultOffshoring: 5, defaultAttrition: 6.5 },
+  { id: 'SCN-5010', name: 'SCN-5010 · Contact Centre Regional Hub Consolidation', type: 'Restructure', orgUnitId: 'OU-005', horizon: 'FY27 – FY28', defaultAutomation: 30, defaultHeadcountDelta: -12, defaultReskilling: 8, defaultOffshoring: 25, defaultAttrition: 8.5 }
+];
+
+export const DATA3_ORG_UNITS: Data3OrgUnit[] = [
+  { id: 'ALL', name: 'Enterprise (All 146 FTEs)', fteCount: 146, head: 'Group CEO' },
+  { id: 'OU-001', name: 'Network Operations', fteCount: 34, head: 'Head of Networks' },
+  { id: 'OU-002', name: 'Enterprise & SD-WAN Solutions', fteCount: 18, head: 'Head of Enterprise' },
+  { id: 'OU-003', name: 'Cloud & Data Centre', fteCount: 22, head: 'Head of Cloud Infra' },
+  { id: 'OU-004', name: 'Data Science & Retail Analytics', fteCount: 16, head: 'Chief Data Officer' },
+  { id: 'OU-005', name: 'Customer Experience & Contact Centre', fteCount: 48, head: 'Head of CX' },
+  { id: 'OU-006', name: 'Digital Platforms & IT', fteCount: 28, head: 'Head of IT Platforms' },
+  { id: 'OU-007', name: 'Cybersecurity', fteCount: 12, head: 'Chief Information Security Officer' },
+  { id: 'OU-008', name: 'Mobile Core & 5G', fteCount: 20, head: 'Head of 5G Core' },
+  { id: 'OU-009', name: 'Human Resources & Talent', fteCount: 14, head: 'Chief People Officer' }
+];
+
+export const DATA3_HORIZONS: string[] = [
+  'FY26 – FY28 (3 Years)',
+  'FY26 – FY29 (4 Years)',
+  'FY26 – FY30 (5 Years)'
+];
 
 export const OrgSimulator: React.FC = () => {
-  const [headcountChange, setHeadcountChange] = useState(-15);
-  const [salaryChange] = useState(0);
-  const [remoteDays] = useState(2);
-  const [trainingBudget] = useState(0);
-  const [restructuringLevel, setRestructuringLevel] = useState(7);
-  const [automationLevel, setAutomationLevel] = useState(30);
-  const [businessLineModel, setBusinessLineModel] = useState('Standard Core Operations');
-  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
-  
-  const [selectedScenario, setSelectedScenario] = useState<any | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('digital-transformation');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const [simulationData, setSimulationData] = useState<any[] | null>(null);
-  
-  const [redundancyData, setRedundancyData] = useState<any | null>(null);
-  const [roleShiftsData, setRoleShiftsData] = useState<any[] | null>(null);
-  const [impactMatrixData, setImpactMatrixData] = useState<any[] | null>(null);
+  // Global Filters & Scenario Context
+  const [selectedScenario, setSelectedScenario] = useState<string>('SCN-5001');
+  const [selectedOrgUnit, setSelectedOrgUnit] = useState<string>('ALL');
+  const [planningHorizon, setPlanningHorizon] = useState<string>('FY26 – FY28 (3 Years)');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'charts' | 'redundancy' | 'roleShifts' | 'impactMatrix'>('charts');
-  const [isSimulating, setIsSimulating] = useState(false);
+  // Active Chart View
+  const [activeChartMetric, setActiveChartMetric] = useState<'headcount' | 'cost' | 'savings'>('headcount');
 
-  const businessModelOptions = [
-    { value: 'Standard Core Operations', label: 'Standard Core Operations', tag: 'Baseline' },
-    { value: 'AI-Driven Digital Services', label: 'AI-Driven Digital Services', tag: '+18% Rev' },
-    { value: 'Enterprise SaaS Subscriptions', label: 'Enterprise SaaS Subscriptions', tag: '+25% Rev' },
-    { value: 'Global Offshore Hub', label: 'Global Offshore Hub', tag: '+10% Cap' },
-  ];
+  // Precision What-If Levers (Calibrated to SCN-5001 defaults)
+  const [automationShare, setAutomationShare] = useState<number>(35);
+  const [headcountDeltaPct, setHeadcountDeltaPct] = useState<number>(-12);
+  const [reskillingRate, setReskillingRate] = useState<number>(10.0);
+  const [attritionRate, setAttritionRate] = useState<number>(7.5);
+  const [offshoringRate, setOffshoringRate] = useState<number>(5.0);
+  const [wageInflation, setWageInflation] = useState<number>(4.0);
+  const [activeArchetype, setActiveArchetype] = useState<string>('auto');
 
-  const defaultTemplates = [
-    {
-      id: 'digital-transformation',
-      name: 'Digital Transformation',
-      subtitle: 'Automation + Reskilling = Role Shift',
-      confidence: 87,
-      impact: '+22.6%',
-      icon: <Bot size={18} className="text-blue-600" />,
-      params: {
-        automationLevel: 30,
-        businessLineModel: 'AI-Driven Digital Services',
-        headcountChange: -15,
-        restructuringLevel: 7,
-      }
-    },
-    {
-      id: 'cost-optimization',
-      name: 'Cost Optimization',
-      subtitle: 'Reduce operational costs & streamline roles',
-      confidence: 76,
-      impact: '+18.4%',
-      icon: <Sliders size={18} className="text-purple-600" />,
-      params: {
-        automationLevel: 40,
-        businessLineModel: 'Standard Core Operations',
-        headcountChange: -10,
-        restructuringLevel: 5,
-      }
-    },
-    {
-      id: 'growth-expansion',
-      name: 'Growth & Expansion',
-      subtitle: 'Scale workforce for new markets',
-      confidence: 72,
-      impact: '+32.1%',
-      icon: <Users size={18} className="text-sky-600" />,
-      params: {
-        automationLevel: 15,
-        businessLineModel: 'Enterprise SaaS Subscriptions',
-        headcountChange: 15,
-        restructuringLevel: 3,
-      }
-    },
-    {
-      id: 'ai-automation-first',
-      name: 'AI & Automation First',
-      subtitle: 'Maximize automation and efficiency',
-      confidence: 81,
-      impact: '+24.7%',
-      icon: <Cpu size={18} className="text-indigo-600" />,
-      params: {
-        automationLevel: 60,
-        businessLineModel: 'AI-Driven Digital Services',
-        headcountChange: -5,
-        restructuringLevel: 8,
-      }
-    },
-    {
-      id: 'restructuring-support',
-      name: 'Restructuring Support',
-      subtitle: 'Handle mergers, divestments & reorgs',
-      confidence: 68,
-      impact: '+12.3%',
-      icon: <Shield size={18} className="text-amber-600" />,
-      params: {
-        automationLevel: 25,
-        businessLineModel: 'Global Offshore Hub',
-        headcountChange: -8,
-        restructuringLevel: 9,
-      }
-    },
-    {
-      id: 'new-engineering-hub',
-      name: 'New Engineering Hub',
-      subtitle: 'Build LATAM / Regional hub',
-      confidence: 65,
-      impact: '+20.9%',
-      icon: <Lightbulb size={18} className="text-emerald-600" />,
-      params: {
-        automationLevel: 20,
-        businessLineModel: 'Global Offshore Hub',
-        headcountChange: 10,
-        restructuringLevel: 6,
-      }
-    }
-  ];
+  // Modals
+  const [isFreezeModalOpen, setIsFreezeModalOpen] = useState<boolean>(false);
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState<boolean>(false);
+  const [freezeTag, setFreezeTag] = useState<string>('FY26-Q4-Approved-Master');
+  const [promoteJustification, setPromoteJustification] = useState<string>('Target operating model verified against FY26-FY28 cost envelopes.');
 
-  const filteredTemplates = defaultTemplates.filter(t =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Notification Toast Helper
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
-  const handleSelectTemplate = (tpl: any) => {
-    setSelectedTemplateId(tpl.id);
-    setSelectedScenario(tpl);
-    if (tpl.params) {
-      if (tpl.params.automationLevel !== undefined) setAutomationLevel(tpl.params.automationLevel);
-      if (tpl.params.businessLineModel !== undefined) setBusinessLineModel(tpl.params.businessLineModel);
-      if (tpl.params.headcountChange !== undefined) setHeadcountChange(tpl.params.headcountChange);
-      if (tpl.params.restructuringLevel !== undefined) setRestructuringLevel(tpl.params.restructuringLevel);
+  // Scenario Selection Handler (Auto-calibrates levers based on Data3 scenario specifications)
+  const handleSelectScenario = (scenId: string) => {
+    setSelectedScenario(scenId);
+    const scen = DATA3_SCENARIOS.find(s => s.id === scenId);
+    if (scen) {
+      setAutomationShare(scen.defaultAutomation);
+      setHeadcountDeltaPct(scen.defaultHeadcountDelta);
+      setReskillingRate(scen.defaultReskilling);
+      setOffshoringRate(scen.defaultOffshoring);
+      setAttritionRate(scen.defaultAttrition);
+      setActiveArchetype('custom');
+      triggerToast(`Calibrated to ${scen.name}`);
     }
   };
 
-  const handleRunSimulation = async () => {
-    setIsSimulating(true);
-    try {
-      const response = await api.organization.runSimulation({
-        headcountChange,
-        salaryChange,
-        remoteDays,
-        trainingBudget,
-        restructuringLevel,
-        automationLevel,
-        businessLineModel,
-        isSnapshot: false
-      });
-
-      if (response && response.monthly_series) {
-        setSimulationData(response.monthly_series);
-        setRedundancyData(response.redundancy_forecast || null);
-        setRoleShiftsData(response.critical_role_shifts || null);
-        setImpactMatrixData(response.impact_matrix || null);
-      } else if (Array.isArray(response) && response.length > 0) {
-        setSimulationData(response);
-      } else {
-        const fallbackData = [
-          { month: 'M1', productivity: 100, orgHealth: 85, costIndex: 100, revGrowth: 100 },
-          { month: 'M2', productivity: 104, orgHealth: 86, costIndex: 97, revGrowth: 103 },
-          { month: 'M3', productivity: 110, orgHealth: 88, costIndex: 94, revGrowth: 108 },
-          { month: 'M4', productivity: 118, orgHealth: 90, costIndex: 91, revGrowth: 115 },
-          { month: 'M5', productivity: 124, orgHealth: 91, costIndex: 88, revGrowth: 121 },
-          { month: 'M6', productivity: 132, orgHealth: 93, costIndex: 85, revGrowth: 128 },
-        ];
-        setSimulationData(fallbackData);
-        setRedundancyData({ total_redundant_roles: 12, high_displacement_departments: ['Data Entry', 'Legacy QA', 'Operations'] });
-        setRoleShiftsData([
-          { role: 'Data Analyst → AI Analytics Architect', demand: '+45%', skillGap: 'Medium' },
-          { role: 'QA Tester → Automated SDET Lead', demand: '+30%', skillGap: 'High' },
-          { role: 'Ops Specialist → Systems Workflow Engineer', demand: '+25%', skillGap: 'Low' },
-        ]);
-        setImpactMatrixData([
-          { dimension: 'Operational Efficiency', score: 4 },
-          { dimension: 'Workforce Agility', score: 3 },
-          { dimension: 'Cultural Transition Friction', score: -2 },
-          { dimension: 'Long-term Cost Savings', score: 5 },
-        ]);
-      }
-    } catch (e) {
-      console.error(e);
-      const fallbackData = [
-        { month: 'M1', productivity: 100, orgHealth: 85, costIndex: 100, revGrowth: 100 },
-        { month: 'M2', productivity: 104, orgHealth: 86, costIndex: 97, revGrowth: 103 },
-        { month: 'M3', productivity: 110, orgHealth: 88, costIndex: 94, revGrowth: 108 },
-        { month: 'M4', productivity: 118, orgHealth: 90, costIndex: 91, revGrowth: 115 },
-        { month: 'M5', productivity: 124, orgHealth: 91, costIndex: 88, revGrowth: 121 },
-        { month: 'M6', productivity: 132, orgHealth: 93, costIndex: 85, revGrowth: 128 },
-      ];
-      setSimulationData(fallbackData);
-      setRedundancyData({ total_redundant_roles: 12, high_displacement_departments: ['Data Entry', 'Legacy QA', 'Operations'] });
-      setRoleShiftsData([
-        { role: 'Data Analyst → AI Analytics Architect', demand: '+45%', skillGap: 'Medium' },
-        { role: 'QA Tester → Automated SDET Lead', demand: '+30%', skillGap: 'High' },
-        { role: 'Ops Specialist → Systems Workflow Engineer', demand: '+25%', skillGap: 'Low' },
-      ]);
-      setImpactMatrixData([
-        { dimension: 'Operational Efficiency', score: 4 },
-        { dimension: 'Workforce Agility', score: 3 },
-        { dimension: 'Cultural Transition Friction', score: -2 },
-        { dimension: 'Long-term Cost Savings', score: 5 },
-      ]);
-    } finally {
-      setIsSimulating(false);
+  // 1-Click Archetype Presets
+  const applyArchetype = (type: string) => {
+    setActiveArchetype(type);
+    if (type === 'genai') {
+      setAutomationShare(40);
+      setHeadcountDeltaPct(-16);
+      setReskillingRate(14);
+      setOffshoringRate(10);
+      triggerToast('Applied Preset: GenAI Acceleration');
+    } else if (type === 'auto') {
+      setAutomationShare(30);
+      setHeadcountDeltaPct(-12);
+      setReskillingRate(8);
+      setOffshoringRate(5);
+      triggerToast('Applied Preset: Intelligent Automation');
+    } else if (type === 'cloud') {
+      setAutomationShare(20);
+      setHeadcountDeltaPct(-6);
+      setReskillingRate(12);
+      setOffshoringRate(8);
+      triggerToast('Applied Preset: Cloud Modernization');
+    } else if (type === 'offshore') {
+      setAutomationShare(15);
+      setHeadcountDeltaPct(-10);
+      setReskillingRate(5);
+      setOffshoringRate(25);
+      triggerToast('Applied Preset: Regional Shared Services');
     }
   };
 
-  const handleReset = () => {
-    setHeadcountChange(-15);
-    setRestructuringLevel(7);
-    setAutomationLevel(30);
-    setBusinessLineModel('Standard Core Operations');
-    setSimulationData(null);
-    setRedundancyData(null);
-    setRoleShiftsData(null);
-    setImpactMatrixData(null);
-    setSelectedScenario(null);
-    setSelectedTemplateId('digital-transformation');
-    setActiveTab('charts');
+  // Reset to Baseline
+  const resetToBaseline = () => {
+    setActiveArchetype('none');
+    setAutomationShare(10);
+    setHeadcountDeltaPct(0);
+    setReskillingRate(4);
+    setAttritionRate(7.5);
+    setOffshoringRate(0);
+    setWageInflation(4.0);
+    triggerToast('Reset simulator levers to active baseline');
   };
 
-  const mergedData = simulationData ? simulationData.map((d: any, i: number) => {
-    const month = d.month || d.label || d.name || `Month ${i + 1}`;
-    const productivity = Number(d.productivity ?? d.productivity_score ?? d.overall_productivity_score ?? (100 + i * 5));
-    const orgHealth = Number(d.orgHealth ?? d.org_health ?? d.health ?? (85 + i * 1.5));
-    const costIndex = Number(d.costIndex ?? d.cost_index ?? d.operating_cost ?? (100 - i * 3));
-    const revGrowth = Number(d.revGrowth ?? d.rev_growth ?? d.revenue_growth ?? d.revenue ?? (100 + i * 6));
+  // Core Calculations (Anchored to 146 Active Employees)
+  const baselineHC = 146;
+  const baselineCostM = 482.4; // LKR 482.4M Annual OpEx
 
-    return {
-      ...d,
-      month,
-      productivity,
-      orgHealth,
-      costIndex,
-      revGrowth
-    };
-  }) : null;
+  const simulatedHC = Math.round(baselineHC * (1 + headcountDeltaPct / 100));
+  const hcDelta = simulatedHC - baselineHC;
+  const hcDeltaPct = Math.round((hcDelta / baselineHC) * 100);
 
-  const renderImpactScoreBadge = (score: number) => {
-    if (score >= 4) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold shadow-xs" style={{ backgroundColor: '#059669', color: '#ffffff' }}>High Positive (+{score})</span>;
-    if (score > 0) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }}>Moderate (+{score})</span>;
-    if (score === 0) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold" style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>Neutral (0)</span>;
-    if (score > -4) return <span className="px-3 py-1 rounded-xl text-xs font-extrabold" style={{ backgroundColor: '#ffe4e6', color: '#9f1239', border: '1px solid #fecdd3' }}>Moderate ({score})</span>;
-    return <span className="px-3 py-1 rounded-xl text-xs font-extrabold shadow-xs" style={{ backgroundColor: '#e11d48', color: '#ffffff' }}>High Negative ({score})</span>;
-  };
+  // Financial Estimates
+  const laborEfficiencyFactor = 1 - (automationShare * 0.004) - (offshoringRate * 0.003);
+  const simulatedCostM = Number((baselineCostM * (simulatedHC / baselineHC) * laborEfficiencyFactor * (1 + wageInflation / 100 * 0.5)).toFixed(1));
+  const annualSavingsM = Number((baselineCostM - simulatedCostM).toFixed(1));
+  const savingsPct = Math.round((annualSavingsM / baselineCostM) * 100);
+
+  // Transition Cap & Payback
+  const severanceCostM = Math.max(0, Math.abs(hcDelta)) * 1.2; // ~1.2M LKR per severed role
+  const reskillCostM = (baselineHC * (reskillingRate / 100)) * 0.45; // ~450k LKR per reskilled FTE
+  const transitionCostM = Number((severanceCostM + reskillCostM + 4.5).toFixed(1)); // +4.5M tooling/transition
+  const paybackMonths = annualSavingsM > 0 ? Number(((transitionCostM / annualSavingsM) * 12).toFixed(1)) : 0;
+
+  // Trajectory Multi-Year Forecast Chart Data
+  const chartData = useMemo(() => {
+    const y1HC = Math.round(baselineHC + (simulatedHC - baselineHC) * 0.4);
+    const y2HC = Math.round(baselineHC + (simulatedHC - baselineHC) * 0.75);
+    const y3HC = simulatedHC;
+
+    const y1Cost = Number((baselineCostM * 1.03 - annualSavingsM * 0.35).toFixed(1));
+    const y2Cost = Number((baselineCostM * 1.06 - annualSavingsM * 0.7).toFixed(1));
+    const y3Cost = simulatedCostM;
+
+    return [
+      {
+        year: 'FY25 (Base)',
+        baselineHC,
+        simulatedHC: baselineHC,
+        baselineCost: Math.round(baselineCostM),
+        simulatedCost: Math.round(baselineCostM),
+        savings: 0
+      },
+      {
+        year: 'FY26 (Y1)',
+        baselineHC,
+        simulatedHC: y1HC,
+        baselineCost: Math.round(baselineCostM * 1.04),
+        simulatedCost: Math.round(y1Cost),
+        savings: Math.max(0, Math.round(baselineCostM * 1.04 - y1Cost))
+      },
+      {
+        year: 'FY27 (Y2)',
+        baselineHC,
+        simulatedHC: y2HC,
+        baselineCost: Math.round(baselineCostM * 1.08),
+        simulatedCost: Math.round(y2Cost),
+        savings: Math.max(0, Math.round(baselineCostM * 1.08 - y2Cost))
+      },
+      {
+        year: 'FY28 (Y3)',
+        baselineHC,
+        simulatedHC: y3HC,
+        baselineCost: Math.round(baselineCostM * 1.12),
+        simulatedCost: Math.round(y3Cost),
+        savings: Math.max(0, Math.round(baselineCostM * 1.12 - y3Cost))
+      }
+    ];
+  }, [simulatedHC, simulatedCostM, annualSavingsM]);
 
   return (
-    <div className="flex flex-col gap-6 pb-12 relative min-h-screen">
+    <div className="flex flex-col gap-5 w-full pb-14 text-slate-800">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-semibold animate-fade-in border border-slate-700">
+          <CheckCircle size={15} className="text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
-      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
-      <div className="flex flex-col gap-1 w-full pt-1">
-        
-        {/* Main Line: Title on Left, Standardized Action Toolbar on Right */}
-        <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
-          
-          {/* Left: Title */}
-          <div className="flex items-center gap-2 shrink-0">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
-              Scenario Simulator
-            </h1>
+      {/* Page Header Bar - Clean Structured Two-Row Layout */}
+      <div className="flex flex-col gap-2.5 w-full pt-1">
+        {/* Top Row: Main Title & Subtitle Description */}
+        <div className="flex flex-col gap-0.5 w-full">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+            Scenario & Workforce Simulator
+          </h1>
+          <p className="text-xs text-slate-500 w-full whitespace-nowrap">
+            Model what-if organizational futures, automation impacts, reskilling trajectories, and multi-year cost forecasts against frozen baselines.
+          </p>
+        </div>
+
+        {/* Bottom Row: Controls Toolbar (Swapped to be below Subtitle) */}
+        <div className="flex items-center justify-between gap-3 w-full flex-wrap pb-0.5">
+          {/* Left: Dynamic Configuration Selectors */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Scenario Selector (Dynamic from Data3) */}
+            <div className="relative flex items-center">
+              <div className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 transition-all shadow-2xs">
+                <Sliders size={13} className="text-slate-400 shrink-0" />
+                <select
+                  value={selectedScenario}
+                  onChange={(e) => handleSelectScenario(e.target.value)}
+                  className="bg-transparent focus:outline-none cursor-pointer pr-6 appearance-none text-slate-800 font-semibold text-xs"
+                >
+                  {DATA3_SCENARIOS.map((scen) => (
+                    <option key={scen.id} value={scen.id}>
+                      {scen.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="text-slate-400 pointer-events-none -ml-4" />
+              </div>
+            </div>
+
+            {/* Org Unit Selector (Dynamic from Data3) */}
+            <div className="relative flex items-center">
+              <div className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 transition-all shadow-2xs">
+                <Building2 size={13} className="text-slate-400 shrink-0" />
+                <select
+                  value={selectedOrgUnit}
+                  onChange={(e) => {
+                    setSelectedOrgUnit(e.target.value);
+                    const ou = DATA3_ORG_UNITS.find(u => u.id === e.target.value);
+                    triggerToast(`Scope: ${ou?.name || e.target.value}`);
+                  }}
+                  className="bg-transparent focus:outline-none cursor-pointer pr-6 appearance-none text-slate-800 font-semibold text-xs"
+                >
+                  {DATA3_ORG_UNITS.map((ou) => (
+                    <option key={ou.id} value={ou.id}>
+                      {ou.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="text-slate-400 pointer-events-none -ml-4" />
+              </div>
+            </div>
+
+            {/* Horizon Selector (Dynamic) */}
+            <div className="relative flex items-center">
+              <div className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-lg text-xs font-semibold text-slate-700 transition-all shadow-2xs">
+                <Clock size={13} className="text-slate-400 shrink-0" />
+                <select
+                  value={planningHorizon}
+                  onChange={(e) => {
+                    setPlanningHorizon(e.target.value);
+                    triggerToast(`Horizon: ${e.target.value}`);
+                  }}
+                  className="bg-transparent focus:outline-none cursor-pointer pr-6 appearance-none text-slate-800 font-semibold text-xs"
+                >
+                  {DATA3_HORIZONS.map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown size={12} className="text-slate-400 pointer-events-none -ml-4" />
+              </div>
+            </div>
           </div>
 
-          {/* Right: Action Toolbar with Standard Heights & Paddings */}
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          {/* Right: Primary Governance Actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Freeze Baseline Button */}
             <button
-              onClick={() => handleReset()}
+              onClick={() => setIsFreezeModalOpen(true)}
               className="flex items-center gap-2 h-9 px-3 bg-white border border-slate-200/90 hover:border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold shadow-2xs transition-all cursor-pointer whitespace-nowrap active:scale-[0.98]"
+              title="Lock current metrics as an official baseline"
             >
-              <RefreshCw size={13} className="text-slate-500" />
-              <span>Reset Parameters</span>
+              <Lock size={13} className="text-slate-500" />
+              <span>Freeze Baseline</span>
             </button>
 
+            {/* Promote Model Primary Action */}
             <button
-              onClick={handleRunSimulation}
-              disabled={isSimulating}
-              className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98] disabled:opacity-60"
+              onClick={() => setIsPromoteModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-bold shadow-xs hover:shadow-sm transition-all cursor-pointer whitespace-nowrap shrink-0 active:scale-[0.98]"
               style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
             >
-              <Play size={13} className={isSimulating ? 'animate-spin text-white' : 'text-white'} />
-              <span className="text-white">{isSimulating ? 'Simulating...' : 'Run Simulation'}</span>
+              <ShieldCheck size={14} className="text-white shrink-0" />
+              <span className="text-white">Promote Model</span>
             </button>
           </div>
         </div>
-
-        {/* Subtitle Description */}
-        <p className="text-xs text-slate-500 max-w-2xl mb-1">
-          Simulate organizational reorganizations, headcount shifts, and automation impacts on performance and cost.
-        </p>
       </div>
 
-      {/* Main 3-Column Workspace */}
-      <div className="grid grid-cols-12 gap-6 items-stretch">
-
-        {/* COLUMN 1: Structural Templates */}
-        <div 
-          className="col-span-12 lg:col-span-3 rounded-[24px] p-5 flex flex-col gap-4"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)' }}
-        >
-          
-          {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
-                <Layers size={18} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-xs font-black leading-tight" style={{ color: '#0f172a' }}>Structural Templates</h3>
-                <p className="text-[10.5px] font-semibold" style={{ color: '#94a3b8' }}>Predefined scenario models</p>
-              </div>
+      {/* 4 HERO METRIC CARDS (In ONE single row across: eka peliylta) */}
+      <div 
+        className="w-full"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gap: '12px'
+        }}
+      >
+        {/* Card 1: PROJECTED HEADCOUNT (Blue) */}
+        <div className="bg-white border border-blue-200/90 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between h-[116px]">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">
+              Projected Headcount
+            </span>
+            <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Users size={14} />
             </div>
-            <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full" style={{ backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1' }}>
-              {filteredTemplates.length}
+          </div>
+          <div className="my-1 flex items-baseline gap-1.5">
+            <span className="text-2xl font-black text-slate-900 tracking-tight">
+              {simulatedHC}
+            </span>
+            <span className="text-xs font-bold text-slate-400">FTEs</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[11px]">
+            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+              hcDelta < 0
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+            }`}>
+              {hcDelta >= 0 ? `+${hcDelta}` : hcDelta} FTEs ({hcDeltaPct}%)
+            </span>
+            <span className="text-[10px] text-slate-400 font-medium">vs {baselineHC} base</span>
+          </div>
+        </div>
+
+        {/* Card 2: PROJECTED ANNUAL OPEX (Green) */}
+        <div className="bg-white border border-emerald-200/90 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between h-[116px]">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+              Projected Annual OpEx
+            </span>
+            <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <DollarSign size={14} />
+            </div>
+          </div>
+          <div className="my-1 flex items-baseline gap-1">
+            <span className="text-2xl font-black text-emerald-600 tracking-tight">
+              LKR {simulatedCostM}M
             </span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+              <ArrowDownRight size={11} />
+              <span>
+                {annualSavingsM >= 0
+                  ? `LKR ${annualSavingsM}M / yr saved (${savingsPct}%)`
+                  : `LKR ${Math.abs(annualSavingsM)}M expansion`}
+              </span>
+            </span>
+          </div>
+        </div>
 
-          {/* Search Bar - Explicit High-Contrast Styling */}
-          <div className="relative flex items-center">
-            <Search size={14} className="absolute left-3.5 pointer-events-none" style={{ color: '#94a3b8' }} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search templates..."
-              style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', paddingLeft: '36px', paddingRight: searchQuery ? '32px' : '16px', paddingTop: '10px', paddingBottom: '10px', borderRadius: '14px', fontSize: '12px', fontWeight: '700', width: '100%' }}
-            />
-            {searchQuery && (
+        {/* Card 3: RESTRUCTURING CAP (Amber) */}
+        <div className="bg-white border border-amber-200/90 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between h-[116px]">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+              Restructuring Cap
+            </span>
+            <div className="w-7 h-7 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center shrink-0">
+              <Coins size={14} />
+            </div>
+          </div>
+          <div className="my-1 flex items-baseline gap-1">
+            <span className="text-2xl font-black text-amber-800 tracking-tight">
+              LKR {transitionCostM}M
+            </span>
+          </div>
+          <div className="text-[10.5px] font-medium text-slate-400">
+            One-time transition budget
+          </div>
+        </div>
+
+        {/* Card 4: PAYBACK DURATION (Purple) */}
+        <div className="bg-white border border-purple-200/90 rounded-2xl p-4 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between h-[116px]">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600">
+              Payback Duration
+            </span>
+            <div className="w-7 h-7 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+              <Clock size={14} />
+            </div>
+          </div>
+          <div className="my-1 flex items-baseline gap-1">
+            <span className="text-2xl font-black text-purple-700 tracking-tight">
+              {paybackMonths > 0 ? `${paybackMonths} mo` : 'N/A'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+              <CheckCircle size={11} className="text-emerald-600" />
+              <span>ROI Compliant (&lt; 12 mo)</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* STRATEGIC ARCHETYPES SECTION (100% PRECISELY ALIGNED TO THE 4 COLUMNS ABOVE) */}
+      <div className="flex flex-col gap-2 w-full">
+        <div className="flex items-center justify-between w-full px-0.5">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Zap size={13} />
+            </div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+              Strategic Archetypes
+            </h2>
+            <span className="text-xs text-slate-400 font-medium">· 1-Click Transformation Templates</span>
+          </div>
+          <span className="text-[10px] font-semibold text-slate-400">Auto-calibrates simulator levers</span>
+        </div>
+
+        <div 
+          className="w-full"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            gap: '12px'
+          }}
+        >
+          {/* Preset 1: GenAI */}
+          <button
+            type="button"
+            onClick={() => applyArchetype('genai')}
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer h-[84px] flex flex-col justify-between shadow-2xs hover:shadow-xs ${
+              activeArchetype === 'genai'
+                ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-400/30'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs">⚡</span>
+              <span className="text-[9.5px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">High Tech</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-900 leading-tight">GenAI Velocity</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Auto 40% · Reskill 14%</div>
+            </div>
+          </button>
+
+          {/* Preset 2: Lean Ops */}
+          <button
+            type="button"
+            onClick={() => applyArchetype('auto')}
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer h-[84px] flex flex-col justify-between shadow-2xs hover:shadow-xs ${
+              activeArchetype === 'auto'
+                ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-400/30'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs">🤖</span>
+              <span className="text-[9.5px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">Automation</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-900 leading-tight">Process Automation</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Auto 30% · -12% HC</div>
+            </div>
+          </button>
+
+          {/* Preset 3: Cloud Pivot */}
+          <button
+            type="button"
+            onClick={() => applyArchetype('cloud')}
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer h-[84px] flex flex-col justify-between shadow-2xs hover:shadow-xs ${
+              activeArchetype === 'cloud'
+                ? 'bg-indigo-50/80 border-indigo-400 ring-2 ring-indigo-400/30'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs">☁️</span>
+              <span className="text-[9.5px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">Cloud</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-900 leading-tight">Cloud & DevOps</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Auto 20% · Reskill 12%</div>
+            </div>
+          </button>
+
+          {/* Preset 4: Shared Services */}
+          <button
+            type="button"
+            onClick={() => applyArchetype('offshore')}
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer h-[84px] flex flex-col justify-between shadow-2xs hover:shadow-xs ${
+              activeArchetype === 'offshore'
+                ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-400/30'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs">🌐</span>
+              <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">Offshore</span>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-900 leading-tight">Shared Services</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">Offshore 25% · -10% HC</div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* CORE 2-COLUMN SIMULATION WORKBENCH */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5 w-full items-start">
+        
+        {/* LEFT COLUMN: STRATEGIC LEVERS (5 cols - ~40%) */}
+        <div className="col-span-12 md:col-span-5 flex flex-col gap-4">
+
+          {/* Interactive Calibration Levers */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Sliders size={14} />
+                </div>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                  Precision Levers
+                </h2>
+              </div>
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 p-0.5 rounded-full transition-colors cursor-pointer"
-                style={{ color: '#94a3b8' }}
+                onClick={resetToBaseline}
+                className="text-[11px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <X size={13} strokeWidth={2.5} />
+                <RefreshCw size={11} />
+                <span>Reset</span>
               </button>
-            )}
-          </div>
+            </div>
 
-          {/* Template Cards List */}
-          <div 
-            className="flex flex-col gap-3 flex-1 max-h-[560px] overflow-y-auto no-scrollbar"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {filteredTemplates.map((tpl) => {
-              const isSelected = selectedTemplateId === tpl.id;
-              return (
-                <div
-                  key={tpl.id}
-                  onClick={() => handleSelectTemplate(tpl)}
-                  style={{
-                    backgroundColor: isSelected ? '#f0f9ff' : '#f8fafc',
-                    border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                    borderRadius: '18px',
-                    padding: '14px',
-                    cursor: 'pointer',
-                    boxShadow: isSelected ? '0 4px 14px rgba(37, 99, 235, 0.15)' : '0 1px 2px rgba(0,0,0,0.03)',
-                    transition: 'all 0.2s ease-in-out'
-                  }}
-                  className="relative flex flex-col gap-2.5"
-                >
-                  {/* Selected Indicator Badge */}
-                  {isSelected && (
-                    <div 
-                      className="absolute top-3.5 right-3.5 w-5.5 h-5.5 rounded-full flex items-center justify-center text-[10px] shadow-sm font-black"
-                      style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
-                    >
-                      <Check size={13} strokeWidth={3} />
-                    </div>
-                  )}
-
-                  <div className="flex items-start gap-3 pr-6">
-                    <div className="w-8.5 h-8.5 rounded-xl bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                      {tpl.icon}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-black leading-tight truncate" style={{ color: '#0f172a' }}>{tpl.name}</h4>
-                      <p className="text-[11px] font-semibold mt-0.5 line-clamp-2 leading-snug" style={{ color: '#64748b' }}>{tpl.subtitle}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }}>
-                      <Check size={10} strokeWidth={2.5} /> {tpl.confidence}% Conf.
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1" style={{ backgroundColor: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe' }}>
-                      <TrendingUp size={10} strokeWidth={2.5} /> Impact {tpl.impact}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-
-            {filteredTemplates.length === 0 && (
-              <div className="text-center py-8 font-bold text-xs rounded-2xl border border-dashed border-slate-200" style={{ color: '#94a3b8', backgroundColor: '#f8fafc' }}>
-                No matching templates found.
+            {/* Lever 1: Automation Share */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">Automation Adoption</span>
+                <span className="font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  {automationShare}%
+                </span>
               </div>
-            )}
+              <input
+                type="range"
+                min="0"
+                max="60"
+                step="1"
+                value={automationShare}
+                onChange={(e) => {
+                  setAutomationShare(Number(e.target.value));
+                  setActiveArchetype('custom');
+                }}
+                className="w-full accent-blue-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                <span>0% Manual</span>
+                <span>30% Standard</span>
+                <span>60% Autonomous</span>
+              </div>
+            </div>
+
+            {/* Lever 2: Headcount Trajectory */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">Target Headcount Adjustment</span>
+                <span className={`font-extrabold px-2 py-0.5 rounded border ${
+                  headcountDeltaPct < 0
+                    ? 'text-amber-700 bg-amber-50 border-amber-200'
+                    : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                }`}>
+                  {headcountDeltaPct > 0 ? `+${headcountDeltaPct}` : headcountDeltaPct}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="-25"
+                max="20"
+                step="1"
+                value={headcountDeltaPct}
+                onChange={(e) => {
+                  setHeadcountDeltaPct(Number(e.target.value));
+                  setActiveArchetype('custom');
+                }}
+                className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                <span>-25% Rationalize</span>
+                <span>0% Hold Base</span>
+                <span>+20% Expand</span>
+              </div>
+            </div>
+
+            {/* Lever 3: Internal Reskilling Target */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">Internal Reskilling Commitment</span>
+                <span className="font-extrabold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  {reskillingRate}% / yr
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="20"
+                step="0.5"
+                value={reskillingRate}
+                onChange={(e) => {
+                  setReskillingRate(Number(e.target.value));
+                  setActiveArchetype('custom');
+                }}
+                className="w-full accent-emerald-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                <span>0% No Training</span>
+                <span>8% Industry Norm</span>
+                <span>20% Aggressive Pivot</span>
+              </div>
+            </div>
+
+            {/* Lever 4: Offshoring / Regional Hub Shift */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">Regional Delivery Center Share</span>
+                <span className="font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {offshoringRate}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="40"
+                step="1"
+                value={offshoringRate}
+                onChange={(e) => {
+                  setOffshoringRate(Number(e.target.value));
+                  setActiveArchetype('custom');
+                }}
+                className="w-full accent-slate-700 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                <span>0% Onsite Only</span>
+                <span>15% Hybrid</span>
+                <span>40% Distributed</span>
+              </div>
+            </div>
+
+            {/* Lever 5: Natural Attrition Absorption */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-700">Natural Attrition Absorption</span>
+                <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  {attritionRate}% / yr
+                </span>
+              </div>
+              <input
+                type="range"
+                min="2"
+                max="15"
+                step="0.5"
+                value={attritionRate}
+                onChange={(e) => {
+                  setAttritionRate(Number(e.target.value));
+                  setActiveArchetype('custom');
+                }}
+                className="w-full accent-amber-600 cursor-pointer h-1.5 bg-slate-200 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-400 font-medium">
+                <span>2% Low Turnover</span>
+                <span>7.5% Baseline</span>
+                <span>15% High Absorption</span>
+              </div>
+            </div>
           </div>
 
         </div>
 
-        {/* COLUMN 2: Primary Inputs */}
-        <div 
-          className="col-span-12 lg:col-span-4 rounded-[24px] p-5 flex flex-col gap-4"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)' }}
-        >
+        {/* RIGHT COLUMN: MULTI-YEAR TRAJECTORY & DEPARTMENTAL SHIFTS (7 cols - ~60%) */}
+        <div className="col-span-12 md:col-span-7 flex flex-col gap-4">
           
-          {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
-                <Sliders size={18} strokeWidth={2.5} />
-              </div>
-              <div>
-                <h3 className="text-xs font-black leading-tight" style={{ color: '#0f172a' }}>Primary Inputs</h3>
-                <p className="text-[10.5px] font-semibold" style={{ color: '#94a3b8' }}>Configure simulation parameters</p>
-              </div>
-            </div>
-            <span className="text-[10.5px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1" style={{ backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }}>
-              <Sparkles size={11} style={{ color: '#7c3aed' }} /> Active Model
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-4">
-
-            {/* Input 1: Automation Plan */}
-            <div className="p-4 rounded-[20px] flex flex-col gap-3" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
-                    <Bot size={17} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Automation Plan</h4>
-                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Level of automation across key functions.</p>
-                  </div>
+          {/* Multi-Year Trajectory Chart Card */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <TrendingUp size={16} />
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-black shadow-xs shrink-0" style={{ backgroundColor: '#7c3aed', color: '#ffffff' }}>
-                  {automationLevel}% Automated
-                </span>
-              </div>
-
-              {/* Segmented Pill Buttons with Explicit Styles & Range Matching */}
-              <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl" style={{ backgroundColor: '#e2e8f0' }}>
-                {[
-                  { label: 'Low', val: 15, range: [0, 25] },
-                  { label: 'Mod.', val: 40, range: [26, 55] },
-                  { label: 'High', val: 70, range: [56, 85] },
-                  { label: 'AI 100%', val: 100, range: [86, 100] }
-                ].map((item) => {
-                  const isActive = automationLevel >= item.range[0] && automationLevel <= item.range[1];
-                  return (
-                    <button
-                      key={item.val}
-                      type="button"
-                      onClick={() => setAutomationLevel(item.val)}
-                      style={{
-                        backgroundColor: isActive ? '#7c3aed' : '#ffffff',
-                        color: isActive ? '#ffffff' : '#334155',
-                        boxShadow: isActive ? '0 4px 12px rgba(124, 58, 237, 0.35)' : '0 1px 2px rgba(0,0,0,0.05)',
-                        border: isActive ? '1px solid #7c3aed' : '1px solid #cbd5e1',
-                        borderRadius: '10px',
-                        padding: '7px 2px',
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease-in-out'
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Range Slider */}
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-[10.5px] font-black" style={{ color: '#475569' }}>0%</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  step="5"
-                  value={automationLevel}
-                  onChange={(e) => setAutomationLevel(Number(e.target.value))}
-                  className="flex-1 cursor-pointer accent-purple-600 h-1.5 rounded-lg"
-                  style={{ backgroundColor: '#cbd5e1' }}
-                />
-                <span className="text-[10.5px] font-black" style={{ color: '#475569' }}>100%</span>
-              </div>
-            </div>
-
-            {/* Input 2: Business Line Model - Clean Explicit Dropdown */}
-            <div className="p-4 rounded-[20px] flex flex-col gap-3 relative" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#dbeafe', color: '#2563eb', border: '1px solid #bfdbfe' }}>
-                    <Building2 size={17} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Business Line Model</h4>
-                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Target operating structure.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Custom Dropdown Trigger */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                  style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '10px 14px', borderRadius: '14px', fontSize: '12px', fontWeight: '800', width: '100%', cursor: 'pointer' }}
-                  className="flex items-center justify-between shadow-2xs transition-all"
-                >
-                  <span className="truncate">{businessLineModel}</span>
-                  <ChevronDown size={15} style={{ color: '#64748b' }} className={`transition-transform ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Dropdown Options Box */}
-                {isModelDropdownOpen && (
-                  <div 
-                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl shadow-xl z-30 p-1.5 flex flex-col gap-1"
-                    style={{ backgroundColor: '#ffffff', border: '1px solid #cbd5e1' }}
-                  >
-                    {businessModelOptions.map((opt) => (
-                      <div
-                        key={opt.value}
-                        onClick={() => {
-                          setBusinessLineModel(opt.value);
-                          setIsModelDropdownOpen(false);
-                        }}
-                        style={{
-                          backgroundColor: businessLineModel === opt.value ? '#eff6ff' : 'transparent',
-                          color: businessLineModel === opt.value ? '#1d4ed8' : '#334155',
-                          border: businessLineModel === opt.value ? '1px solid #bfdbfe' : '1px solid transparent',
-                          borderRadius: '10px',
-                          padding: '10px 12px',
-                          fontSize: '12px',
-                          fontWeight: '800',
-                          cursor: 'pointer'
-                        }}
-                        className="flex items-center justify-between transition-all"
-                      >
-                        <span>{opt.label}</span>
-                        <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md" style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1' }}>{opt.tag}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Input 3: Hiring / Layoffs */}
-            <div className="p-4 rounded-[20px] flex flex-col gap-3" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div 
-                    className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs"
-                    style={{
-                      backgroundColor: headcountChange < 0 ? '#ffe4e6' : headcountChange > 0 ? '#d1fae5' : '#f1f5f9',
-                      color: headcountChange < 0 ? '#e11d48' : headcountChange > 0 ? '#059669' : '#334155',
-                      border: headcountChange < 0 ? '1px solid #fecdd3' : headcountChange > 0 ? '1px solid #a7f3d0' : '1px solid #cbd5e1'
-                    }}
-                  >
-                    <Users size={17} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Hiring / Layoffs</h4>
-                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Headcount adjustment scale.</p>
-                  </div>
-                </div>
-                <span 
-                  className="px-3 py-1 rounded-full text-xs font-black text-white shadow-xs shrink-0"
-                  style={{
-                    backgroundColor: headcountChange < 0 ? '#e11d48' : headcountChange > 0 ? '#059669' : '#1e293b'
-                  }}
-                >
-                  {headcountChange > 0 ? '+' : ''}{headcountChange}%
-                </span>
-              </div>
-
-              {/* Segmented Pill Buttons with Range Matching */}
-              <div className="grid grid-cols-5 gap-1 p-1 rounded-xl" style={{ backgroundColor: '#e2e8f0' }}>
-                {[
-                  { label: '-20%', val: -20, range: [-20, -15], color: '#e11d48' },
-                  { label: '-10%', val: -10, range: [-14, -5], color: '#e11d48' },
-                  { label: '0%', val: 0, range: [-4, 4], color: '#1e293b' },
-                  { label: '+10%', val: 10, range: [5, 14], color: '#059669' },
-                  { label: '+20%', val: 20, range: [15, 20], color: '#059669' }
-                ].map((item) => {
-                  const isActive = headcountChange >= item.range[0] && headcountChange <= item.range[1];
-                  return (
-                    <button
-                      key={item.val}
-                      type="button"
-                      onClick={() => setHeadcountChange(item.val)}
-                      style={{
-                        backgroundColor: isActive ? item.color : '#ffffff',
-                        color: isActive ? '#ffffff' : '#334155',
-                        boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
-                        border: isActive ? `1px solid ${item.color}` : '1px solid #cbd5e1',
-                        borderRadius: '10px',
-                        padding: '7px 2px',
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease-in-out'
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Range Slider */}
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-[10px] font-extrabold" style={{ color: '#e11d48' }}>-20%</span>
-                <input
-                  type="range"
-                  min="-20"
-                  max="20"
-                  step="1"
-                  value={headcountChange}
-                  onChange={(e) => setHeadcountChange(Number(e.target.value))}
-                  className="flex-1 cursor-pointer accent-emerald-500 h-1.5 rounded-lg"
-                  style={{ backgroundColor: '#cbd5e1' }}
-                />
-                <span className="text-[10px] font-extrabold" style={{ color: '#059669' }}>+20%</span>
-              </div>
-            </div>
-
-            {/* Input 4: Org Restructuring */}
-            <div className="p-4 rounded-[20px] flex flex-col gap-3" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#fef3c7', color: '#d97706', border: '1px solid #fde68a' }}>
-                    <Grid size={17} strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black" style={{ color: '#0f172a' }}>Org Restructuring</h4>
-                    <p className="text-[10px] font-semibold" style={{ color: '#64748b' }}>Reorganization scope level.</p>
-                  </div>
-                </div>
-                <span className="px-3 py-1 rounded-full text-xs font-black text-white shadow-xs shrink-0" style={{ backgroundColor: '#d97706' }}>
-                  Scale {(restructuringLevel / 10).toFixed(1)}
-                </span>
-              </div>
-
-              {/* Segmented Pill Buttons with Range Matching */}
-              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl" style={{ backgroundColor: '#e2e8f0' }}>
-                {[
-                  { label: 'Minor (0.3)', val: 3, range: [0, 4] },
-                  { label: 'Mod. (0.7)', val: 7, range: [5, 7] },
-                  { label: 'Major (0.9)', val: 9, range: [8, 10] }
-                ].map((item) => {
-                  const isActive = restructuringLevel >= item.range[0] && restructuringLevel <= item.range[1];
-                  return (
-                    <button
-                      key={item.val}
-                      type="button"
-                      onClick={() => setRestructuringLevel(item.val)}
-                      style={{
-                        backgroundColor: isActive ? '#d97706' : '#ffffff',
-                        color: isActive ? '#ffffff' : '#334155',
-                        boxShadow: isActive ? '0 4px 12px rgba(217, 119, 6, 0.35)' : '0 1px 2px rgba(0,0,0,0.05)',
-                        border: isActive ? '1px solid #d97706' : '1px solid #cbd5e1',
-                        borderRadius: '10px',
-                        padding: '7px 4px',
-                        fontSize: '11px',
-                        fontWeight: '800',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease-in-out'
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Range Slider */}
-              <div className="flex items-center gap-3 pt-1">
-                <span className="text-[10px] font-extrabold" style={{ color: '#94a3b8' }}>0.0</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={restructuringLevel}
-                  onChange={(e) => setRestructuringLevel(Number(e.target.value))}
-                  className="flex-1 cursor-pointer accent-amber-500 h-1.5 rounded-lg"
-                  style={{ backgroundColor: '#cbd5e1' }}
-                />
-                <span className="text-[10px] font-extrabold" style={{ color: '#94a3b8' }}>1.0</span>
-              </div>
-            </div>
-
-            {/* Information Notice Card */}
-            <div className="p-3.5 rounded-2xl flex items-start gap-2.5" style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe' }}>
-              <Info size={15} style={{ color: '#2563eb' }} className="shrink-0 mt-0.5" />
-              <p className="text-[11px] font-bold leading-snug" style={{ color: '#1e3a8a' }}>
-                Adjust parameters above to define your scenario, then launch the simulation engine.
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* COLUMN 3: OT Scenario Simulator Engine / Outputs Panel */}
-        <div className="col-span-12 lg:col-span-5 flex flex-col h-full min-h-[640px]">
-
-          {!mergedData && !isSimulating && (
-            <div 
-              className="rounded-[24px] p-6 sm:p-8 flex flex-col items-center justify-between relative overflow-hidden flex-1 text-center h-full min-h-[580px]"
-              style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f8fafc 40%, #eef2ff 100%)', border: '1px solid #e2e8f0', boxShadow: '0 10px 40px rgba(79, 70, 229, 0.05)' }}
-            >
-              
-              {/* Top Status Pill */}
-              <div className="pt-2">
-                <span className="px-3.5 py-1 rounded-full text-xs font-black flex items-center gap-2 shadow-2xs" style={{ backgroundColor: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
-                  <Sparkles size={13} style={{ color: '#4f46e5' }} /> Ready to Simulate • Parameters Configured
-                </span>
-              </div>
-
-              {/* Center Hero Content */}
-              <div className="my-auto flex flex-col items-center w-full max-w-md py-4">
-                {/* Glowing Brain Icon Container */}
-                <div 
-                  className="w-18 h-18 rounded-2xl text-white flex items-center justify-center mb-5 relative group shadow-lg"
-                  style={{ background: 'linear-gradient(135deg, #4f46e5 0%, #2563eb 50%, #7c3aed 100%)', boxShadow: '0 10px 25px rgba(79, 70, 229, 0.3)' }}
-                >
-                  <BrainCircuit size={36} strokeWidth={2.2} className="relative z-10 animate-pulse" />
-                </div>
-
-                <h2 className="text-xl sm:text-2xl font-black mb-2 tracking-tight" style={{ color: '#0f172a' }}>
-                  OT Scenario Simulator Engine
-                </h2>
-                <p className="text-xs sm:text-sm font-semibold text-center leading-relaxed mb-6" style={{ color: '#64748b' }}>
-                  Configure your automation plans, restructuring levels, and business line models on the left, then click <strong style={{ color: '#0f172a' }} className="font-black">Run Simulation</strong> to compute simulated org states and forecasts.
-                </p>
-
-                {/* Primary CTA Run Simulation Button - Extra Large High Impact */}
-                <button
-                  type="button"
-                  onClick={handleRunSimulation}
-                  disabled={isSimulating}
-                  style={{
-                    background: 'linear-gradient(135deg, #2563eb 0%, #4f46e5 50%, #7c3aed 100%)',
-                    color: '#ffffff',
-                    boxShadow: '0 16px 40px rgba(79, 70, 229, 0.45)',
-                    border: 'none'
-                  }}
-                  className="px-14 py-6 sm:py-7 rounded-[22px] font-black text-lg sm:text-xl min-h-[66px] hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer flex items-center gap-4 shadow-2xl tracking-wide group"
-                >
-                  <Play size={26} className="fill-white" />
-                  <span>Run Simulation</span>
-                  <ArrowRight size={26} className="group-hover:translate-x-2 transition-transform" />
-                </button>
-              </div>
-
-              {/* Bottom Row Feature Highlight Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full pt-5 border-t border-slate-200/80 mt-auto">
-                
-                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#f3e8ff', color: '#7c3aed', border: '1px solid #e9d5ff' }}>
-                    <Activity size={16} strokeWidth={2.5} />
-                  </div>
-                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Forecast Impact</h5>
-                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Headcount & costs</p>
-                </div>
-
-                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#dbeafe', color: '#2563eb', border: '1px solid #bfdbfe' }}>
-                    <Users size={16} strokeWidth={2.5} />
-                  </div>
-                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Role Shifts</h5>
-                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Emerging roles</p>
-                </div>
-
-                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe' }}>
-                    <Target size={16} strokeWidth={2.5} />
-                  </div>
-                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Data Decisions</h5>
-                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Compare models</p>
-                </div>
-
-                <div className="flex flex-col items-center text-center p-3 rounded-2xl transition-all hover:border-indigo-300 shadow-2xs" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                  <div className="w-8.5 h-8.5 rounded-xl flex items-center justify-center mb-2 shadow-2xs" style={{ backgroundColor: '#d1fae5', color: '#059669', border: '1px solid #a7f3d0' }}>
-                    <Shield size={16} strokeWidth={2.5} />
-                  </div>
-                  <h5 className="text-[11px] font-black leading-tight" style={{ color: '#0f172a' }}>Future-Ready</h5>
-                  <p className="text-[10px] font-bold mt-0.5 leading-snug" style={{ color: '#64748b' }}>Real-time insights</p>
-                </div>
-
-              </div>
-
-            </div>
-          )}
-
-          {isSimulating && (
-            <div className="flex flex-col items-center justify-center flex-1 text-center bg-white/90 border border-blue-200/80 backdrop-blur-xl rounded-[24px] shadow-xs min-h-[600px] p-8">
-              <div className="w-16 h-16 border-4 border-t-indigo-600 border-indigo-200 rounded-full animate-spin mb-6 shadow-md"></div>
-              <h3 className="text-xl font-black mb-2 text-slate-900">Propagating System Dynamics...</h3>
-              <p className="animate-pulse font-extrabold text-xs text-indigo-600 max-w-sm">
-                Evaluating automation displacement, critical role shifts, and financial trajectory models.
-              </p>
-            </div>
-          )}
-
-          {mergedData && !isSimulating && (
-            <div className="flex flex-col gap-4 w-full">
-              {/* Output Tab Switcher - Luxury Segmented Track */}
-              <div 
-                className="flex items-center justify-between p-1.5 rounded-[20px] gap-2" 
-                style={{ backgroundColor: '#f1f5f9', border: '1px solid #cbd5e1', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.04)' }}
-              >
-                <div className="grid grid-cols-4 gap-1.5 flex-1">
-                  {[
-                    { id: 'charts', label: 'Org Trajectory', icon: <Activity size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)', activeShadow: '0 4px 14px rgba(79, 70, 229, 0.35)' },
-                    { id: 'redundancy', label: 'Redundancy', icon: <ShieldAlert size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #e11d48 0%, #f43f5e 100%)', activeShadow: '0 4px 14px rgba(225, 29, 72, 0.35)' },
-                    { id: 'roleShifts', label: 'Role Shifts', icon: <ArrowRightLeft size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)', activeShadow: '0 4px 14px rgba(217, 119, 6, 0.35)' },
-                    { id: 'impactMatrix', label: 'Impact Matrix', icon: <Grid size={13} strokeWidth={2.5} />, activeGradient: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)', activeShadow: '0 4px 14px rgba(124, 58, 237, 0.35)' }
-                  ].map((tab) => {
-                    const isActive = activeTab === tab.id;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id as any)}
-                        style={{
-                          background: isActive ? tab.activeGradient : 'transparent',
-                          color: isActive ? '#ffffff' : '#475569',
-                          boxShadow: isActive ? tab.activeShadow : 'none',
-                          border: 'none',
-                          borderRadius: '14px',
-                          padding: '8px 6px',
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '5px',
-                          whiteSpace: 'nowrap',
-                          transition: 'all 0.2s ease-in-out'
-                        }}
-                        className={!isActive ? 'hover:bg-white hover:text-slate-900 hover:shadow-2xs' : ''}
-                      >
-                        {tab.icon} <span className="truncate">{tab.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <button 
-                  type="button"
-                  onClick={handleReset} 
-                  className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all shadow-2xs shrink-0 cursor-pointer" 
-                  title="Reset Simulation"
-                >
-                  <RefreshCw size={14} strokeWidth={2.5} />
-                </button>
-              </div>
-
-              {/* Sensitivity Banner */}
-              <div className="p-4 rounded-2xl shadow-2xs flex items-center gap-3" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0' }}>
-                <div className="w-9.5 h-9.5 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' }}>
-                  <Network size={18} strokeWidth={2.5} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-black uppercase tracking-wider truncate" style={{ color: '#0f172a' }}>
-                    {selectedScenario ? `Scenario: ${selectedScenario.name}` : `Strategy Model: ${businessLineModel}`}
-                  </h4>
-                  <p className="text-[11.5px] font-bold truncate mt-0.5" style={{ color: '#475569' }}>
-                    High sensitivity to <strong className="font-black" style={{ color: '#4f46e5' }}>{automationLevel > 0 ? `Automation (${automationLevel}%)` : 'Headcount'}</strong>.
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Multi-Year Strategic Trajectory
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Baseline vs Simulated Target over FY26 - FY28
                   </p>
                 </div>
               </div>
 
-              {/* Tab 1: Simulated Org States (Charts) */}
-              {activeTab === 'charts' && (
-                <div className="flex flex-col gap-4">
-                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs h-[320px] flex flex-col">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
-                        <Target size={16} style={{ color: '#4f46e5' }} /> Productivity & Health Trajectory
-                      </h4>
-                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>6 Month Projection</span>
-                    </div>
-                    <div className="flex-1 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={mergedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dx={-10} domain={['auto', 'auto']} />
-                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontWeight: 'bold' }} />
-                          <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                          <Line type="monotone" dataKey="productivity" name="Productivity Index" stroke="#3b82f6" strokeWidth={3} dot={false} />
-                          <Line type="monotone" dataKey="orgHealth" name="Org Health" stroke="#10b981" strokeWidth={3} dot={false} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs h-[240px] flex flex-col">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
-                        <Zap size={16} style={{ color: '#d97706' }} /> Revenue Growth vs Cost Efficiency
-                      </h4>
-                      <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: '#94a3b8' }}>Index %</span>
-                    </div>
-                    <div className="flex-1 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={mergedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <defs>
-                            <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.4}/>
-                              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dy={10} />
-                          <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 700 }} dx={-10} domain={['auto', 'auto']} />
-                          <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', backgroundColor: '#ffffff', fontWeight: 'bold' }} />
-                          <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                          <Area type="monotone" dataKey="revGrowth" name="Revenue Growth" stroke="#8b5cf6" fill="url(#colorRev)" strokeWidth={2.5} />
-                          <Area type="monotone" dataKey="costIndex" name="Cost Index" stroke="#f59e0b" fill="url(#colorCost)" strokeWidth={2.5} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 2: Redundancy Forecast */}
-              {activeTab === 'redundancy' && (
-                <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col gap-4">
-                  <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
-                    <ShieldAlert size={16} style={{ color: '#e11d48' }} /> Redundancy & Automation Risk Forecast
-                  </h4>
-                  {redundancyData ? (
-                    <div className="flex flex-col gap-3">
-                      <div className="p-4 rounded-2xl flex items-center justify-between" style={{ backgroundColor: '#ffe4e6', border: '1px solid #fecdd3' }}>
-                        <div>
-                          <p className="text-xs font-black" style={{ color: '#881337' }}>Total High-Displacement Risk Roles</p>
-                          <p className="text-2xl font-black mt-0.5" style={{ color: '#e11d48' }}>{redundancyData.total_redundant_roles || 12} Roles</p>
-                        </div>
-                        <span className="px-3 py-1.5 rounded-full text-xs font-black shadow-xs" style={{ backgroundColor: '#e11d48', color: '#ffffff' }}>High Displacement</span>
-                      </div>
-                      <div className="p-4 rounded-2xl flex flex-col gap-2" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                        <span className="text-xs font-black" style={{ color: '#0f172a' }}>Affected Functional Areas</span>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {(redundancyData.high_displacement_departments || ['Operations', 'Data Entry', 'Customer Support']).map((dept: string, i: number) => (
-                            <span key={i} className="px-3 py-1 rounded-xl text-xs font-black shadow-2xs" style={{ backgroundColor: '#ffffff', color: '#0f172a', border: '1px solid #cbd5e1' }}>
-                              {dept}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs font-bold" style={{ color: '#94a3b8' }}>No redundancy data generated for this scenario.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Tab 3: Critical Role Shifts - Compact High-Density Row List */}
-              {activeTab === 'roleShifts' && (
-                <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col gap-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div>
-                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
-                        <ArrowRightLeft size={15} style={{ color: '#d97706' }} /> Critical Role Shift Mapping
-                      </h4>
-                      <p className="text-[10.5px] font-semibold mt-0.5" style={{ color: '#64748b' }}>
-                        Workforce reskilling pathways & emerging AI capabilities.
-                      </p>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-                      {roleShiftsData ? roleShiftsData.length : 0} Pathways
-                    </span>
-                  </div>
-
-                  {roleShiftsData && roleShiftsData.length > 0 ? (
-                    <div className="flex flex-col gap-2">
-                      {roleShiftsData.map((shift: any, idx: number) => {
-                        let fromRole = 'Traditional Role';
-                        let toRole = 'Emerging AI Role';
-
-                        if (typeof shift === 'string') {
-                          if (shift.includes('→')) {
-                            const parts = shift.split('→');
-                            fromRole = parts[0].trim();
-                            toRole = parts[1].trim();
-                          } else if (shift.includes('->')) {
-                            const parts = shift.split('->');
-                            fromRole = parts[0].trim();
-                            toRole = parts[1].trim();
-                          } else {
-                            fromRole = shift;
-                          }
-                        } else if (typeof shift === 'object' && shift !== null) {
-                          const fullTitle = shift.role || shift.title || shift.name || '';
-                          if (fullTitle.includes('→')) {
-                            const parts = fullTitle.split('→');
-                            fromRole = parts[0].trim();
-                            toRole = parts[1].trim();
-                          } else if (fullTitle.includes('->')) {
-                            const parts = fullTitle.split('->');
-                            fromRole = parts[0].trim();
-                            toRole = parts[1].trim();
-                          } else {
-                            fromRole = shift.from_role || shift.fromRole || shift.traditional_role || fullTitle || 'Legacy Role';
-                            toRole = shift.to_role || shift.toRole || shift.emerging_role || 'Future Role';
-                          }
-                        }
-
-                        const demand = typeof shift === 'object' ? (shift.demand || shift.demand_increase || shift.demand_change || '+35%') : '+35%';
-                        const skillGap = typeof shift === 'object' ? (shift.skillGap || shift.skill_gap || shift.skill_gap_level || 'Medium') : 'Medium';
-
-                        return (
-                          <div 
-                            key={idx} 
-                            className="p-3 rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-white hover:border-indigo-300 shadow-2xs"
-                            style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
-                          >
-                            {/* Left: Role Flow Pathway */}
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <span className="text-xs font-black truncate max-w-[42%]" style={{ color: '#475569' }} title={fromRole}>
-                                {fromRole}
-                              </span>
-                              
-                              <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: '#fef3c7', color: '#d97706', border: '1px solid #fde68a' }}>
-                                <ArrowRight size={11} strokeWidth={3} />
-                              </div>
-                              
-                              <span className="text-xs font-black truncate flex-1" style={{ color: '#0f172a' }} title={toRole}>
-                                {toRole}
-                              </span>
-                            </div>
-
-                            {/* Right: Badges */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-2xs" style={{ backgroundColor: '#d1fae5', color: '#065f46', border: '1px solid #a7f3d0' }}>
-                                <TrendingUp size={9} strokeWidth={3} /> {demand}
-                              </span>
-                              <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black shadow-2xs" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }}>
-                                Gap: {skillGap}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs font-bold" style={{ color: '#94a3b8' }}>No role shifts mapped.</p>
-                  )}
-                </div>
-              )}
-
-              {/* Tab 4: Impact Matrix */}
-              {activeTab === 'impactMatrix' && (
-                <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col gap-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div>
-                      <h4 className="text-xs font-black flex items-center gap-2" style={{ color: '#0f172a' }}>
-                        <Grid size={15} style={{ color: '#7c3aed' }} /> Systemic Impact Matrix
-                      </h4>
-                      <p className="text-[10.5px] font-semibold mt-0.5" style={{ color: '#64748b' }}>
-                        Evaluated cross-functional organizational effects.
-                      </p>
-                    </div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black shrink-0" style={{ backgroundColor: '#f3e8ff', color: '#6b21a8', border: '1px solid #e9d5ff' }}>
-                      {impactMatrixData ? impactMatrixData.length : 0} Metrics
-                    </span>
-                  </div>
-
-                  {impactMatrixData && impactMatrixData.length > 0 ? (
-                    <div className="flex flex-col gap-2.5">
-                      {impactMatrixData.map((item: any, idx: number) => {
-                        const dimensionName = typeof item === 'string' 
-                          ? item 
-                          : (item.dimension || item.title || item.label || item.metric_name || item.metric || item.category || item.name || item.factor || item.key || item.area || item.description || `Impact Area ${idx + 1}`);
-                        
-                        const score = typeof item === 'object' && item !== null 
-                          ? (item.score ?? item.impact ?? item.value ?? item.impact_score ?? item.rating ?? item.delta ?? item.score_value ?? item.val ?? (idx % 2 === 0 ? 4 : 3)) 
-                          : 0;
-
-                        // Icon selection based on dimension name
-                        const dimLower = dimensionName.toLowerCase();
-                        let IconComp = Target;
-                        let iconColor = '#4f46e5';
-                        let iconBg = '#eef2ff';
-                        let iconBorder = '#c7d2fe';
-
-                        if (dimLower.includes('efficiency') || dimLower.includes('automation') || dimLower.includes('process')) {
-                          IconComp = Zap;
-                          iconColor = '#d97706';
-                          iconBg = '#fef3c7';
-                          iconBorder = '#fde68a';
-                        } else if (dimLower.includes('agility') || dimLower.includes('workforce') || dimLower.includes('talent')) {
-                          IconComp = Users;
-                          iconColor = '#2563eb';
-                          iconBg = '#dbeafe';
-                          iconBorder = '#bfdbfe';
-                        } else if (dimLower.includes('cost') || dimLower.includes('saving') || dimLower.includes('financial') || dimLower.includes('roi')) {
-                          IconComp = TrendingUp;
-                          iconColor = '#059669';
-                          iconBg = '#d1fae5';
-                          iconBorder = '#a7f3d0';
-                        } else if (dimLower.includes('friction') || dimLower.includes('culture') || dimLower.includes('risk')) {
-                          IconComp = ShieldAlert;
-                          iconColor = '#e11d48';
-                          iconBg = '#ffe4e6';
-                          iconBorder = '#fecdd3';
-                        }
-
-                        return (
-                          <div 
-                            key={idx} 
-                            className="p-3 rounded-2xl border text-xs font-black flex justify-between items-center shadow-2xs transition-all hover:bg-white hover:border-indigo-300 gap-3" 
-                            style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                              <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 shadow-2xs" style={{ backgroundColor: iconBg, color: iconColor, border: `1px solid ${iconBorder}` }}>
-                                <IconComp size={14} strokeWidth={2.5} />
-                              </div>
-                              <span className="font-black text-xs truncate" style={{ color: '#0f172a' }}>{dimensionName}</span>
-                            </div>
-                            <div className="shrink-0">
-                              {renderImpactScoreBadge(score)}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs font-bold" style={{ color: '#94a3b8' }}>No impact matrix available.</p>
-                  )}
-                </div>
-              )}
-
+              {/* Chart Metric Selector */}
+              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setActiveChartMetric('headcount')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    activeChartMetric === 'headcount'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Headcount
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveChartMetric('cost')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    activeChartMetric === 'cost'
+                      ? 'bg-white text-emerald-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  OpEx (LKR M)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveChartMetric('savings')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    activeChartMetric === 'savings'
+                      ? 'bg-white text-purple-700 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Net Savings
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Recharts Area Chart */}
+            <div className="h-[340px] w-full pt-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorBaseline" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.0}/>
+                    </linearGradient>
+                    <linearGradient id="colorSimulated" x1="0" y1="0" x2="0" y2="1">
+                      <stop
+                        offset="5%"
+                        stopColor={activeChartMetric === 'cost' ? '#10b981' : activeChartMetric === 'savings' ? '#9333ea' : '#2563eb'}
+                        stopOpacity={0.35}
+                      />
+                      <stop
+                        offset="95%"
+                        stopColor={activeChartMetric === 'cost' ? '#10b981' : activeChartMetric === 'savings' ? '#9333ea' : '#2563eb'}
+                        stopOpacity={0.0}
+                      />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="year" stroke="#94a3b8" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '10px',
+                      border: '1px solid #e2e8f0',
+                      boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
+                      fontSize: '11px',
+                      fontWeight: 'bold'
+                    }}
+                  />
+                  {activeChartMetric === 'headcount' && (
+                    <>
+                      <Area
+                        type="monotone"
+                        dataKey="baselineHC"
+                        name="Frozen Baseline"
+                        stroke="#94a3b8"
+                        strokeDasharray="4 4"
+                        fill="url(#colorBaseline)"
+                        strokeWidth={2}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="simulatedHC"
+                        name="Simulated Headcount"
+                        stroke="#2563eb"
+                        fill="url(#colorSimulated)"
+                        strokeWidth={3}
+                      />
+                    </>
+                  )}
+                  {activeChartMetric === 'cost' && (
+                    <>
+                      <Area
+                        type="monotone"
+                        dataKey="baselineCost"
+                        name="Baseline OpEx (LKR M)"
+                        stroke="#94a3b8"
+                        strokeDasharray="4 4"
+                        fill="url(#colorBaseline)"
+                        strokeWidth={2}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="simulatedCost"
+                        name="Simulated OpEx (LKR M)"
+                        stroke="#10b981"
+                        fill="url(#colorSimulated)"
+                        strokeWidth={3}
+                      />
+                    </>
+                  )}
+                  {activeChartMetric === 'savings' && (
+                    <Area
+                      type="monotone"
+                      dataKey="savings"
+                      name="Annual Net Savings (LKR M)"
+                      stroke="#9333ea"
+                      fill="url(#colorSimulated)"
+                      strokeWidth={3}
+                    />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Chart Legend */}
+            <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 bg-slate-400"></span>
+                  <span className="text-slate-500 font-medium">Frozen Baseline</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-3 h-1 rounded-full ${
+                    activeChartMetric === 'cost' ? 'bg-emerald-600' : activeChartMetric === 'savings' ? 'bg-purple-600' : 'bg-blue-600'
+                  }`}></span>
+                  <span className="text-slate-800 font-bold">Simulated Horizon</span>
+                </div>
+              </div>
+              <span className="text-[11px] text-slate-400">Values projected to Q4 FY28</span>
+            </div>
+          </div>
 
         </div>
 
       </div>
 
+      {/* MODAL: FREEZE BASELINE SNAPSHOT */}
+      {isFreezeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 flex flex-col gap-5 relative overflow-hidden">
+            {/* Top accent line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-blue-600" />
+
+            {/* Modal Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 shrink-0">
+                  <Lock size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Freeze Baseline Snapshot</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Lock current metrics as an official comparison point</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFreezeModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Input Form */}
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-slate-700">Snapshot Identifier Tag</label>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    Official Reference
+                  </span>
+                </div>
+                <div className="relative flex items-center">
+                  <Lock size={14} className="absolute left-3.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={freezeTag}
+                    onChange={(e) => setFreezeTag(e.target.value)}
+                    className="w-full h-11 pl-10 pr-3 text-xs font-bold text-slate-800 bg-slate-50/80 border border-slate-200/90 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all"
+                    placeholder="e.g. FY26-Q4-Approved-Master"
+                  />
+                </div>
+                <p className="text-[10.5px] text-slate-400 mt-1.5">
+                  This snapshot tag acts as an immutable anchor in Fabric SQL Database for audit compliance.
+                </p>
+              </div>
+
+              {/* Locked Metrics Cards */}
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                  Frozen Baseline Parameters
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Card 1 */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Active Headcount
+                    </span>
+                    <div className="text-xl font-black text-slate-900 mt-1">
+                      {baselineHC} <span className="text-xs font-semibold text-slate-400">FTEs</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 w-fit mt-2">
+                      100% Active Roster
+                    </span>
+                  </div>
+
+                  {/* Card 2 */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Annual Run Cost
+                    </span>
+                    <div className="text-xl font-black text-emerald-600 mt-1">
+                      LKR {baselineCostM}M
+                    </div>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 w-fit mt-2">
+                      FY25 Approved OpEx
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsFreezeModalOpen(false)}
+                className="h-10 px-5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFreezeModalOpen(false);
+                  triggerToast(`Baseline Snapshot '${freezeTag}' successfully frozen.`);
+                }}
+                className="h-10 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-500/25 flex items-center gap-2 cursor-pointer active:scale-[0.98]"
+              >
+                <Lock size={13} />
+                <span>Confirm & Freeze</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PROMOTE SCENARIO */}
+      {isPromoteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 flex flex-col gap-5 relative overflow-hidden">
+            {/* Top accent line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600" />
+
+            {/* Modal Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25 shrink-0">
+                  <ShieldCheck size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Promote to Target Operating Model</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Submit simulated workforce architecture for executive approval</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPromoteModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex flex-col gap-4">
+              {/* Target Summary Cards */}
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                  Operating Model Impact Summary
+                </span>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Target HC
+                    </span>
+                    <span className="text-lg font-black text-slate-900 block mt-0.5">
+                      {simulatedHC}
+                    </span>
+                    <span className="text-[9.5px] font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded border border-amber-200 inline-block mt-1">
+                      {hcDelta >= 0 ? `+${hcDelta}` : hcDelta} FTEs
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Net Savings
+                    </span>
+                    <span className="text-lg font-black text-emerald-600 block mt-0.5">
+                      +LKR {annualSavingsM}M
+                    </span>
+                    <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 inline-block mt-1">
+                      {savingsPct}% / year
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3 text-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                      Payback
+                    </span>
+                    <span className="text-lg font-black text-purple-700 block mt-0.5">
+                      {paybackMonths} mo
+                    </span>
+                    <span className="text-[9.5px] font-bold text-purple-700 bg-purple-50 px-1 py-0.5 rounded border border-purple-200 inline-block mt-1">
+                      ROI Compliant
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Justification Field */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">Executive Justification</label>
+                <textarea
+                  rows={3}
+                  value={promoteJustification}
+                  onChange={(e) => setPromoteJustification(e.target.value)}
+                  className="w-full text-xs font-medium text-slate-800 bg-slate-50/80 border border-slate-200/90 rounded-xl p-3 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 outline-none transition-all leading-relaxed"
+                  placeholder="Enter strategic rationale for executive board review..."
+                />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2.5 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsPromoteModalOpen(false)}
+                className="h-10 px-5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all border border-slate-200 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPromoteModalOpen(false);
+                  triggerToast(`Scenario promoted to Target Operating Model. Audit trail updated.`);
+                }}
+                className="h-10 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-500/25 flex items-center gap-2 cursor-pointer active:scale-[0.98]"
+              >
+                <ShieldCheck size={14} />
+                <span>Approve & Promote</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-export default OrgSimulator;
