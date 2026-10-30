@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Users, Plus, CheckCircle2, X,
+  Users, Plus, CheckCircle2, X, Sparkles,
   TrendingUp, Download, Clock,
   Workflow, BookOpen, Filter, Search, RefreshCw,
   ChevronRight, ChevronDown, Building2
@@ -10,10 +10,11 @@ import {
 } from 'recharts';
 import api from '../../lib/api';
 
-type TabMode = 'roles' | 'drivers' | 'demand' | 'skills';
+import { RoleArchitectStudio } from './RoleArchitectStudio';
+type TabMode = 'role-studio' | 'roles' | 'drivers' | 'demand' | 'skills';
 
 export const StrategyRoleArchitect: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabMode>('roles');
+  const [activeTab, setActiveTab] = useState<TabMode>('role-studio');
   const [cycle, setCycle] = useState('FY26 – FY28 (Active Plan)');
   const [department, setDepartment] = useState('All Departments');
   const [evolutionFilter, setEvolutionFilter] = useState('ALL');
@@ -250,11 +251,12 @@ export const StrategyRoleArchitect: React.FC = () => {
           {/* Left: Title */}
           <div className="flex items-center gap-2 shrink-0">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
-              Strategy & Role Architecture
+              Role Architect
             </h1>
           </div>
 
           {/* Right: Action Toolbar with Standard Heights & Paddings */}
+          {activeTab !== 'role-studio' && (
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             
             {/* Horizon Selector */}
@@ -325,6 +327,7 @@ export const StrategyRoleArchitect: React.FC = () => {
               <span className="text-white">Map Future Role</span>
             </button>
           </div>
+          )}
         </div>
         {/* Subtitle Description */}
         <p className="text-xs text-slate-500 max-w-2xl">
@@ -334,7 +337,7 @@ export const StrategyRoleArchitect: React.FC = () => {
       </div>
 
       {/* Unified Executive Scorecard Ribbon - Clean 6 KPI Stats */}
-      {(() => {
+      {activeTab !== 'role-studio' && (() => {
         const activeHeadcount = summaryData.current_headcount || 63;
         const plannedGrowth = summaryData.planned_growth || 22;
         const targetHeadcount = activeHeadcount + plannedGrowth;
@@ -439,6 +442,22 @@ export const StrategyRoleArchitect: React.FC = () => {
         {/* Navigation Tabs - Modern High-Contrast Container */}
         <div className="flex items-center gap-2 p-1 bg-slate-100/90 border border-slate-200/90 rounded-xl shadow-2xs overflow-x-auto no-scrollbar">
           
+          {/* Tab 0: AI Role Architect Studio */}
+          <button
+            onClick={() => setActiveTab('role-studio')}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer whitespace-nowrap ${
+              activeTab === 'role-studio'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+            }`}
+          >
+            <Sparkles size={14} className={activeTab === 'role-studio' ? 'text-white' : 'text-blue-500'} />
+            <span>AI Role Architect Studio</span>
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === 'role-studio' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'}`}>
+              6-Step Engine
+            </span>
+          </button>
+          
           {/* Tab 1: Roles & Architecture */}
           <button
             onClick={() => setActiveTab('roles')}
@@ -514,6 +533,7 @@ export const StrategyRoleArchitect: React.FC = () => {
         </div>
 
         {/* Search Box on Right of Tabs - Generously Sized, Luxuriously Padded Capsule */}
+        {activeTab !== 'role-studio' && (
         <div className="flex items-center shrink-0 relative z-10">
           <div className="group flex items-center gap-3 h-10 pl-5 pr-4 bg-white border border-slate-200/90 hover:border-slate-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 rounded-full transition-all duration-200 w-80 sm:w-96 shadow-2xs">
             <Search size={15} className="text-slate-400 group-focus-within:text-blue-500 shrink-0 transition-colors" />
@@ -540,9 +560,14 @@ export const StrategyRoleArchitect: React.FC = () => {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Filter Row: Vibrant, High-Contrast Filter Rail */}
+      {activeTab === 'role-studio' && (
+        <RoleArchitectStudio />
+      )}
+
       {activeTab === 'roles' && (
         <div className="flex items-center justify-between text-xs p-3 bg-white border border-slate-200/90 rounded-xl shadow-2xs flex-wrap gap-2">
           

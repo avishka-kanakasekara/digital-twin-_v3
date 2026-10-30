@@ -4,6 +4,7 @@ import { useSettings } from '../../context/SettingsContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { teamBuilderAPI, type TbCatalogue, type TbJoinRequest, type TbOption, type TbRun, type TbSkillRequirement } from '../../lib/api';
 import { TeamRegistryPanel } from './TeamRegistryPanel';
+import { TeamAssemblyStudio } from './TeamAssemblyStudio';
 import './TeamBuilder.css';
 
 const pct = (value: number | null | undefined) => (value === null || value === undefined ? 'Not enough data' : `${value}%`);
@@ -56,7 +57,7 @@ export const TeamBuilder: React.FC = () => {
   const [skillQuery, setSkillQuery] = useState('');
   const [capacityEmployee, setCapacityEmployee] = useState('');
   const [capacityPct, setCapacityPct] = useState(50);
-  const [section, setSection] = useState<'recommend' | 'teams'>('teams');
+  const [section, setSection] = useState<'assembly' | 'recommend' | 'teams'>('assembly');
   const [joinRequests, setJoinRequests] = useState<TbJoinRequest[]>([]);
 
   useEffect(() => {
@@ -214,7 +215,7 @@ export const TeamBuilder: React.FC = () => {
           {/* Left: Title */}
           <div className="flex items-center gap-2 shrink-0">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
-              Team Builder Engine
+              Team Assembly
             </h1>
           </div>
 
@@ -268,6 +269,7 @@ export const TeamBuilder: React.FC = () => {
         </div>
       )}
 
+      {section === 'assembly' && <TeamAssemblyStudio />}
       {section === 'teams' && <TeamRegistryPanel catalogue={catalogue} />}
 
       {section === 'recommend' && (loading ? (

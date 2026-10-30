@@ -7,8 +7,9 @@ import { CareerCoach } from './views/employee/CareerCoach';
 import { GamificationHub } from './views/employee/GamificationHub';
 import { LearningHub } from './views/employee/LearningHub';
 import { WorkforcePlanning } from './views/organization/WorkforcePlanning';
-import { TeamBuilder } from './views/organization/TeamBuilder';
+import { TeamAssemblyStudio } from './views/organization/TeamAssemblyStudio';
 import { TalentMarketplace } from './views/organization/TalentMarketplace';
+import { RoleArchitectStudio } from './views/organization/RoleArchitectStudio';
 import { StrategyRoleArchitect } from './views/organization/StrategyRoleArchitect';
 import { SuccessionKnowledgeTransfer } from './views/organization/SuccessionKnowledgeTransfer';
 import { AdminSettings } from './views/admin/AdminSettings';
@@ -34,8 +35,13 @@ function App() {
             <Route path="radar" element={<WorkforcePlanning initialTab="radar" />} />
             <Route path="simulator" element={<OrgSimulator />} />
             <Route path="workforce" element={<WorkforcePlanning />} />
-            <Route path="team-builder" element={<TeamBuilder />} />
+            <Route path="team-builder" element={<TeamAssemblyStudio />} />
+            <Route path="team-assembly" element={<TeamAssemblyStudio />} />
+            <Route path="team assembly" element={<TeamAssemblyStudio />} />
             <Route path="talent-marketplace" element={<TalentMarketplace />} />
+            <Route path="role-architect" element={<RoleArchitectStudio />} />
+            <Route path="role%20architect" element={<RoleArchitectStudio />} />
+            <Route path="role architect" element={<RoleArchitectStudio />} />
             <Route path="strategy-architect" element={<StrategyRoleArchitect />} />
             <Route path="succession" element={<SuccessionKnowledgeTransfer />} />
             <Route path="admin/settings" element={<AdminSettings />} />

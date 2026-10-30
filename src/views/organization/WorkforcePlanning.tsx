@@ -3,9 +3,7 @@ import { Card } from '../../components/Card';
 import {
   Users, TrendingUp, Layers, Target, Activity,
   ArrowUpRight, CheckCircle2, X, BrainCircuit,
-  Calendar, Search, ShieldAlert, UserMinus, UserPlus, Award,
-  AlertTriangle, Clock, ShieldCheck, ChevronRight, Building2, ChevronDown,
-  TrendingDown, Minus
+  Search, ShieldAlert, UserMinus, UserPlus, Award, AlertTriangle, Clock, ShieldCheck, Building2, ChevronDown
 } from 'lucide-react';
 import {
   ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, AreaChart, Area,
@@ -31,6 +29,7 @@ interface WorkforcePlanningProps {
 
 export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab = 'analytics' }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'radar' | 'certifications'>(initialTab);
+  const [radarView, setRadarView] = useState<'critical-roles' | 'retention-watch' | 'actions'>('critical-roles');
 
   useEffect(() => {
     if (initialTab) {
@@ -94,10 +93,7 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
   const [chattingEmployee, setChattingEmployee] = useState<{ name: string; role: string } | null>(null);
   const [selectedWorkforceEmployee, setSelectedWorkforceEmployee] = useState<{ id: string; name: string; role: string } | null>(null);
   const [riskSearchQuery, setRiskSearchQuery] = useState('');
-  const [riskFilterTab, setRiskFilterTab] = useState<'all' | 'high' | 'worsening' | 'silo'>('all');
-  const [riskItemsLimit, setRiskItemsLimit] = useState<number>(8);
-  const [showAllCriticalRoles, setShowAllCriticalRoles] = useState<boolean>(false);
-
+  
   // Certifications State
   const [certificationsData, setCertificationsData] = useState<any[]>([]);
 
@@ -332,27 +328,11 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
     }, 1200);
   };
 
-  const highRiskCount = atRiskEmployees.filter(emp => emp.urgency === 'High' || emp.attritionRisk >= 70).length;
-  const worseningCount = atRiskEmployees.filter(emp => (emp.trendDirection || '').toLowerCase().includes('worsen') || (emp.trendDirection || '').toLowerCase().includes('up')).length;
-  const highLossCount = atRiskEmployees.filter(emp => parseInt(emp.burnoutScore || '0') >= 40).length;
-
   const filteredRiskEmployees = atRiskEmployees.filter(emp => {
-    const matchesSearch = (emp.name || '').toLowerCase().includes(riskSearchQuery.toLowerCase()) ||
-      (emp.role || '').toLowerCase().includes(riskSearchQuery.toLowerCase()) ||
-      (emp.dept || '').toLowerCase().includes(riskSearchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-
-    if (riskFilterTab === 'high') {
-      return emp.urgency === 'High' || emp.attritionRisk >= 70;
-    }
-    if (riskFilterTab === 'worsening') {
-      return (emp.trendDirection || '').toLowerCase().includes('worsen') || (emp.trendDirection || '').toLowerCase().includes('up');
-    }
-    if (riskFilterTab === 'silo') {
-      const burnoutNum = parseInt(emp.burnoutScore || '0');
-      return burnoutNum >= 40;
-    }
-    return true;
+    const q = riskSearchQuery.toLowerCase();
+    return (emp.name || '').toLowerCase().includes(q) ||
+      (emp.role || '').toLowerCase().includes(q) ||
+      (emp.dept || '').toLowerCase().includes(q);
   });
 
   return (
@@ -450,7 +430,7 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
 
         {/* Subtitle Description */}
         <p className="text-xs text-slate-500 max-w-2xl mb-1">
-          Measures distance between current capability and Module 1 targets, ranks business-critical role risks, and guides closing routes.
+          Monitor workforce capability gaps, at-risk roles, and succession health across teams.
         </p>
       </div>
 
@@ -987,450 +967,220 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
           </div>
         )}
 
-        {/* TAB 2: AT-RISK & BURNOUT RADAR (Enriched with Compound Rule & Section 2.5 Explainability) */}
+        {/* TAB 2: AT-RISK & CRITICAL ROLES RADAR - ULTRA SIMPLE & CLEAN */}
         {activeTab === 'radar' && (
-          <div className="flex flex-col gap-4.5">
+          <div className="flex flex-col gap-4">
 
-            {/* Compound Critical Risk Roles Alert Strip - Compact 3-Column Executive Grid */}
-            {criticalRolesAtRisk.length > 0 && (
-              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col gap-3.5 relative overflow-hidden">
-                <div className="flex items-center justify-between flex-wrap gap-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 border border-rose-200/80 flex items-center justify-center shrink-0 shadow-2xs">
-                      <ShieldAlert size={16} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wider">
-                          Compound Rule Alert: {criticalRolesAtRisk.length} Business-Critical Roles Flagged
-                        </h4>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/70">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" /> 3-Leg Threshold Active
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                        Tripped all 3 legs simultaneously: Criticality &gt; 0.70 · Ready Successors &lt; 1 · External Skill Scarcity &gt; 0.60
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2.5 py-0.5 bg-slate-100 text-slate-700 rounded-full border border-slate-200 shadow-2xs">
-                      Central Policy CFG-001 Enforced
-                    </span>
-                    {criticalRolesAtRisk.length > 3 && (
-                      <button
-                        onClick={() => setShowAllCriticalRoles(prev => !prev)}
-                        className="text-[10px] font-bold px-2.5 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-full border border-slate-200 transition-colors cursor-pointer"
-                      >
-                        {showAllCriticalRoles ? 'Show Top 4' : `View All ${criticalRolesAtRisk.length} Roles`}
-                      </button>
-                    )}
-                  </div>
-                </div>
+            {/* Top Sub-Switcher Pills */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold gap-1 shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setRadarView('critical-roles')}
+                  className={`px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                    radarView === 'critical-roles'
+                      ? 'bg-white text-blue-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Critical Roles ({criticalRolesAtRisk.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRadarView('retention-watch')}
+                  className={`px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                    radarView === 'retention-watch'
+                      ? 'bg-white text-blue-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Retention Watch ({atRiskEmployees.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRadarView('actions')}
+                  className={`px-4 py-2 rounded-lg transition-all cursor-pointer ${
+                    radarView === 'actions'
+                      ? 'bg-white text-blue-600 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Action Recommendations ({interventionEffectiveness.length})
+                </button>
+              </div>
 
-                {/* 2-Column Symmetrical Grid - Exactly 2 Cards Per Row with Standard Red Accent */}
-                <div className="grid grid-cols-2 gap-4 mt-1">
-                  {(showAllCriticalRoles ? criticalRolesAtRisk : criticalRolesAtRisk.slice(0, 4)).map((r) => {
-                    const topSkillGap = r.skill_gaps && r.skill_gaps[0] ? r.skill_gaps[0] : null;
-                    const hasFteShortage = (r.headcount_gap || 0) > 0;
+              <div className="text-xs text-slate-500 font-medium">
+                {radarView === 'critical-roles' && '5 roles requiring recruitment or succession planning'}
+                {radarView === 'retention-watch' && 'Team members monitored for workload and retention'}
+                {radarView === 'actions' && 'HR retention strategies to mitigate attrition'}
+              </div>
+            </div>
 
-                    return (
-                      <div
-                        key={r.role_id}
-                        className="p-4 bg-white rounded-2xl border border-slate-200/90 border-l-[3.5px] border-l-rose-500 shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group relative"
-                      >
-                        <div>
-                          {/* Card Header: Role title, Dept, and Red Deficit / Shortage badge */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <h5 className="text-sm font-extrabold text-slate-900 group-hover:text-rose-700 transition-colors truncate">
-                                {r.role_title}
-                              </h5>
-                              <p className="text-xs font-medium text-slate-500 truncate mt-0.5">
-                                {r.dept || 'Strategic Org Unit'}
-                              </p>
-                            </div>
-                            <span
-                              className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border shrink-0 ${
-                                hasFteShortage
-                                  ? 'text-rose-700 bg-rose-50 border-rose-200/90'
-                                  : 'text-rose-700 bg-rose-50/70 border-rose-200/70'
-                              }`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  hasFteShortage ? 'bg-rose-500 animate-pulse' : 'bg-rose-400'
-                                }`}
-                              />
-                              {hasFteShortage
-                                ? `Shortage: -${r.headcount_gap} FTE`
-                                : topSkillGap
-                                ? `Deficit: ${topSkillGap.skill_name} (-${topSkillGap.gap})`
-                                : 'Succession Deficit'}
-                            </span>
-                          </div>
+            {/* SUB-VIEW 1: CRITICAL ROLES (Clean, Beautiful Table) */}
+            {radarView === 'critical-roles' && (
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 text-slate-500 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-100">
+                      <tr>
+                        <th className="py-3.5 px-5">Role & Department</th>
+                        <th className="py-3.5 px-4">Shortage</th>
+                        <th className="py-3.5 px-4">Succession Pipeline</th>
+                        <th className="py-3.5 px-4">Key Skill Needed</th>
+                        <th className="py-3.5 px-5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {criticalRolesAtRisk.map((r) => {
+                        const topSkill = r.skill_gaps && r.skill_gaps[0] ? r.skill_gaps[0].skill_name : 'Architecture';
+                        const shortage = r.headcount_gap ? `-${r.headcount_gap} FTE Shortage` : 'Succession Gap';
 
-                          {/* Unified 4-Column Metric Strip (Criticality, Pipeline, Scarcity, Bottleneck) */}
-                          <div className="grid grid-cols-4 gap-2 bg-slate-50/90 p-2.5 rounded-xl border border-slate-100 mt-2.5">
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Criticality</span>
-                              <span className="text-sm font-black text-rose-700 mt-0.5">{r.business_criticality_index}</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Successors</span>
-                              <span className="text-sm font-black text-slate-900 mt-0.5">{r.ready_successors} ready</span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Scarcity</span>
-                              <span className="text-sm font-black text-slate-900 mt-0.5">{r.skill_scarcity_index}</span>
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Top Bottleneck</span>
-                              <span
-                                className="text-xs font-bold text-rose-700 truncate mt-0.5"
-                                title={topSkillGap ? `${topSkillGap.skill_name} (Gap ${topSkillGap.gap})` : 'Core Architecture'}
-                              >
-                                {topSkillGap ? `${topSkillGap.skill_name} (-${topSkillGap.gap})` : 'Architecture'}
+                        return (
+                          <tr key={r.role_id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-4 px-5">
+                              <div className="font-extrabold text-slate-900 text-sm">{r.role_title}</div>
+                              <div className="text-xs text-slate-500 font-medium">{r.dept}</div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                {shortage}
                               </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Card Footer: Feasibility & Audit Action */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                          <span className="font-medium text-slate-500">
-                            Feasibility: <strong className="font-extrabold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200/70 text-[11px]">{r.closure_feasibility}</strong>
-                          </span>
-                          <button
-                            onClick={() => setSelectedCriticalRole(r)}
-                            className="text-xs font-bold text-rose-700 hover:text-rose-900 flex items-center gap-1 cursor-pointer transition-colors"
-                          >
-                            Audit 3-Leg Rule <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            </td>
+                            <td className="py-4 px-4 font-semibold">
+                              {r.ready_successors > 0 ? (
+                                <span className="text-emerald-700 font-bold">{r.ready_successors} Ready</span>
+                              ) : (
+                                <span className="text-slate-400 font-medium">0 Ready</span>
+                              )}
+                            </td>
+                            <td className="py-4 px-4">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-semibold">
+                                {topSkill}
+                              </span>
+                            </td>
+                            <td className="py-4 px-5 text-right">
+                              <button
+                                onClick={() => setSelectedCriticalRole(r)}
+                                className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
 
-            {/* Section 1: Intervention Effectiveness (2-Column Executive Grid) */}
-            <Card className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex flex-col gap-4 relative overflow-hidden">
-              <div className="flex justify-between items-start flex-wrap gap-2">
-                <div>
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
-                    <BrainCircuit size={16} className="text-indigo-600" /> Intervention Effectiveness
-                  </h3>
-                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                    Causal ML Uplift Prescriptions targeting acute attrition drivers and skill silos
-                  </p>
+            {/* SUB-VIEW 2: RETENTION WATCH (Clean Table) */}
+            {radarView === 'retention-watch' && (
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
+                <div className="p-3.5 border-b border-slate-100 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200 w-72">
+                    <Search size={14} className="text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={riskSearchQuery}
+                      onChange={(e) => setRiskSearchQuery(e.target.value)}
+                      placeholder="Filter employees..."
+                      className="bg-transparent text-xs text-slate-800 font-medium focus:outline-none w-full"
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400">Showing {filteredRiskEmployees.length} employees</span>
                 </div>
-                <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                  Trained Uplift Model Active
-                </span>
-              </div>
 
-              {/* 2-Column Symmetrical Grid - Exactly 2 Cards Per Row */}
-              <div className="grid grid-cols-2 gap-4">
-                {interventionEffectiveness.map((item, index) => {
-                  const reduction = item.risk_reduction_percentage || 20;
-                  const accentColor = item.theme_color === 'rose' ? 'border-l-rose-500' :
-                    item.theme_color === 'indigo' ? 'border-l-indigo-500' :
-                    item.theme_color === 'emerald' ? 'border-l-emerald-500' : 'border-l-amber-500';
-
-                  return (
-                    <div
-                      key={index}
-                      className={`p-4 bg-white rounded-xl border border-slate-200/90 border-l-[3.5px] ${accentColor} shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group relative`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate">
-                            {item.role_group}
-                          </span>
-                          <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0">
-                            -{reduction}% Risk
-                          </span>
-                        </div>
-
-                        <h4 className="text-sm font-extrabold text-slate-900 mt-1 leading-snug group-hover:text-blue-600 transition-colors">
-                          {item.intervention_name}
-                        </h4>
-
-                        <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
-                          {item.description}
-                        </p>
-
-                        {/* Simulated Uplift Impact & Post-Action Risk */}
-                        <div className="pt-2.5 mt-2.5 border-t border-slate-100 flex flex-col gap-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-slate-600">Simulated Post-Action Risk:</span>
-                            <div className="flex items-center gap-1.5 font-extrabold text-slate-900">
-                              <span className="line-through text-slate-400 font-semibold text-[11px]">100%</span>
-                              <span className="text-emerald-700 font-black text-sm">{100 - reduction}%</span>
-                              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
-                                -{reduction}% drop
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50/80 text-slate-500 uppercase text-[10px] font-extrabold tracking-wider border-b border-slate-100">
+                      <tr>
+                        <th className="py-3 px-5">Employee</th>
+                        <th className="py-3 px-4">Role & Department</th>
+                        <th className="py-3 px-4">Retention Risk</th>
+                        <th className="py-3 px-4">Primary Factor</th>
+                        <th className="py-3 px-5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRiskEmployees.map((emp) => {
+                        const isHigh = emp.urgency === 'High' || emp.attritionRisk >= 70;
+                        return (
+                          <tr key={emp.employee_id || emp.name} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="py-3.5 px-5">
+                              <div className="font-extrabold text-slate-900">{emp.name}</div>
+                              <div className="text-[11px] text-slate-400 font-mono">{emp.employee_id}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-semibold text-slate-800">{emp.role}</div>
+                              <div className="text-[11px] text-slate-500">{emp.dept}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                isHigh ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}>
+                                {emp.attritionRisk}% {isHigh ? 'High Risk' : 'Moderate'}
                               </span>
-                            </div>
-                          </div>
-
-                          {/* Standard Left-to-Right Progress Bar */}
-                          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200/70 p-0.5 shadow-2xs">
-                            <div
-                              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                              style={{ width: `${100 - reduction}%` }}
-                            />
-                          </div>
-
-                          <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold">
-                            <span>0% (Zero Risk)</span>
-                            <span className="text-emerald-700 font-bold flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              {reduction}% Attrition Risk Mitigated
-                            </span>
-                            <span>100% (Baseline)</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => triggerToast(`Applied simulation for ${item.role_group}: Projected retention increased by ${reduction}%.`)}
-                        className="w-full py-1.5 px-3 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-colors cursor-pointer text-center"
-                      >
-                        Simulate Uplift Impact
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-
-            {/* Section 2: Urgent Interventions Queue (2-Column Symmetrical Grid) */}
-            <Card className="p-5 bg-white border border-slate-200/90 rounded-2xl shadow-xs flex flex-col gap-4 relative overflow-hidden">
-              {/* Queue Header & Search */}
-              <div className="flex justify-between items-center flex-wrap gap-3">
-                <div>
-                  <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-2 uppercase tracking-wider">
-                    <Activity size={16} className="text-blue-600" /> Urgent Interventions Queue
-                  </h3>
-                  <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-                    {atRiskEmployees.length} Predictive Risk Signals with Explainable Drivers (Confidence &ge; 0.60)
-                  </p>
-                </div>
-
-                {/* Search Bar */}
-                <div className="flex items-center gap-2.5 px-3.5 h-10 bg-slate-50 hover:bg-white focus-within:bg-white focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 rounded-xl border border-slate-200 w-full sm:w-80 shadow-2xs transition-all">
-                  <Search size={16} className="text-slate-400 shrink-0" />
-                  <input
-                    type="text"
-                    value={riskSearchQuery}
-                    onChange={(e) => setRiskSearchQuery(e.target.value)}
-                    placeholder="Filter by name, role, dept..."
-                    className="bg-transparent text-xs sm:text-sm text-slate-800 font-medium placeholder:text-slate-400 focus:outline-none w-full"
-                  />
-                  {riskSearchQuery && (
-                    <button onClick={() => setRiskSearchQuery('')} className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Interactive Filter Pills */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Filter:</span>
-                <button
-                  onClick={() => setRiskFilterTab('all')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    riskFilterTab === 'all'
-                      ? 'bg-slate-900 text-white shadow-2xs'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  All ({atRiskEmployees.length})
-                </button>
-                <button
-                  onClick={() => setRiskFilterTab('high')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    riskFilterTab === 'high'
-                      ? 'bg-rose-600 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                >
-                  High Risk (&ge;70%) ({highRiskCount})
-                </button>
-                <button
-                  onClick={() => setRiskFilterTab('worsening')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    riskFilterTab === 'worsening'
-                      ? 'bg-amber-600 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                >
-                  Worsening ({worseningCount})
-                </button>
-                <button
-                  onClick={() => setRiskFilterTab('silo')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    riskFilterTab === 'silo'
-                      ? 'bg-blue-600 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                  }`}
-                >
-                  Knowledge Silos ({highLossCount})
-                </button>
-              </div>
-
-              {/* Employee Interventions 2-Column Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                {filteredRiskEmployees.slice(0, riskItemsLimit).map((emp) => {
-                  const isHigh = emp.urgency === 'High' || emp.attritionRisk >= 70;
-                  const isMedium = !isHigh && (emp.urgency === 'Moderate' || emp.attritionRisk >= 40);
-                  const urgencyBorder = isHigh ? 'border-l-rose-500' : isMedium ? 'border-l-amber-500' : 'border-l-blue-500';
-                  const urgencyBadge = isHigh
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : isMedium
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-blue-50 text-blue-700 border-blue-200';
-
-                  const isWorsening = (emp.trendDirection || '').toLowerCase().includes('worsen') || (emp.trendDirection || '').toLowerCase().includes('up');
-                  const isImproving = (emp.trendDirection || '').toLowerCase().includes('improv') || (emp.trendDirection || '').toLowerCase().includes('down');
-
-                  return (
-                    <div
-                      key={emp.employee_id || emp.name}
-                      className={`p-4 bg-white rounded-xl border border-slate-200/90 border-l-[3.5px] ${urgencyBorder} shadow-2xs hover:border-slate-300 hover:shadow-xs transition-all flex flex-col justify-between gap-3 group relative`}
-                    >
-                      <div>
-                        {/* 1. Header: Avatar + Name/Role on left; Attrition Badge on right */}
-                        <div className="flex items-start justify-between gap-2.5">
-                          <div
-                            className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer hover:opacity-85 transition-opacity"
-                            onClick={() => setSelectedWorkforceEmployee({ id: emp.employee_id || emp.name, name: emp.name, role: emp.role })}
-                          >
-                            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-black shadow-2xs shrink-0 bg-slate-900">
-                              {(emp.name || 'EM').split(' ').filter(Boolean).map((n: string) => n[0]).slice(0, 2).join('')}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <h4 className="font-extrabold text-sm text-slate-900 hover:text-blue-600 transition-colors truncate">
-                                {emp.name}
-                              </h4>
-                              <p className="text-xs font-medium text-slate-500 truncate">{emp.role}</p>
-                            </div>
-                          </div>
-
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-lg border shrink-0 ${urgencyBadge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${isHigh ? 'bg-rose-500 animate-pulse' : isMedium ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                            {emp.attritionRisk}% {emp.urgency || (isHigh ? 'High' : 'Mod')}
-                          </span>
-                        </div>
-
-                        {/* 2. Structured 3-Metric Strip (Knowl. Loss | Confidence | Trend) */}
-                        <div className="grid grid-cols-3 gap-2 py-2 px-2.5 bg-slate-50/90 rounded-xl border border-slate-100 mt-3 text-center">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Knowl. Loss</span>
-                            <span className="text-xs font-black text-slate-900 mt-0.5">{emp.burnoutScore || '40%'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Confidence</span>
-                            <span className="text-xs font-black text-slate-900 mt-0.5">{emp.perfCurrent || '85%'}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Trend</span>
-                            <span className={`inline-flex items-center justify-center gap-0.5 text-xs font-extrabold mt-0.5 ${
-                              isWorsening ? 'text-rose-600' : isImproving ? 'text-emerald-600' : 'text-slate-700'
-                            }`}>
-                              {isWorsening ? <TrendingUp size={12} /> : isImproving ? <TrendingDown size={12} /> : <Minus size={12} />}
-                              {emp.trendDirection}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* 3. Contributing Drivers */}
-                        {emp.contributingFactors && emp.contributingFactors.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Drivers:</span>
-                            {emp.contributingFactors.slice(0, 2).map((factor: string, i: number) => (
-                              <span
-                                key={i}
-                                className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/70 truncate max-w-[180px]"
-                                title={factor}
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-600">
+                              {emp.contributingFactors && emp.contributingFactors[0] ? emp.contributingFactors[0] : 'Workload factor'}
+                            </td>
+                            <td className="py-3.5 px-5 text-right">
+                              <button
+                                onClick={() => triggerToast(`Scheduled 1-on-1 retention review with ${emp.name}.`)}
+                                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer mr-1.5"
                               >
-                                {factor}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Card Footer: Due Date & Actions */}
-                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 text-xs">
-                        <span className="text-[11px] text-slate-400 font-medium">
-                          Due: <strong className="text-slate-600">{emp.last1on1 ? emp.last1on1.substring(0, 10) : '2026-12-15'}</strong>
-                        </span>
-
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => triggerToast(`Scheduled 1:1 retention review with ${emp.name}.`)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            title="Schedule 1:1"
-                          >
-                            <Calendar size={14} />
-                          </button>
-                          <button
-                            onClick={() => setChattingEmployee({ name: emp.name, role: emp.role })}
-                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                          >
-                            <BrainCircuit size={12} /> AI Insight
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {filteredRiskEmployees.length === 0 && (
-                  <div className="col-span-full text-center py-12 text-slate-400 font-semibold text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                    No at-risk employee matches your current filter or search criteria.
-                  </div>
-                )}
-              </div>
-
-              {/* Pagination / Load More Footer */}
-              {filteredRiskEmployees.length > 8 && (
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2 text-xs text-slate-500 font-medium">
-                  <span>
-                    Showing top <strong>{Math.min(filteredRiskEmployees.length, riskItemsLimit)}</strong> of <strong>{filteredRiskEmployees.length}</strong> active risk signals
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {filteredRiskEmployees.length > riskItemsLimit ? (
-                      <>
-                        <button
-                          onClick={() => setRiskItemsLimit((prev) => prev + 8)}
-                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer text-xs"
-                        >
-                          Load +8 More
-                        </button>
-                        <button
-                          onClick={() => setRiskItemsLimit(filteredRiskEmployees.length)}
-                          className="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg transition-colors cursor-pointer text-xs"
-                        >
-                          Show All ({filteredRiskEmployees.length})
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setRiskItemsLimit(8)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer text-xs"
-                      >
-                        Collapse to Top 8
-                      </button>
-                    )}
-                  </div>
+                                Schedule 1:1
+                              </button>
+                              <button
+                                onClick={() => setChattingEmployee({ name: emp.name, role: emp.role })}
+                                className="px-3 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors cursor-pointer"
+                              >
+                                AI Advice
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-              )}
-            </Card>
+              </div>
+            )}
+
+            {/* SUB-VIEW 3: RECOMMENDED ACTIONS */}
+            {radarView === 'actions' && (
+              <div className="grid grid-cols-2 gap-4">
+                {interventionEffectiveness.map((item, index) => (
+                  <div key={index} className="p-4 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex flex-col justify-between gap-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                          {item.role_group}
+                        </span>
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                          -{item.risk_reduction_percentage}% Turnover Risk
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-900 mt-1">{item.intervention_name}</h4>
+                      <p className="text-xs text-slate-500 mt-1">{item.description}</p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-emerald-700">Recommended HR Strategy</span>
+                      <button
+                        onClick={() => triggerToast(`Applied ${item.intervention_name} strategy.`)}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer"
+                      >
+                        Apply Strategy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
           </div>
         )}
@@ -1552,10 +1302,10 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
 
       </div>
 
-      {/* Compound Critical Risk Role Detail Modal */}
+      {/* Critical Role Drilldown Modal */}
       {selectedCriticalRole && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black">
@@ -1563,7 +1313,7 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900">{selectedCriticalRole.role_title}</h3>
-                  <p className="text-xs font-semibold text-rose-600">Compound Critical Risk Audit (Section 2.7)</p>
+                  <p className="text-xs font-semibold text-rose-600">Critical Role Details</p>
                 </div>
               </div>
               <button onClick={() => setSelectedCriticalRole(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -1573,15 +1323,10 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
 
             <div className="flex flex-col gap-3 text-xs">
               <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-900">
-                <strong>Why is this role flagged?</strong>
+                <strong>Current Status:</strong>
                 <p className="mt-1">
-                  Per Module 2 business rules, a role is flagged as Critical Risk <em>only when all three indicators breach thresholds simultaneously</em>:
+                  This role is experiencing talent scarcity in the external market with 0 ready internal successors. Immediate succession pairing is recommended.
                 </p>
-                <ul className="list-disc pl-5 mt-1 space-y-1">
-                  <li><strong>Business Criticality:</strong> {selectedCriticalRole.business_criticality_index} (Threshold: 0.70) - <span className="text-rose-700 font-bold">BREACHED</span></li>
-                  <li><strong>Ready Successors:</strong> {selectedCriticalRole.ready_successors} ready (Threshold: 1) - <span className="text-rose-700 font-bold">BREACHED</span></li>
-                  <li><strong>Skill Scarcity Index:</strong> {selectedCriticalRole.skill_scarcity_index} (Threshold: 0.60) - <span className="text-rose-700 font-bold">BREACHED</span></li>
-                </ul>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1591,17 +1336,17 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
                   <div className="text-[11px] text-slate-500">Target: {selectedCriticalRole.demand_headcount_net} | Current: {selectedCriticalRole.current_headcount}</div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 uppercase font-bold text-[10px]">Closure Feasibility</span>
-                  <div className="text-lg font-black text-rose-600 mt-1">{selectedCriticalRole.closure_feasibility}</div>
-                  <div className="text-[11px] text-slate-500">Build: {selectedCriticalRole.time_to_close_build_months} mo | Buy: {selectedCriticalRole.time_to_close_buy_days} d</div>
+                  <span className="text-slate-400 uppercase font-bold text-[10px]">Succession Pipeline</span>
+                  <div className="text-lg font-black text-rose-600 mt-1">{selectedCriticalRole.ready_successors || 0} Ready</div>
+                  <div className="text-[11px] text-slate-500">Requires cross-training</div>
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-slate-400 uppercase font-bold text-[10px]">Succession & Knowledge Protection</span>
-                <div className="text-xs text-slate-700 mt-1">
-                  Readiness Band: <strong className="text-amber-700 font-bold">{selectedCriticalRole.readiness_band || selectedCriticalRole.succession_level || 'Amber'}</strong> ({Math.round((selectedCriticalRole.workforce_readiness_score || 0.44) * 100)}%) | Knowledge Concentration Index (Bus Factor): <strong>{selectedCriticalRole.knowledge_concentration_index}</strong>
-                </div>
+              <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 text-blue-900">
+                <span className="text-blue-700 uppercase font-bold text-[10px]">Recommended Action</span>
+                <p className="mt-1 text-xs">
+                  Pair with mid-level engineers for rapid mentorship, and open internal sourcing through the Digital Talent Marketplace.
+                </p>
               </div>
             </div>
 
@@ -1615,11 +1360,11 @@ export const WorkforcePlanning: React.FC<WorkforcePlanningProps> = ({ initialTab
               <button
                 onClick={() => {
                   setSelectedCriticalRole(null);
-                  triggerToast(`Initiated Emergency Succession Pairing & Fast-track Training for ${selectedCriticalRole.role_title}.`);
+                  triggerToast(`Initiated Succession Pairing for ${selectedCriticalRole.role_title}.`);
                 }}
-                className="px-4 py-2 text-xs font-black bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-xs cursor-pointer"
+                className="px-4 py-2 text-xs font-black bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-xs cursor-pointer"
               >
-                Trigger Succession Pairing
+                Initiate Succession Pairing
               </button>
             </div>
           </div>

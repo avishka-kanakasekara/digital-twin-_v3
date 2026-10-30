@@ -27,11 +27,11 @@ export const Layout: React.FC = () => {
 
   const orgNavItems = [
     { name: 'Organization Twin Dashboard', path: '/', icon: <LayoutDashboard size={20} /> },
-    { name: 'Strategy Role Architect', path: '/strategy-architect', icon: <Crosshair size={20} /> },
+    { name: 'Role Architect', path: '/role-architect', icon: <Crosshair size={20} /> },
     { name: 'Workforce Intelligence', path: '/workforce', icon: <BarChart3 size={20} /> },
     { name: 'Scenario Simulator', path: '/simulator', icon: <Activity size={20} /> },
-    { name: 'Internal Talent Marketplace', path: '/talent-marketplace', icon: <Briefcase size={20} /> },
-    { name: 'Team Builder Engine', path: '/team-builder', icon: <Users2 size={20} /> },
+    { name: 'Digital Talent Marketplace', path: '/talent-marketplace', icon: <Briefcase size={20} /> },
+    { name: 'Team Assembly', path: '/team-builder', icon: <Users2 size={20} /> },
     { name: 'Succession & Knowledge Transfer', path: '/succession', icon: <ShieldCheck size={20} /> },
   ];
 

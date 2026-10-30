@@ -1,41 +1,33 @@
 import React from 'react';
 import { useEmployee } from '../contexts/EmployeeContext';
+import { User, ChevronDown } from 'lucide-react';
 
 export const EmployeeSelector: React.FC = () => {
   const { currentEmployee, employees, setCurrentEmployee, loading } = useEmployee();
 
-  if (loading) {
-    return <div className="text-sm text-gray-500">Loading employees...</div>;
-  }
-
-  if (!currentEmployee) {
-    return <div className="text-sm text-red-500">No employee selected</div>;
-  }
+  if (loading || !currentEmployee) return null;
 
   return (
-    <div className="employee-selector">
-      <label htmlFor="employee-select" className="text-sm font-medium text-gray-700">
-        Current Employee:
-      </label>
-      <select
-        id="employee-select"
-        value={currentEmployee.id}
-        onChange={(e) => {
-          const selected = employees.find(emp => emp.id === e.target.value);
-          if (selected) setCurrentEmployee(selected);
-        }}
-        className="employee-selector__input px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      >
-        {employees.map((emp) => (
-          <option key={emp.id} value={emp.id}>
-            {emp.full_name} ({emp.department})
-          </option>
-        ))}
-      </select>
-      <div className="employee-selector__meta text-sm text-gray-500">
-        <span className="font-medium">{currentEmployee.full_name}</span>
-        <span className="text-gray-400"> • </span>
-        <span>{currentEmployee.role}</span>
+    <div className="relative flex items-center">
+      <div className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-xl text-xs font-semibold text-slate-700 transition-all shadow-2xs">
+        <User size={13} className="text-blue-600 shrink-0" />
+        <select
+          id="employee-select"
+          aria-label="Current Employee"
+          value={currentEmployee.id}
+          onChange={(e) => {
+            const selected = employees.find(emp => emp.id === e.target.value);
+            if (selected) setCurrentEmployee(selected);
+          }}
+          className="bg-transparent focus:outline-none cursor-pointer pr-5 appearance-none text-slate-800 font-bold text-xs"
+        >
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.full_name} ({emp.department})
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={12} className="text-slate-400 pointer-events-none -ml-4" />
       </div>
     </div>
   );

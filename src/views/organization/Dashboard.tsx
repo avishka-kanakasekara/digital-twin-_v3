@@ -3,31 +3,32 @@ import { Modal } from '../../components/Modal';
 import { 
   Users, Target, TrendingUp, Activity, ExternalLink, HeartPulse, 
   BrainCircuit, Sparkles, AlertTriangle, 
-  Zap, ShieldAlert, Layers
+  Zap, ShieldAlert, Layers, ShieldCheck, Clock, Building2, ChevronDown
 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, ReferenceLine, Line } from 'recharts';
 import { Link } from 'react-router-dom';
 import { mockDrillDownEmployees } from '../../dummy/organization/dashboardData';
-import { useOrganizationMetrics, useOrganizationAnomalies, useOrganizationSkillShortages, useOrganizationRiskProfiles } from '../../hooks/useOrganization';
+import { useOrganizationMetrics, useOrganizationAnomalies } from '../../hooks/useOrganization';
 import api from '../../lib/api';
+import { OrgIntelligenceGraphs } from './OrgIntelligenceGraphs';
 
 export const Dashboard: React.FC = () => {
   const [drillDownInfo, setDrillDownInfo] = useState<{ isOpen: boolean; title: string; category?: string; data?: any[] } | null>(null);
   const [departments, setDepartments] = useState<any[]>([]);
+  const [selectedDept, setSelectedDept] = useState('All Departments');
+  const [selectedPeriod, setSelectedPeriod] = useState('Current Quarter (FY26)');
 
   const { metrics, loading: metricsLoading } = useOrganizationMetrics();
   const { anomalies, loading: anomaliesLoading } = useOrganizationAnomalies();
-  const { shortages, loading: shortagesLoading } = useOrganizationSkillShortages();
-  const { riskProfiles, loading: risksLoading } = useOrganizationRiskProfiles();
 
-  // History data
+  // History data for Headcount growth
   const orgHistoryData = metrics && metrics.length > 0 ? metrics : [
-    { month: 'Sep 25', totalHeadcount: 6201 },
-    { month: 'Nov 25', totalHeadcount: 6350 },
-    { month: 'Jan 26', totalHeadcount: 6501 },
-    { month: 'Mar 26', totalHeadcount: 6600 },
-    { month: 'May 26', totalHeadcount: 6680 },
-    { month: 'Jul 26', totalHeadcount: 6720 },
+    { month: 'Sep 25', totalHeadcount: 6201, hires: 45, attrition: 12 },
+    { month: 'Nov 25', totalHeadcount: 6350, hires: 52, attrition: 14 },
+    { month: 'Jan 26', totalHeadcount: 6501, hires: 60, attrition: 11 },
+    { month: 'Mar 26', totalHeadcount: 6600, hires: 48, attrition: 15 },
+    { month: 'May 26', totalHeadcount: 6680, hires: 55, attrition: 10 },
+    { month: 'Jul 26', totalHeadcount: 6720, hires: 58, attrition: 9 },
   ];
 
   const latestMetric = orgHistoryData[orgHistoryData.length - 1];
@@ -36,94 +37,144 @@ export const Dashboard: React.FC = () => {
     api.departments.list({ limit: 6 }).then(data => {
       if (data && data.length > 0) {
         setDepartments(data.map((d: any) => ({
-          name: d.name.length > 12 ? d.name.substring(0, 10) + '..' : d.name,
+          name: d.name.length > 14 ? d.name.substring(0, 12) + '..' : d.name,
           performanceScore: d.performance_score || Math.floor(Math.random() * 15) + 80,
+          headcount: d.headcount || 120
         })));
       } else {
         setDepartments([
-          { name: 'Customer Service', performanceScore: 90 },
-          { name: 'Human Resources', performanceScore: 88 },
-          { name: 'Engineering', performanceScore: 95 },
-          { name: 'Sales', performanceScore: 85 },
-          { name: 'Marketing', performanceScore: 92 },
-          { name: 'Product', performanceScore: 94 },
+          { name: 'Engineering & AI', performanceScore: 95, headcount: 185 },
+          { name: 'Data & Analytics', performanceScore: 92, headcount: 140 },
+          { name: 'Product & Design', performanceScore: 94, headcount: 110 },
+          { name: 'Operations & SCM', performanceScore: 88, headcount: 220 },
+          { name: 'Customer Care', performanceScore: 90, headcount: 310 },
+          { name: 'HR & Governance', performanceScore: 89, headcount: 85 },
         ]);
       }
     }).catch(() => {
       setDepartments([
-        { name: 'Customer Service', performanceScore: 90 },
-        { name: 'Human Resources', performanceScore: 88 },
-        { name: 'Engineering', performanceScore: 95 },
-        { name: 'Sales', performanceScore: 85 },
-        { name: 'Marketing', performanceScore: 92 },
-        { name: 'Product', performanceScore: 94 },
+        { name: 'Engineering & AI', performanceScore: 95, headcount: 185 },
+        { name: 'Data & Analytics', performanceScore: 92, headcount: 140 },
+        { name: 'Product & Design', performanceScore: 94, headcount: 110 },
+        { name: 'Operations & SCM', performanceScore: 88, headcount: 220 },
+        { name: 'Customer Care', performanceScore: 90, headcount: 310 },
+        { name: 'HR & Governance', performanceScore: 89, headcount: 85 },
       ]);
     });
   }, []);
 
-  // Anomalies
-  const displayAnomalies = (anomalies && anomalies.length > 0) ? anomalies : [
-    {
-      title: 'Satisfaction Anomaly Flagged',
-      description: 'Unsupervised anomaly model detected a statistically significant dip in employee satisfaction (z-score: -2.8).',
-      color: 'rose',
-      type: 'negative'
-    },
-    {
-      title: 'Engineering Velocity Peak',
-      description: 'Productivity score in Engineering is 92%, driven by recent Agile adoption and automation tools.',
-      color: 'emerald',
-      type: 'positive'
-    },
-    {
-      title: 'Retention Stabilized',
-      description: 'Attrition risk has decreased by 1.2% globally.',
-      color: 'blue',
-      type: 'info'
-    }
+
+  // Diagram 1 Data: ML Anomaly Telemetry Drift (Z-Scores)
+  const anomalyTelemetryData = [
+    { period: 'W1', zScore: 0.4 },
+    { period: 'W2', zScore: 0.8 },
+    { period: 'W3', zScore: -0.6 },
+    { period: 'W4 (Dip)', zScore: -2.4 },
+    { period: 'W5', zScore: -0.5 },
+    { period: 'W6', zScore: 0.5 },
+  ];
+
+  // Diagram 2 Data: Predictive Skill Shortages FTE Deficit
+  const predictiveShortagesData = [
+    { skill: 'Cloud & GPU', deficit: 4.2 },
+    { skill: 'MLOps AI', deficit: 3.8 },
+    { skill: 'Zero-Trust Sec', deficit: 2.6 },
+    { skill: 'Kafka Mesh', deficit: 2.1 },
+    { skill: 'Product UI', deficit: 1.5 },
+  ];
+
+  // Diagram 3 Data: Talent Retention Survival Curve
+  const retentionSurvivalData = [
+    { month: 'M1', baseline: 98.5, operations: 95.2 },
+    { month: 'M3', baseline: 97.4, operations: 91.0 },
+    { month: 'M6', baseline: 95.8, operations: 86.5 },
+    { month: 'M9', baseline: 94.8, operations: 81.8 },
+    { month: 'M12', baseline: 94.2, operations: 78.2 },
   ];
 
   return (
-    <div className="flex flex-col gap-6 relative pb-10 w-full">
+    <div className="flex flex-col gap-6 text-left w-full pb-16">
 
-      {/* Page Header Bar - Clean Single Horizontal Row like Strategy Role Architect */}
+      {/* Page Header Bar */}
       <div className="flex flex-col gap-1 w-full pt-1">
         <div className="flex flex-wrap items-center justify-between gap-3 w-full py-1">
-          <div className="flex items-center gap-2 shrink-0">
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 whitespace-nowrap">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">
               Organization Twin Dashboard
             </h1>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live Twin Active
+            </span>
+          </div>
+
+          {/* Action Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Department Scope */}
+            <div className="relative flex items-center">
+              <div className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 transition-all shadow-2xs">
+                <Building2 size={13} className="text-slate-400 shrink-0" />
+                <select
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                  className="bg-transparent focus:outline-none cursor-pointer pr-6 appearance-none text-slate-800 font-semibold text-xs"
+                >
+                  <option>All Departments</option>
+                  <option>Engineering & AI</option>
+                  <option>Data & Analytics</option>
+                  <option>Operations & Supply Chain</option>
+                  <option>Product & Design</option>
+                  <option>Human Resources</option>
+                </select>
+                <ChevronDown size={12} className="text-slate-400 pointer-events-none -ml-4" />
+              </div>
+            </div>
+
+            {/* Timeframe */}
+            <div className="relative flex items-center">
+              <div className="flex items-center gap-2 h-9 px-3 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-700 transition-all shadow-2xs">
+                <Clock size={13} className="text-slate-400 shrink-0" />
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="bg-transparent focus:outline-none cursor-pointer pr-6 appearance-none text-slate-800 font-semibold text-xs"
+                >
+                  <option>Current Quarter (FY26)</option>
+                  <option>Year to Date (FY26)</option>
+                  <option>Trailing 12 Months</option>
+                </select>
+                <ChevronDown size={12} className="text-slate-400 pointer-events-none -ml-4" />
+              </div>
+            </div>
           </div>
         </div>
-        <p className="text-xs text-slate-500 max-w-2xl mb-1">
-          Real-time enterprise organizational health, predictive workforce capability metrics, and systemic anomaly tracking.
+        <p className="text-xs text-slate-500 max-w-2xl">
+          Real-time enterprise organizational health, predictive workforce capability metrics, and digital twin knowledge graphs.
         </p>
       </div>
-      
-      {/* ROW 1: 4 Executive KPI Cards ALWAYS in 1 SINGLE HORIZONTAL LINE */}
-      <div className="flex flex-row items-center gap-4 w-full">
-        
+
+      {/* ROW 1: 5 Executive KPI Stat Cards (Locked Single Line) */}
+      <div className="w-full" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '12px' }}>
         {/* Card 1: Org Health Score */}
         <div 
           onClick={() => setDrillDownInfo({ isOpen: true, title: 'Org Health Index Breakdown', category: 'Health' })}
-          className="flex-1 min-w-0 bg-white rounded-[20px] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgb(16,185,129,0.08)] hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+          className="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-emerald-300 transition-all cursor-pointer flex flex-col justify-between group min-w-0 h-[104px]"
         >
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 rounded-[14px] bg-[#00c58e] shadow-lg shadow-emerald-500/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shrink-0">
-              <HeartPulse size={22} strokeWidth={2.5} />
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
+              <HeartPulse size={15} strokeWidth={2.5} />
             </div>
-            <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 text-[11px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0">
-              <TrendingUp size={12} strokeWidth={3} /> +4 pts
-            </div>
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
+              <TrendingUp size={10} strokeWidth={2.5} /> +4.2
+            </span>
           </div>
-
-          <div>
-            <p className="text-xs font-bold text-slate-400 mb-0.5 truncate">Org Health Score</p>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate mb-1">Org Health</span>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">
-                {metricsLoading ? '...' : (latestMetric?.enps || 43)}
+              <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">
+                {metricsLoading ? '...' : (latestMetric?.enps || 88)}
               </h3>
-              <span className="text-sm font-bold text-slate-400">/100</span>
+              <span className="text-xs font-bold text-slate-400 leading-none">/100</span>
             </div>
           </div>
         </div>
@@ -131,23 +182,23 @@ export const Dashboard: React.FC = () => {
         {/* Card 2: Total Employees */}
         <div 
           onClick={() => setDrillDownInfo({ isOpen: true, title: 'Active Workforce Distribution', category: 'Workforce' })}
-          className="flex-1 min-w-0 bg-white rounded-[20px] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgb(59,130,246,0.08)] hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+          className="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between group min-w-0 h-[104px]"
         >
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 rounded-[14px] bg-[#3b82f6] shadow-lg shadow-blue-500/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shrink-0">
-              <Users size={22} strokeWidth={2.5} />
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+              <Users size={15} strokeWidth={2.5} />
             </div>
-            <div className="bg-blue-50 border border-blue-100 text-blue-600 text-[11px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0">
-              <TrendingUp size={12} strokeWidth={3} /> +2.4%
-            </div>
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
+              <TrendingUp size={10} strokeWidth={2.5} /> +2.4%
+            </span>
           </div>
-
-          <div>
-            <p className="text-xs font-bold text-slate-400 mb-0.5 truncate">Total Employees</p>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate mb-1">Workforce</span>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">
-                {metricsLoading ? '...' : (latestMetric?.totalHeadcount?.toLocaleString() || '6,700')}
+              <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">
+                {metricsLoading ? '...' : (latestMetric?.totalHeadcount?.toLocaleString() || '6,720')}
               </h3>
+              <span className="text-xs font-semibold text-slate-400 leading-none">Staff</span>
             </div>
           </div>
         </div>
@@ -155,227 +206,292 @@ export const Dashboard: React.FC = () => {
         {/* Card 3: Productivity Score */}
         <div 
           onClick={() => setDrillDownInfo({ isOpen: true, title: 'Departmental Productivity Index', category: 'Productivity' })}
-          className="flex-1 min-w-0 bg-white rounded-[20px] p-5 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-[0_10px_30px_rgb(139,92,246,0.08)] hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+          className="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-purple-300 transition-all cursor-pointer flex flex-col justify-between group min-w-0 h-[104px]"
         >
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 rounded-[14px] bg-[#a855f7] shadow-lg shadow-purple-500/20 flex items-center justify-center text-white group-hover:scale-105 transition-transform shrink-0">
-              <Target size={22} strokeWidth={2.5} />
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
+              <Target size={15} strokeWidth={2.5} />
             </div>
-            <div className="bg-purple-50 border border-purple-100 text-purple-600 text-[11px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0">
-              <Activity size={12} strokeWidth={3} /> Stable
-            </div>
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
+              <Activity size={10} strokeWidth={2.5} /> Optimal
+            </span>
           </div>
-
-          <div>
-            <p className="text-xs font-bold text-slate-400 mb-0.5 truncate">Productivity Score</p>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate mb-1">Productivity</span>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-slate-800 tracking-tight">
+              <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">
                 {metricsLoading ? '...' : (latestMetric?.overallProductivityScore || 95)}
               </h3>
-              <span className="text-sm font-bold text-slate-400">%</span>
+              <span className="text-xs font-bold text-slate-400 leading-none">%</span>
             </div>
           </div>
         </div>
 
-        {/* Card 4: Anomaly Flagged */}
+        {/* Card 4: Retention Stability */}
+        <div 
+          onClick={() => setDrillDownInfo({ isOpen: true, title: 'Workforce Retention Stability Index', category: 'Retention' })}
+          className="bg-white rounded-2xl p-3 sm:p-3.5 border border-slate-200/90 shadow-2xs hover:border-sky-300 transition-all cursor-pointer flex flex-col justify-between group min-w-0 h-[104px]"
+        >
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center shrink-0">
+              <ShieldCheck size={15} strokeWidth={2.5} />
+            </div>
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
+              <TrendingUp size={10} strokeWidth={2.5} /> +1.2%
+            </span>
+          </div>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block truncate mb-1">Retention</span>
+            <div className="flex items-baseline gap-1">
+              <h3 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 tracking-tight leading-none">
+                94.2
+              </h3>
+              <span className="text-xs font-bold text-slate-400 leading-none">%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 5: Anomaly Flagged */}
         <div 
           onClick={() => setDrillDownInfo({ isOpen: true, title: 'Critical AI Anomaly Log', category: 'Anomalies' })}
-          className="flex-1 min-w-0 bg-white rounded-[20px] p-5 border border-rose-100 shadow-[0_4px_20px_rgb(244,63,94,0.05)] hover:shadow-[0_10px_30px_rgb(244,63,94,0.12)] hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group"
+          className="bg-white rounded-2xl p-3 sm:p-3.5 border border-rose-200/90 shadow-2xs hover:border-rose-300 transition-all cursor-pointer flex flex-col justify-between group min-w-0 h-[104px]"
         >
-          <div className="flex justify-between items-start mb-4">
-            <div className="w-12 h-12 rounded-[14px] bg-[#ff4d4d] shadow-lg shadow-rose-500/30 flex items-center justify-center text-white group-hover:scale-105 transition-transform shrink-0">
-              <Sparkles size={22} strokeWidth={2.5} />
+          <div className="flex justify-between items-center mb-1.5">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-50 text-rose-600 border border-rose-100 flex items-center justify-center shrink-0">
+              <Sparkles size={15} strokeWidth={2.5} />
             </div>
-            <div className="bg-rose-500 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-md shadow-rose-500/20 shrink-0">
-              <AlertTriangle size={12} strokeWidth={3} /> High Alert
-            </div>
+            <span className="text-[9px] sm:text-[10px] font-extrabold text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
+              <AlertTriangle size={10} strokeWidth={2.5} /> Review
+            </span>
           </div>
-
-          <div>
-            <p className="text-xs font-bold text-rose-500 mb-0.5 truncate">Anomaly Flagged</p>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-[10px] font-bold text-rose-500 uppercase tracking-wider block truncate mb-1">Anomaly Watch</span>
             <div className="flex items-baseline gap-1">
-              <h3 className="text-3xl font-black text-rose-600 tracking-tight">
+              <h3 className="text-lg sm:text-xl md:text-2xl font-black text-rose-600 tracking-tight leading-none">
                 {anomaliesLoading ? '...' : (anomalies?.length || 2)}
               </h3>
-              <span className="text-sm font-bold text-rose-400">/5</span>
+              <span className="text-xs font-bold text-rose-400 leading-none">Signals</span>
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* ROW 2: 3 Equal-Width Columns ALWAYS in 1 HORIZONTAL LINE */}
-      <div className="flex flex-row gap-5 w-full">
-
-        {/* Column 1: ML Anomaly Detection */}
-        <div className="flex-1 min-w-0 flex flex-col bg-white/80 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[20px] p-5 h-[270px]">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded-lg bg-purple-100 text-purple-600">
-              <BrainCircuit size={16} />
+      {/* ROW 2: Primary Analytics Charts (2 Spacious Equal Columns) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
+        {/* Chart 1: Workforce Growth & Retention Trajectory */}
+        <div className="bg-white border border-slate-200/90 shadow-2xs rounded-2xl p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Workforce Headcount & Growth Trajectory</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Net active employee count across FY25–FY26 hiring cycles</p>
             </div>
-            <h3 className="text-sm font-bold text-purple-600">ML Anomaly Detection</h3>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-md">
+              +519 Net Growth
+            </span>
           </div>
 
-          <div className="flex-1 overflow-y-auto flex flex-col gap-3 pr-1" style={{ scrollbarWidth: 'thin' }}>
-            {displayAnomalies.map((anomaly, idx) => {
-              let bgStyle = "bg-rose-50/70 border-rose-100";
-              let dotStyle = "bg-rose-500";
-
-              if (anomaly.color === 'emerald' || anomaly.type === 'positive') {
-                bgStyle = "bg-emerald-50/70 border-emerald-100";
-                dotStyle = "bg-emerald-500";
-              } else if (anomaly.color === 'blue' || anomaly.type === 'info') {
-                bgStyle = "bg-blue-50/70 border-blue-100";
-                dotStyle = "bg-blue-500";
-              }
-
-              return (
-                <div 
-                  key={idx}
-                  onClick={() => setDrillDownInfo({ isOpen: true, title: anomaly.title, category: 'Anomaly Detail' })}
-                  className={`p-3.5 border rounded-xl flex gap-3 items-start hover:shadow-sm transition-all duration-200 cursor-pointer ${bgStyle}`}
-                >
-                  <div className="w-3 h-3 rounded-full shrink-0 mt-1 flex items-center justify-center">
-                    <div className={`w-2.5 h-2.5 rounded-full ${dotStyle}`}></div>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold text-slate-900 truncate">{anomaly.title}</h4>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{anomaly.description}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Column 2: Department Performance */}
-        <div className="flex-1 min-w-0 flex flex-col bg-white/80 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[20px] p-5 h-[270px]">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-            <h3 className="text-sm font-bold text-slate-800">Department Performance</h3>
-          </div>
-          <div className="flex-1 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={departments} margin={{ top: 10, right: 10, left: -25, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} dy={5} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} domain={[0, 100]} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
-                <Bar dataKey="performanceScore" fill="#60a5fa" radius={[4, 4, 0, 0]} maxBarSize={28} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Column 3: Workforce Growth */}
-        <div className="flex-1 min-w-0 flex flex-col bg-white/80 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[20px] p-5 h-[270px]">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-            <h3 className="text-sm font-bold text-slate-800">Workforce Growth</h3>
-          </div>
-          <div className="flex-1 w-full">
+          <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={orgHistoryData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
                 <defs>
-                  <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  <linearGradient id="headcountGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} dy={5} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b', fontWeight: 600 }} domain={['dataMin - 50', 'dataMax + 50']} />
-                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }} />
-                <Area type="monotone" dataKey="totalHeadcount" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorGrowth)" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} dy={5} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} domain={['dataMin - 100', 'dataMax + 100']} />
+                <Tooltip 
+                  formatter={(val: any) => [`${val.toLocaleString()} Employees`, 'Headcount']}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} 
+                />
+                <Area type="monotone" dataKey="totalHeadcount" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#headcountGradient)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Average monthly onboarding: 52 hires</span>
+            <span className="font-semibold text-slate-700">6,720 Active Staff</span>
+          </div>
         </div>
 
+        {/* Chart 2: Departmental Performance Index */}
+        <div className="bg-white border border-slate-200/90 shadow-2xs rounded-2xl p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Department Performance & Output Velocity</h3>
+              <p className="text-[11px] text-slate-500 mt-0.5">Quarterly KPI delivery score aggregated from OKR telemetry</p>
+            </div>
+            <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-md">
+              91.8% Org Average
+            </span>
+          </div>
+
+          <div className="h-[260px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={departments} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b', fontWeight: 600 }} dy={5} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} domain={[70, 100]} />
+                <Tooltip 
+                  formatter={(val: any) => [`${val}% Output Score`, 'Performance']}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '12px' }} 
+                />
+                <Bar dataKey="performanceScore" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={36} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Highest delivery: Engineering & AI (95%)</span>
+            <span className="font-semibold text-slate-700">6 Operating Units</span>
+          </div>
+        </div>
       </div>
 
-      {/* ROW 3: Predictive Analytics Grid (Skill Shortages & Talent Retention Risks) */}
-      <div className="flex flex-row gap-5 w-full">
-        
-        {/* Predictive Skill Shortages Card */}
-        <div className="flex-1 min-w-0 bg-white/80 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[20px] p-6 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-center mb-5">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-orange-100 text-orange-600"><Zap size={18} /></div>
-              Predictive Skill Shortages
-            </h3>
-            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">Next 12 Months</span>
+      {/* Organization Intelligence Graphs: Knowledge Network, Distribution & Skills Inventory */}
+      <OrgIntelligenceGraphs />
+
+      {/* ROW 3: Predictive Intelligence Diagrams (Anomaly, Skill Deficits, Retention) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 w-full">
+        {/* Diagram 1: ML Anomaly Telemetry Drift Diagram */}
+        <div 
+          onClick={() => setDrillDownInfo({ isOpen: true, title: 'ML Anomaly Telemetry Drift Analysis', category: 'Anomaly Detail' })}
+          className="bg-white border border-slate-200/90 shadow-2xs rounded-2xl p-5 flex flex-col justify-between hover:border-purple-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600 border border-purple-100">
+                <BrainCircuit size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">ML Anomaly Detection Diagram</h3>
+                <p className="text-[11px] text-slate-500">Continuous Z-Score telemetry drift curve</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+              -2.4σ Outlier
+            </span>
           </div>
 
-          <div className="flex flex-col gap-3">
-            {shortagesLoading ? (
-              <div className="text-center text-xs text-slate-400 py-4 font-bold">Analyzing workforce skills...</div>
-            ) : shortages && shortages.length > 0 ? (
-              shortages.slice(0, 3).map((shortage, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => setDrillDownInfo({ isOpen: true, title: `Skill Gap: ${shortage.core_skill}`, category: 'Skill Shortage' })}
-                  className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-orange-50/30 transition-colors cursor-pointer group"
-                >
-                  <div className="min-w-0 flex-1 pr-2">
-                    <h4 className="font-bold text-xs text-slate-700 group-hover:text-orange-700 truncate">{shortage.core_skill}</h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">Impacts {shortage.dept} Department</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-xs font-extrabold text-orange-600">+{shortage.shortfall_projection} needed</div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Risk Score: {shortage.risk_score?.toFixed(1) || '4.2'}</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-xs text-slate-400 py-4 font-bold">No critical shortages predicted.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Talent Retention Risks Card */}
-        <div className="flex-1 min-w-0 bg-white/80 backdrop-blur-xl border border-white/80 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[20px] p-6 hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-center mb-5">
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-rose-100 text-rose-600"><ShieldAlert size={18} /></div>
-              Talent Retention Risks
-            </h3>
-            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-md">High Risk</span>
+          <div className="h-[200px] w-full pt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={anomalyTelemetryData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="anomalyGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[-3, 2]} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(val) => `${val}σ`} />
+                <Tooltip
+                  formatter={(val: any) => [`${val}σ Z-Score`, 'Drift Metric']}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
+                />
+                <ReferenceLine y={-2} stroke="#f43f5e" strokeDasharray="3 3" label={{ value: 'Anomaly Limit (-2.0σ)', fill: '#f43f5e', fontSize: 9, position: 'insideBottomRight' }} />
+                <Area type="monotone" dataKey="zScore" stroke="#8b5cf6" strokeWidth={2.5} fill="url(#anomalyGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
 
-          <div className="flex flex-col gap-3">
-            {risksLoading ? (
-              <div className="text-center text-xs text-slate-400 py-4 font-bold">Evaluating retention probabilities...</div>
-            ) : riskProfiles && riskProfiles.length > 0 ? (
-              riskProfiles.filter(r => r.risk_level === 'High' || r.risk_level === 'Critical').slice(0, 3).map((risk, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => setDrillDownInfo({ isOpen: true, title: `Retention Risk: EMP-${risk.employee_id}`, category: 'Retention Risk' })}
-                  className="flex justify-between items-center p-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-rose-50/50 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-rose-50 to-orange-50 border border-rose-100 flex items-center justify-center text-[10px] font-black text-rose-600 shrink-0">
-                      #{risk.employee_id?.replace('EMP-', '') || idx + 101}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-bold text-xs text-slate-800 group-hover:text-rose-600 truncate">{risk.primary_factor || 'High Workload'}</h4>
-                      <p className="text-[11px] text-slate-500 mt-0.5 truncate">{risk.ai_retention_suggestion || 'Review workload & schedule'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-xs font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">
-                      {((risk.burnout_probability || 0.85) * 100).toFixed(0)}%
-                    </div>
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Burnout Risk</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center text-xs text-slate-400 py-4 font-bold">No high retention risks detected.</div>
-            )}
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 mt-2">
+            <span>Model: Isolation Forest</span>
+            <span className="font-extrabold text-purple-700">1 Anomaly (Operations Shift Dip)</span>
           </div>
         </div>
 
+        {/* Diagram 2: Predictive Skill Shortages (Horizontal FTE Deficit Chart) */}
+        <div 
+          onClick={() => setDrillDownInfo({ isOpen: true, title: 'Predictive Skill Shortages FTE Deficit', category: 'Skill Shortage' })}
+          className="bg-white border border-slate-200/90 shadow-2xs rounded-2xl p-5 flex flex-col justify-between hover:border-amber-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
+                <Zap size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Predictive Skill Shortages Diagram</h3>
+                <p className="text-[11px] text-slate-500">12-Month forward talent deficit projection</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+              -14.2 FTE Total
+            </span>
+          </div>
+
+          <div className="h-[200px] w-full pt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={predictiveShortagesData} layout="vertical" margin={{ top: 5, right: 15, left: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(v) => `-${v}`} />
+                <YAxis dataKey="skill" type="category" tick={{ fontSize: 10, fill: '#475569', fontWeight: 600 }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip
+                  formatter={(val: any) => [`-${val} FTE Deficit`, 'Required Headcount']}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
+                />
+                <Bar dataKey="deficit" fill="#f59e0b" radius={[0, 6, 6, 0]} barSize={16} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 mt-2">
+            <span>Demand Model: Strategic Workforce</span>
+            <span className="font-extrabold text-amber-700">5 Shortages Projecting</span>
+          </div>
+        </div>
+
+        {/* Diagram 3: Talent Retention Survival Curve */}
+        <div 
+          onClick={() => setDrillDownInfo({ isOpen: true, title: 'Talent Retention Survival Curve & Flight Risk', category: 'Retention' })}
+          className="bg-white border border-slate-200/90 shadow-2xs rounded-2xl p-5 flex flex-col justify-between hover:border-rose-300 transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100">
+                <ShieldAlert size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Talent Retention Survival Diagram</h3>
+                <p className="text-[11px] text-slate-500">12-Month retention probability trajectory</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-extrabold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+              94.2% Stability
+            </span>
+          </div>
+
+          <div className="h-[200px] w-full pt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={retentionSurvivalData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="retentionGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[70, 100]} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(val) => `${val}%`} />
+                <Tooltip
+                  formatter={(val: any, name: any) => [`${val}%`, name === 'baseline' ? 'Enterprise Baseline' : 'Operations (Watch)']}
+                  contentStyle={{ borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '11px', fontWeight: 'bold' }}
+                />
+                <Area type="monotone" dataKey="baseline" stroke="#0ea5e9" strokeWidth={2} fill="url(#retentionGrad)" />
+                <Line type="monotone" dataKey="operations" stroke="#f43f5e" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 3, fill: '#f43f5e' }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 mt-2">
+            <span>Model: Cox Proportional Survival</span>
+            <span className="font-extrabold text-rose-600">Operations (78.2% Watch)</span>
+          </div>
+        </div>
       </div>
 
       {/* Drill-down Interactive Modal */}
