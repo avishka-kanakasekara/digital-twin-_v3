@@ -239,6 +239,8 @@ def _ensure_columns(db: Client) -> None:
 
 def ensure_schema(db: Client) -> None:
     global _SCHEMA_READY
+    if db.db.dialect == "postgresql":
+        return
     if _SCHEMA_READY:
         return
     for statement in _SQLITE_DDL if db.db.dialect == "sqlite" else _FABRIC_DDL:
@@ -1060,6 +1062,20 @@ def _successor_gaps(db: Client, record_id: str, successor_id: str | None) -> lis
         if row["employee_id"] == successor_id:
             return _loads(row.get("gaps_json"), [])
     return []
+
+
+def open_role_plan(db: Client, role_id: str, actor: str, target_handover_date: Any = None, use_ai: bool = True) -> dict[str, Any]:
+    """Open a knowledge transfer plan for a role, creating the succession record when none exists yet."""
+    ensure_schema(db)
+    role = _role_row(db, role_id)
+    record = _active_record(db, role_id)
+    if record:
+        record_id = record["id"]
+    else:
+        trigger = "business_critical" if role.get("is_business_critical") else "hr_request"
+        detail = generate_slate(db, role_id, trigger, "Knowledge transfer plan opened before a successor is confirmed.", actor)
+        record_id = detail["succession_record_id"]
+    return open_plan(db, record_id, actor, True, target_handover_date, use_ai, "HR Discretion")
 
 
 def open_plan(db: Client, record_id: str, actor: str, hr_discretion: bool, target_handover_date: Any = None, use_ai: bool = True, opened_reason: str | None = None) -> dict[str, Any]:

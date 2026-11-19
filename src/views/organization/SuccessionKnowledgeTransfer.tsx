@@ -102,6 +102,19 @@ const bandTone = (band: string) =>
 const statusTone = (status?: string) =>
   status === 'Confirmed' ? 'good' : status === 'Candidate Nominated' ? 'warn' : status === 'Slate Generated' ? 'info' : 'muted';
 
+const emptySlateCopy = (record: SxRecord) => {
+  const people = record.excluded?.people || [];
+  const others = people.filter((person) => person.reason !== 'Current incumbent');
+  const onlyIncumbent = people.some((person) => person.reason === 'Current incumbent') && others.length === 0 && !record.excluded?.no_matching_requirements && !record.excluded?.inactive_excluded;
+  if (onlyIncumbent) {
+    return 'The incumbent is the only employee in this organisation, so there is nobody else to rank as a successor. Add people, then re-rank. The knowledge transfer plan can still be generated so the incumbent documents the role.';
+  }
+  if ((record.excluded?.no_matching_requirements || 0) > 0) {
+    return 'No other employee matches a required skill yet. Widen the requirements or record more Skill DNA, then regenerate.';
+  }
+  return 'No ranked successors yet. Widen the requirements or record more Skill DNA, then regenerate.';
+};
+
 const sourceLabel: Record<SxRole['requirements_source'], string> = {
   incumbent: "Incumbent's Skill DNA",
   market: 'Market research (Gemini)',
@@ -720,7 +733,7 @@ const RoleDetail: React.FC<{
             {active.trigger_note && <p className="sx-muted sx-mb">Request reason: {active.trigger_note}</p>}
             {active.candidates.length === 0 ? (
               <div className="sx-empty">
-                <p>No employee matches any required skill yet. Widen the requirements or record more Skill DNA, then regenerate.</p>
+                <p>{emptySlateCopy(active)}</p>
               </div>
             ) : (
               <>
@@ -819,8 +832,7 @@ const RoleDetail: React.FC<{
         </section>
       )}
 
-      {active && (
-        <section className="sx-card">
+      <section className="sx-card">
           <div className="sx-card__title">
             <ClipboardList size={17} /> Knowledge transfer plan
           </div>
@@ -836,18 +848,16 @@ const RoleDetail: React.FC<{
           ) : (
             <div className="sx-empty">
               <p>
-                The plan opens automatically when HR confirms the pairing.
-                {canEdit && ' HR can also open it earlier, for example when the incumbent is leaving soon.'}
+                Generate the handover tasks from this role's critical knowledge. The plan also opens automatically when HR confirms a successor.
               </p>
               {canEdit && (
                 <button type="button" className="sx-btn sx-btn--soft" disabled={busy} onClick={() => onAsk('plan')}>
-                  <Plus size={15} /> Open plan now (HR discretion)
+                  <Sparkles size={15} /> Generate knowledge transfer plan
                 </button>
               )}
             </div>
           )}
         </section>
-      )}
 
       {record?.audit && record.audit.length > 0 && (
         <section className="sx-card">
@@ -1349,8 +1359,12 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
       await run(() => successionAPI.decide(rid, false, note), 'Pairing declined. The slate is open for a new nominee.');
     } else if (prompt === 'withdraw' && rid) {
       await run(() => successionAPI.withdraw(rid, note), 'Pairing withdrawn.');
-    } else if (prompt === 'plan' && rid) {
-      await run(() => successionAPI.openPlan(rid, { hr_discretion: true, target_handover_date: handover, use_ai: useAi }), 'Knowledge transfer plan opened.');
+    } else if (prompt === 'plan') {
+      const body = { hr_discretion: true, target_handover_date: handover, use_ai: useAi };
+      await run(
+        () => (rid ? successionAPI.openPlan(rid, body) : successionAPI.openRolePlan(role.id, body)),
+        'Knowledge transfer plan opened.',
+      );
     } else if (prompt === 'emergency') {
       await run(() => successionAPI.openEmergency(role.id, note), 'Emergency cover plan opened.');
     }
@@ -1851,9 +1865,9 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
       </Modal>
 
       {/* Open plan early */}
-      <Modal isOpen={prompt === 'plan'} onClose={close} title="Open knowledge transfer plan">
+      <Modal isOpen={prompt === 'plan'} onClose={close} title="Generate knowledge transfer plan">
         <div className="sx-form">
-          <p className="sx-muted">Opening before confirmation is an HR discretion decision and is recorded as such.</p>
+          <p className="sx-muted">Tasks are drafted from the role's critical knowledge. A confirmed successor is not required.</p>
           <Field label="Target handover date">
             <input type="date" className="sx-input" value={handover} onChange={(e) => setHandover(e.target.value)} />
           </Field>
@@ -1866,7 +1880,7 @@ export const SuccessionKnowledgeTransfer: React.FC = () => {
               Cancel
             </button>
             <button type="button" className="sx-btn" disabled={busy || !handover} onClick={submitPrompt}>
-              {busy ? <Loader2 size={15} className="sx-spin" /> : <ClipboardList size={15} />} {busy ? 'Drafting…' : 'Open plan'}
+              {busy ? <Loader2 size={15} className="sx-spin" /> : <Sparkles size={15} />} {busy ? 'Drafting…' : 'Generate plan'}
             </button>
           </div>
         </div>

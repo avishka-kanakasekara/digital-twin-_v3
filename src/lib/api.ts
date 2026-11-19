@@ -2260,6 +2260,12 @@ export interface SxRecord {
   nominee: SxCandidate | null;
   candidates: SxCandidate[];
   has_ready_successor: boolean;
+  excluded?: {
+    people?: { employee_id: string; full_name: string; reason: string }[];
+    inactive_excluded?: number;
+    no_matching_requirements?: number;
+    below_slate_cap?: number;
+  };
   audit?: { action: string; actor: string | null; detail: string | null; created_at: string; entity_type: string }[];
   plan?: SxPlan | null;
   role?: SxRole;
@@ -2416,7 +2422,13 @@ export const successionAPI = {
     fetchAPI<SxPlan>(`/api/succession/records/${recordId}/plan`, {
       method: 'POST',
       body: JSON.stringify(data),
-      timeoutMs: 60000,
+      timeoutMs: 90000,
+    }),
+  openRolePlan: (roleId: string, data: { target_handover_date?: string | null; use_ai?: boolean }) =>
+    fetchAPI<SxPlan>(`/api/succession/roles/${roleId}/plan`, {
+      method: 'POST',
+      body: JSON.stringify({ hr_discretion: true, ...data }),
+      timeoutMs: 90000,
     }),
   addTask: (planId: string, data: SxTaskInput) =>
     fetchAPI<SxPlan>(`/api/succession/plans/${planId}/tasks`, { method: 'POST', body: JSON.stringify(data) }),

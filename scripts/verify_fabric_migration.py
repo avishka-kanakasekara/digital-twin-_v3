@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.database import get_db, reset_db_clients
+from app.db.fabric_database import FabricDatabase
 from app.db.fabric_database import _ensure_openssl
 
 CORE_TABLES = [
@@ -42,12 +42,11 @@ CORE_TABLES = [
 
 def main() -> int:
     _ensure_openssl()
-    reset_db_clients()
     report_dir = ROOT / "migration_reports"
     report_dir.mkdir(exist_ok=True)
 
     try:
-        db = get_db().db
+        db = FabricDatabase()
         health = db.health()
     except Exception as exc:
         message = f"Fabric connection failed ({exc.__class__.__name__})."

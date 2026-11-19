@@ -194,6 +194,12 @@ def ensure_schema(db: Client) -> None:
     global _SCHEMA_READY
     if _SCHEMA_READY:
         return
+    if db.db.dialect == "postgresql":
+        _seed_catalogue_if_empty(db)
+        _ensure_gap_courses(db)
+        _ensure_questions(db)
+        _SCHEMA_READY = True
+        return
     dialect = db.db.dialect
     if dialect == "sqlite":
         statements = [

@@ -216,6 +216,11 @@ def emergency_cover(role_id: str, body: NoteBody, actor: dict | None = Depends(g
     return succession.open_emergency_cover(_db(), role_id, _hr(actor), body.note)
 
 
+@router.post("/roles/{role_id}/plan")
+def open_role_plan(role_id: str, body: PlanBody, actor: dict | None = Depends(get_optional_employee)):
+    return succession.open_role_plan(_db(), role_id, _hr(actor), body.target_handover_date, body.use_ai)
+
+
 @router.get("/records/{record_id}")
 def get_record(record_id: str, actor: dict | None = Depends(get_optional_employee)):
     _hr(actor)

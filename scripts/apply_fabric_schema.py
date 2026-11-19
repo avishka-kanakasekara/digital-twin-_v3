@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.database import get_db, reset_db_clients
+from app.db.fabric_database import FabricDatabase
 from app.db.fabric_database import _ensure_openssl
 
 SCRIPT_ORDER = [
@@ -42,8 +42,7 @@ def _batches(sql: str) -> list[str]:
 
 def main() -> int:
     _ensure_openssl()
-    reset_db_clients()
-    db = get_db().db
+    db = FabricDatabase()
     health = db.health()
     print(f"Connected: {health}")
     if health.get("database") != "fabric":

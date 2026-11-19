@@ -114,6 +114,8 @@ _READY = False
 def ensure_schema(db: Client) -> None:
     global _READY
     ensure_builder_schema(db)
+    if db.db.dialect == "postgresql":
+        return
     if _READY:
         return
     for statement in _SQLITE if db.db.dialect == "sqlite" else _FABRIC:

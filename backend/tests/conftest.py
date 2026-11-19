@@ -7,6 +7,7 @@ if _db.exists():
     _db.unlink()
 
 os.environ["ENVIRONMENT"] = "development"
+os.environ["DATABASE_PROVIDER"] = "sqlite"
 os.environ["FABRIC_LOCAL_SQLITE"] = "true"
 os.environ["FABRIC_LOCAL_SQLITE_PATH"] = str(_db)
 os.environ["AUTH_ENFORCE"] = "false"

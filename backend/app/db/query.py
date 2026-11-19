@@ -18,6 +18,9 @@ from typing import Any
 
 from app.db.errors import FabricDataError
 from app.db.fabric_database import FabricDatabase
+from app.db.supabase_database import SupabaseDatabase
+
+Database = FabricDatabase | SupabaseDatabase
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -75,9 +78,10 @@ class _Embed:
 
 @dataclass
 class Query:
-    db: FabricDatabase
+    db: Database
     table_name: str
     operation: str = "select"
+    conflict_columns: str = ""
     columns: str = "*"
     count_mode: str | None = None
     filters: list[_Filter] = field(default_factory=list)
@@ -112,7 +116,7 @@ class Query:
     def upsert(self, payload: dict | list, on_conflict: str | None = None) -> "Query":
         self.operation = "upsert"
         self.payload = payload
-        self.columns = on_conflict or ""
+        self.conflict_columns = on_conflict or ""
         return self
 
     def eq(self, column: str, value: Any) -> "Query":
@@ -230,10 +234,23 @@ class Query:
 
     def _upsert_one(self, row: dict[str, Any]) -> QueryResult:
         pk = _pk(self.table_name)
-        if self.columns:
-            pk = [part.strip() for part in self.columns.split(",") if part.strip()]
+        if self.conflict_columns:
+            pk = [part.strip() for part in self.conflict_columns.split(",") if part.strip()]
         if pk == ["id"] and not row.get("id"):
             row["id"] = str(uuid.uuid4())
+        if self.db.dialect == "postgresql":
+            columns = [_qident(c, self.db) for c in row]
+            keys = [_qident(c, self.db) for c in pk]
+            updates = [c for c in columns if c not in keys] or keys[:1]
+            assignments = ", ".join(f"{c} = EXCLUDED.{c}" for c in updates)
+            marks = ", ".join("?" for _ in row)
+            saved = self.db.execute(
+                f"INSERT INTO {_qtable(self.table_name, self.db)} ({', '.join(columns)}) "
+                f"VALUES ({marks}) ON CONFLICT ({', '.join(keys)}) "
+                f"DO UPDATE SET {assignments} RETURNING *",
+                [_bind(self.table_name, c, v) for c, v in row.items()],
+            )
+            return QueryResult([_shape_row(self.table_name, item, []) for item in saved])
         existing = self._fetch_existing(row, pk)
         if existing:
             changes = {k: v for k, v in row.items() if k not in pk}
@@ -367,23 +384,23 @@ class Query:
         if self.range_start is not None and self.range_end is not None:
             offset = self.range_start
             fetch = self.range_end - self.range_start + 1
-            if self.db.dialect == "sqlite":
+            if self.db.dialect in ("sqlite", "postgresql"):
                 return "LIMIT ? OFFSET ?", [fetch, offset]
             prefix = "" if order_sql else "ORDER BY (SELECT NULL) "
             return f"{prefix}OFFSET ? ROWS FETCH NEXT ? ROWS ONLY", [offset, fetch]
         if self.row_limit is not None:
-            if self.db.dialect == "sqlite":
+            if self.db.dialect in ("sqlite", "postgresql"):
                 return "LIMIT ?", [self.row_limit]
             prefix = "" if order_sql else "ORDER BY (SELECT NULL) "
             return f"{prefix}OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY", [self.row_limit]
         return "", []
 
 
-class FabricClient:
+class DatabaseClient:
     """Process-wide gateway. Call sites use .table(name) and never open drivers."""
 
-    def __init__(self, database: FabricDatabase | None = None) -> None:
-        self.db = database or FabricDatabase()
+    def __init__(self, database: Database) -> None:
+        self.db = database
 
     def table(self, name: str) -> Query:
         _validate_ident(name)
@@ -407,21 +424,21 @@ def _validate_columns(columns: list[str]) -> None:
         _validate_ident(column)
 
 
-def _qident(name: str, db: FabricDatabase) -> str:
+def _qident(name: str, db: Database) -> str:
     _validate_ident(name)
-    if db.dialect == "sqlite":
+    if db.dialect in ("sqlite", "postgresql"):
         return f'"{name}"'
     return f"[{name}]"
 
 
-def _qtable(name: str, db: FabricDatabase) -> str:
+def _qtable(name: str, db: Database) -> str:
     _validate_ident(name)
-    if db.dialect == "sqlite":
+    if db.dialect in ("sqlite", "postgresql"):
         return f'"{name}"'
     return f"[dbo].[{name}]"
 
 
-def _filter_column(table: str, column: str, embeds: list[_Embed], db: FabricDatabase) -> str:
+def _filter_column(table: str, column: str, embeds: list[_Embed], db: Database) -> str:
     if "." in column:
         relation, remote = column.split(".", 1)
         _validate_ident(relation)

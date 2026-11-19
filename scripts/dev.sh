@@ -4,10 +4,8 @@ set -e
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "🌱 Seeding database..."
 cd "$ROOT/backend"
 source venv/bin/activate
-python -m scripts.seed_database
 
 echo ""
 echo "🚀 Starting backend on http://localhost:8000"

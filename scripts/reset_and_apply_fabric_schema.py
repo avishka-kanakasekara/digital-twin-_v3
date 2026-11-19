@@ -12,15 +12,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.database import get_db, reset_db_clients
+from app.db.fabric_database import FabricDatabase
 from app.db.fabric_database import _ensure_openssl
 from apply_fabric_schema import SCRIPT_ORDER, _batches
 
 
 def main() -> int:
     _ensure_openssl()
-    reset_db_clients()
-    db = get_db().db
+    db = FabricDatabase()
     print(db.health())
 
     print("Dropping existing dbo tables...")
