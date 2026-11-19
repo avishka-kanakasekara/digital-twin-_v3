@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.config import settings
-from app.database import get_db
+from app.db.fabric_database import FabricDatabase
 
 
 def main() -> int:
@@ -27,7 +27,7 @@ def main() -> int:
     else:
         print("Mode: Microsoft Fabric SQL Database")
     try:
-        result = get_db().db.health()
+        result = FabricDatabase().health()
     except Exception as exc:
         print(f"Connection failed: {exc}")
         print("REQUIRES FABRIC CREDENTIALS" if not settings.use_local_sqlite else "LOCAL CONNECTION FAILED")

@@ -142,29 +142,30 @@ def ensure_schema(db: Client) -> None:
     global _SCHEMA_READY
     if _SCHEMA_READY:
         return
-    for statement in _SQLITE if db.db.dialect == "sqlite" else _FABRIC:
-        db.db.execute(statement)
-    for name, sqlite_type, fabric_type in _OPTION_COLUMNS:
-        if db.db.dialect == "sqlite":
-            sql = f"ALTER TABLE org_team_builder_options ADD COLUMN {name} {sqlite_type}"
-        else:
-            sql = (
-                f"IF COL_LENGTH(N'dbo.org_team_builder_options', N'{name}') IS NULL "
-                f"ALTER TABLE [dbo].[org_team_builder_options] ADD [{name}] {fabric_type}"
-            )
+    if db.db.dialect != "postgresql":
+        for statement in _SQLITE if db.db.dialect == "sqlite" else _FABRIC:
+            db.db.execute(statement)
+        for name, sqlite_type, fabric_type in _OPTION_COLUMNS:
+            if db.db.dialect == "sqlite":
+                sql = f"ALTER TABLE org_team_builder_options ADD COLUMN {name} {sqlite_type}"
+            else:
+                sql = (
+                    f"IF COL_LENGTH(N'dbo.org_team_builder_options', N'{name}') IS NULL "
+                    f"ALTER TABLE [dbo].[org_team_builder_options] ADD [{name}] {fabric_type}"
+                )
+            try:
+                db.db.execute(sql)
+            except Exception:
+                continue
+        index_sql = (
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_tb_assign_option_employee ON team_builder_assignments (option_id, employee_id)"
+            if db.db.dialect == "sqlite"
+            else "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ux_tb_assign_option_employee') CREATE UNIQUE INDEX [ux_tb_assign_option_employee] ON [dbo].[team_builder_assignments] ([option_id], [employee_id])"
+        )
         try:
-            db.db.execute(sql)
+            db.db.execute(index_sql)
         except Exception:
-            continue
-    index_sql = (
-        "CREATE UNIQUE INDEX IF NOT EXISTS ux_tb_assign_option_employee ON team_builder_assignments (option_id, employee_id)"
-        if db.db.dialect == "sqlite"
-        else "IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ux_tb_assign_option_employee') CREATE UNIQUE INDEX [ux_tb_assign_option_employee] ON [dbo].[team_builder_assignments] ([option_id], [employee_id])"
-    )
-    try:
-        db.db.execute(index_sql)
-    except Exception:
-        pass
+            pass
     if not (db.table("skill_aliases").select("id").limit(1).execute().data or []):
         now = _now()
         for canonical, alias in DEFAULT_ALIASES:

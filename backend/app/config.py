@@ -1,7 +1,7 @@
 from __future__ import annotations
 """
 Application configuration — loads from .env file or environment variables.
-Operational data is stored in Microsoft Fabric SQL Database.
+Operational data is stored in Supabase PostgreSQL.
 """
 
 from pathlib import Path
@@ -15,7 +15,13 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
 class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
 
-    # Microsoft Fabric SQL Database (transactional)
+    DATABASE_PROVIDER: str = "supabase"
+    SUPABASE_DB_URL: str = ""
+    SUPABASE_URL: str = "https://khrchkotgqbpzhurmbju.supabase.co"
+    SUPABASE_ANON_KEY: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+
+    # Legacy source connection for Fabric export tools.
     FABRIC_SQL_SERVER: str = ""
     FABRIC_SQL_DATABASE: str = ""
     FABRIC_ODBC_DRIVER: str = "ODBC Driver 18 for SQL Server"
@@ -91,7 +97,7 @@ class Settings(BaseSettings):
         return bool(self.ONELAKE_WORKSPACE and self.ONELAKE_LAKEHOUSE)
 
     model_config = {
-        "env_file": str(BACKEND_DIR / ".env"),
+        "env_file": (BACKEND_DIR / ".env", BACKEND_DIR / ".env.local"),
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }

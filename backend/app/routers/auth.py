@@ -68,22 +68,25 @@ def register(req: RegisterRequest):
         "initials": initials,
         "department": department,
         "role": role,
-        "access_role": "employee",
         "employment_status": "Active",
     }
+    if sb.db.dialect != "postgresql":
+        emp_data["access_role"] = "employee"
+
     with sb.transaction():
         sb.table("employees").insert(emp_data).execute()
         sb.table("gamification_profiles").insert({
             "id": str(uuid.uuid4()),
             "employee_id": employee_id,
         }).execute()
-        sb.table("user_identities").insert({
-            "id": str(uuid.uuid4()),
-            "employee_id": employee_id,
-            "provider": "local",
-            "subject": employee_id,
-            "email": email,
-        }).execute()
+        if sb.db.dialect != "postgresql":
+            sb.table("user_identities").insert({
+                "id": str(uuid.uuid4()),
+                "employee_id": employee_id,
+                "provider": "local",
+                "subject": employee_id,
+                "email": email,
+            }).execute()
 
     token = create_access_token({"sub": employee_id})
     return TokenResponse(

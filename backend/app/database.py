@@ -1,7 +1,7 @@
 """
 Database access entry point.
 
-Operational reads and writes go through the Fabric SQL gateway.
+Operational reads and writes go through the configured database gateway.
 `get_db` is the dependency and service constructor used across the API.
 """
 

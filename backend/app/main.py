@@ -18,7 +18,19 @@ from app.db.errors import FabricDataError, StorageError
 from app.services.authorization import assert_employee_access, settings_enforce
 
 # Import all routers
-from app.routers import auth, employees, gamification, learning, career, organization, departments, workforce_intelligence
+from app.routers import (
+    auth,
+    employees,
+    gamification,
+    learning,
+    learning_recommendation,
+    career,
+    career_coach_plan,
+    organization,
+    departments,
+    workforce_intelligence,
+    succession,
+)
 
 
 def _clear_broken_local_proxies() -> None:
@@ -136,6 +148,7 @@ app.include_router(career_coach_plan.router)
 app.include_router(organization.router)
 app.include_router(departments.router)
 app.include_router(workforce_intelligence.router)
+app.include_router(succession.router)
 
 
 @app.get("/", tags=["Health"])
@@ -144,14 +157,14 @@ async def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "database": "fabric",
+        "database": settings.DATABASE_PROVIDER,
         "docs": "/docs",
     }
 
 
 @app.get("/health", tags=["Health"])
 async def health():
-    return {"status": "healthy", "database": "fabric"}
+    return {"status": "healthy", "database": settings.DATABASE_PROVIDER}
 
 
 @app.get("/health/database", tags=["Health"])
@@ -162,7 +175,7 @@ async def health_database():
     except Exception:
         return JSONResponse(
             status_code=503,
-            content={"status": "unavailable", "database": "fabric"},
+            content={"status": "unavailable", "database": settings.DATABASE_PROVIDER},
         )
 
 

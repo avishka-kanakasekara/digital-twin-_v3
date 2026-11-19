@@ -44,6 +44,8 @@ def _profile_id(employee_id: str, target_role: str) -> str:
 
 def ensure_schema(db: Client) -> None:
     global _SCHEMA_READY
+    if db.db.dialect == "postgresql":
+        return
     if _SCHEMA_READY:
         return
     if db.db.dialect == "sqlite":

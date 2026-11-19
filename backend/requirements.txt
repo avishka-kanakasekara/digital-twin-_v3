@@ -5,7 +5,11 @@ pydantic==2.8.2
 pydantic-settings==2.4.0
 python-dotenv==1.1.1
 
-# Database — Microsoft Fabric SQL Database (ODBC Driver 18 + Entra)
+# Supabase PostgreSQL
+supabase>=2.34.0
+psycopg2-binary==2.9.12
+
+# Legacy Fabric export and optional OneLake storage
 pyodbc>=5.2.0
 azure-identity>=1.19.0
 azure-storage-file-datalake>=12.17.0

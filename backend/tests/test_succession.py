@@ -342,3 +342,12 @@ def test_handover_validation_waits_for_finished_tasks(world):
     signed = succession.validate_plan(db, plan["id"], "HR", "Walked the ledger close with the backup.")
     assert signed["assurance_status"] == "Verified"
     assert signed["status"] == "Complete"
+
+
+def test_knowledge_transfer_plan_can_be_generated_before_a_slate(world):
+    db = world["db"]
+    plan = succession.open_role_plan(db, world["role"]["id"], "HR", use_ai=False)
+    assert plan["total_tasks"] >= 4
+    assert plan["drafted_by"] == "Template"
+    again = succession.open_role_plan(db, world["role"]["id"], "HR", use_ai=False)
+    assert again["id"] == plan["id"]

@@ -1,132 +1,31 @@
-# Digital Twin v3 — Setup Guide
+# Digital Twin v3 setup
 
-Personal dashboard with **Career Coach**, **Gamification Hub**, and **Learning Hub** — all powered by a FastAPI + SQLite backend.
+The React frontend calls FastAPI. FastAPI uses Supabase PostgreSQL for operational data, including employee accounts. Login uses the existing application JWT. Uploaded files use the existing configured storage.
 
----
+## Configure the backend
 
-## Architecture
+1. In the Supabase project, open **Connect** and copy the PostgreSQL **Session pooler** URI. Replace the password placeholder with the URL-encoded database password and require TLS with `sslmode=require`.
+2. Set `SUPABASE_DB_URL` in the git-ignored `backend/.env.local` or in the deployment secret manager. The backend defaults to `DATABASE_PROVIDER=supabase`. The frontend needs only `VITE_API_URL`.
+3. For a fresh project, apply `backend/migrations/supabase_edt.sql` in one transaction before starting the API. For example, with the URI exported in your shell, run `psql "$SUPABASE_DB_URL" -1 -v ON_ERROR_STOP=1 -f backend/migrations/supabase_edt.sql` from the repository root. The original digitaltwin Supabase project already has this schema.
+4. Configure a strong application `SECRET_KEY` and use `ENVIRONMENT=production` for a deployment.
 
-```
-React Frontend (Vite :5173)
-        │
-        ▼  HTTP REST
-FastAPI Backend (:8000)
-        │
-        ▼
-SQLite Database (backend/digitaltwin.db)
-```
+## Import the current Fabric records
 
-| Page | Route | Backend API |
-|------|-------|-------------|
-| Career Coach | `/career-coach` | `/api/career/*` |
-| Gamification Hub | `/gamification-hub` | `/api/gamification/*` |
-| Learning Hub | `/learning-hub` | `/api/learning/*` |
+Run this **before starting the new backend**. Startup populates the learning catalogue. The importer requires empty destination tables and leaves the older Supabase public tables in place.
 
----
-
-## Quick Start
-
-### 1. Backend setup
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python -m scripts.seed_database # Creates DB + seeds demo data
-uvicorn app.main:app --reload --port 8000
-```
-
-API docs: http://localhost:8000/docs
-
-### 2. Frontend setup
-
-```bash
-# From project root
-npm install
-npm run dev
-```
-
-App: http://localhost:5173
-
-### 3. One-command start (both servers)
-
-```bash
-chmod +x scripts/dev.sh
-./scripts/dev.sh
-```
-
----
-
-## Environment
-
-Root `.env`:
-```
-VITE_API_URL=http://localhost:8000
-```
-
----
-
-## Demo User
-
-After seeding, the app loads **Alex Carter** by default:
-
-- **Email:** alex.carter@company.com
-- **Password:** password123
-
-All hub pages (career goals, XP, learning paths, certifications, etc.) are seeded for this user.
-
----
-
-## API Endpoints (Key)
-
-### Career Coach
-- `GET /api/career/{id}/goal` — Active career goal
-- `GET /api/career/{id}/roadmap` — Career roadmap steps
-- `GET /api/career/{id}/skill-gaps` — Skill gap analysis
-- `GET /api/career/{id}/recommendations` — AI course recommendations
-- `POST /api/career/{id}/goal` — Create/update goal
-- `GET /api/career/market-trends` — Market demand trends
-
-### Gamification Hub
-- `GET /api/gamification/{id}/profile` — XP, level, streak
-- `GET /api/gamification/leaderboard?current_employee_id={id}` — Leaderboard
-- `GET /api/gamification/{id}/challenges` — Active challenges
-- `GET /api/gamification/{id}/achievements` — Achievement gallery
-- `GET /api/gamification/{id}/xp-history` — XP chart data
-- `GET /api/gamification/{id}/streak` — Activity streak calendar
-- `GET /api/gamification/{id}/activity` — Recent XP activity
-- `GET /api/gamification/rewards` — Reward store
-
-### Learning Hub
-- `GET /api/learning/{id}/profile` — Learner stats
-- `GET /api/learning/{id}/paths` — Learning paths
-- `GET /api/learning/{id}/skill-gaps` — Skill gaps vs target role
-- `GET /api/learning/{id}/certifications` — Certification tracker
-- `GET /api/learning/{id}/feed` — AI learning feed
-- `GET /api/learning/{id}/schedule` — Weekly schedule
-- `GET /api/learning/{id}/hours` — Monthly hours chart
-- `GET /api/learning/courses?employee_id={id}` — Course library
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| Pages show "Failed to load" | Start backend: `uvicorn app.main:app --reload --port 8000` |
-| Empty data on pages | Re-seed: `cd backend && python -m scripts.seed_database` |
-| CORS errors | Confirm `VITE_API_URL=http://localhost:8000` in `.env` |
-| Wrong employee data | Clear localStorage: `localStorage.removeItem('current_employee_id')` and refresh |
-
----
-
-## Re-seed Database
+Pause application writes for the cutover. With the existing Fabric SQL and Microsoft Entra settings in the backend environment, run these commands on a machine with the Microsoft ODBC Driver 18 and access to both databases.
 
 ```bash
 cd backend
 source venv/bin/activate
-python -m scripts.seed_database
+python -m pip install -r requirements.txt
+python -m scripts.import_fabric_to_supabase
 ```
 
-This drops and recreates all tables with fresh demo data.
+The importer reads the live Fabric dbo tables, preserves identifiers and password hashes, verifies table counts and commits all rows together. An unmapped table, incompatible column, constraint failure or populated destination stops the import. After a failed import the destination transaction rolls back. Keep the Fabric source available until you verify sign-in and employee records in the new backend.
+
+## Run locally
+
+From `backend`, activate the virtual environment, install `requirements.txt` and run `python -m uvicorn app.main:app --port 8000`. From the repository root run `npm install` and `npm run dev`.
+
+Check `http://localhost:8000/health/database` for a successful Supabase connection. Open `http://localhost:5173` and sign in using an imported account. For isolated regression tests, run `python -m pytest -q` from `backend`. Those tests create a dedicated SQLite database.
